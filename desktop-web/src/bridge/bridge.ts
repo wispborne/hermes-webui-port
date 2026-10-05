@@ -364,7 +364,7 @@ export function createWebBridge(): HermesDesktop {
           connected: false,
           error:
             `${base} is on a different origin than this page, so the browser can't keep its login. ` +
-            'Serve the web app from that gateway (HERMES_WEB_DIST), proxy it onto this origin, or use a session token.'
+            'Serve the web UI and that gateway from one address (see the Caddyfile), or use a session token.'
         }
       }
 

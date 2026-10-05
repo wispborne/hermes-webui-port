@@ -1,0 +1,22 @@
+{
+	admin off
+}
+
+:{$PORT:8080} {
+	encode zstd gzip
+
+	# The Hermes dashboard's routes: the REST API and its WebSockets, login and
+	# logout, and the login page.
+	@hermes path /api /api/* /auth /auth/* /login /login/*
+	handle @hermes {
+		reverse_proxy {$HERMES_DASHBOARD_URL}
+	}
+
+	# The web UI.
+	handle {
+		root * /srv
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		header / Cache-Control "no-cache"
+		file_server
+	}
+}

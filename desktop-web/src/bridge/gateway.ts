@@ -4,10 +4,10 @@
  *
  * A browser can only keep a gateway login when it is on the same origin as the
  * page (the gateway's session cookie is HttpOnly, SameSite=Lax and host-only,
- * and its CORS allow-list is loopback only). So the normal setup is: the
- * gateway serves this app (`HERMES_WEB_DIST`), or the Vite dev server proxies
- * `/api`, `/auth` and `/login` to it. In both cases the gateway URL is simply
- * the page's own origin, and nothing needs configuring.
+ * and its CORS allow-list is loopback only). So a web server in front of both
+ * serves this app and forwards `/api`, `/auth` and `/login` to the gateway
+ * (the Caddyfile, or the Vite dev server). The gateway URL is then simply the
+ * page's own origin, and nothing needs configuring.
  *
  * Auth modes, matching `hermes_cli/web_server_dashboard.py`:
  *  - Token: the gateway injects `window.__HERMES_SESSION_TOKEN__` into the

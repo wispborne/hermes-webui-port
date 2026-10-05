@@ -4,22 +4,23 @@
 #   npm run sync-upstream -- v2026.9.24   # a release tag (match your gateway)
 #   npm run sync-upstream                 # upstream main
 #
-# `main` holds the hermes-agent files the UI is built from: one snapshot commit
-# per version, each with only the files the build needs (picked by
-# upstream.mjs). This script adds the next snapshot to `main`, merges it into
-# `web`, and regenerates the root package.json and lockfile from upstream's.
-# Only the requested upstream commit is downloaded.
+# The `hermes-agent` branch holds the hermes-agent files the UI is built from:
+# one snapshot commit per version, each with only the files the build needs
+# (picked by upstream.mjs). This script adds the next snapshot to it, merges it
+# into `main`, and regenerates the root package.json and lockfile from
+# upstream's. Only the requested upstream commit is downloaded.
 #
-# Run on a clean `web` branch, with any dev server stopped (the install
+# Run on a clean `main` branch, with any dev server stopped (the install
 # replaces node_modules). It does not push.
 set -euo pipefail
 
 ref=${1:-main}
+snapshots=refs/heads/hermes-agent
 
 cd "$(git rev-parse --show-toplevel)"
 
-if [ "$(git branch --show-current)" != web ]; then
-  echo "Switch to the web branch first." >&2
+if [ "$(git branch --show-current)" != main ]; then
+  echo "Switch to the main branch first." >&2
   exit 1
 fi
 
@@ -41,27 +42,28 @@ date=$(git log -1 --format=%cs "$upstream")
 git fetch origin
 
 # Start from the newest snapshot, whether it was made here or on another machine.
-if git rev-parse -q --verify refs/remotes/origin/main >/dev/null; then
-  if git merge-base --is-ancestor refs/heads/main refs/remotes/origin/main; then
-    git update-ref refs/heads/main refs/remotes/origin/main
-  elif ! git merge-base --is-ancestor refs/remotes/origin/main refs/heads/main; then
-    echo "Local main and origin/main have split. Sort that out by hand first." >&2
+if git rev-parse -q --verify refs/remotes/origin/hermes-agent >/dev/null; then
+  if ! git rev-parse -q --verify $snapshots >/dev/null ||
+    git merge-base --is-ancestor $snapshots refs/remotes/origin/hermes-agent; then
+    git update-ref $snapshots refs/remotes/origin/hermes-agent
+  elif ! git merge-base --is-ancestor refs/remotes/origin/hermes-agent $snapshots; then
+    echo "Local hermes-agent and origin/hermes-agent have split. Sort that out by hand first." >&2
     exit 1
   fi
 fi
 
 tree=$(node desktop-web/scripts/upstream.mjs tree "$upstream")
 
-if [ "$tree" = "$(git rev-parse 'refs/heads/main^{tree}')" ]; then
-  echo "main already matches upstream $ref (${upstream:0:10})."
+if [ "$tree" = "$(git rev-parse "$snapshots^{tree}")" ]; then
+  echo "hermes-agent already matches upstream $ref (${upstream:0:10})."
 else
-  snapshot=$(git commit-tree "$tree" -p refs/heads/main \
+  snapshot=$(git commit-tree "$tree" -p $snapshots \
     -m "Upstream hermes-agent $ref at ${upstream:0:10} ($date)")
-  git update-ref refs/heads/main "$snapshot"
-  echo "main now matches upstream $ref (${upstream:0:10}, $date)."
+  git update-ref $snapshots "$snapshot"
+  echo "hermes-agent now matches upstream $ref (${upstream:0:10}, $date)."
 fi
 
-if ! git merge --no-ff --no-commit refs/heads/main; then
+if ! git merge --no-ff --no-commit $snapshots; then
   echo "The merge has conflicts. Fix them, commit, then run this script again with the same version." >&2
   exit 1
 fi
@@ -88,4 +90,4 @@ npm run typecheck
 npm run build
 
 echo
-echo "Done. To publish: git push origin main web"
+echo "Done. To publish: git push origin hermes-agent main"
