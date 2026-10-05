@@ -37,6 +37,18 @@ function git(...args: string[]): string {
   }
 }
 
+/**
+ * The upstream snapshot this build is on, as "<date>-<upstream commit>", e.g.
+ * "2026-10-04-27c02f6326". Read from the newest snapshot commit's message
+ * (see scripts/sync-upstream.sh), since this repo has no upstream history or tags.
+ */
+function upstreamVersion(): string {
+  const subject = git('log', '-1', '--grep=^Upstream hermes-agent at ', '--format=%s', 'HEAD')
+  const match = subject.match(/at ([0-9a-f]+) \((\d{4}-\d{2}-\d{2})\)/)
+
+  return match ? `${match[2]}-${match[1]}` : 'dev'
+}
+
 function webEntry(): Plugin {
   return {
     name: 'hermes-web:entry',
@@ -105,9 +117,7 @@ export default defineConfig(async (env: ConfigEnv) => {
     cacheDir: path.resolve(here, 'node_modules/.vite'),
     plugins: [webEntry(), gatewayBootstrap()],
     define: {
-      // Last upstream release, commits since it, and this commit, e.g.
-      // "v2026.9.24-12-g7653424356".
-      __HERMES_WEB_VERSION__: JSON.stringify(git('describe', '--tags', '--match', 'v20[0-9][0-9].*') || 'dev'),
+      __HERMES_WEB_VERSION__: JSON.stringify(upstreamVersion()),
       __HERMES_WEB_COMMIT__: JSON.stringify(git('rev-parse', '--short', 'HEAD'))
     },
     build: {

@@ -27,7 +27,7 @@ Keep it that way where possible, because every change to an upstream file is a p
 - `web` is `main` plus this folder. Work happens here.
 
 Leaving out upstream's history keeps this repo around 80 MB instead of over 1 GB.
-Upstream's history is still fetched to your machine (the `upstream` remote) for syncing, but never pushed.
+Syncing downloads only upstream's newest commit, so a local copy stays small too.
 
 ## Setup
 

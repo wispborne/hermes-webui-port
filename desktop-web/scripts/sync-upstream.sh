@@ -5,8 +5,7 @@
 # This fork does not carry upstream's history. `main` is a chain of snapshot
 # commits, one per sync, each holding upstream's files as they were at that
 # moment. This script adds the next snapshot to `main` and merges it into
-# `web`. Upstream's history stays on your machine (the `upstream` remote) and
-# is never pushed.
+# `web`. Only upstream's newest commit is downloaded, never its history.
 #
 # Run from anywhere in the repo, on a clean `web` branch, with any dev server
 # stopped (the install replaces node_modules). It does not push.
@@ -27,7 +26,7 @@ fi
 git remote get-url upstream >/dev/null 2>&1 ||
   git remote add upstream https://github.com/NousResearch/hermes-agent.git
 
-git fetch upstream main
+git fetch --depth 1 --no-tags upstream main
 git fetch origin
 
 # Start from the newest snapshot, whether it was made here or on another machine.
