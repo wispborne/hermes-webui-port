@@ -12,6 +12,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -38,15 +39,15 @@ function git(...args: string[]): string {
 }
 
 /**
- * The upstream snapshot this build is on, as "<date>-<upstream commit>", e.g.
- * "2026-10-04-27c02f6326". Read from the newest snapshot commit's message
- * (see scripts/sync-upstream.sh), since this repo has no upstream history or tags.
+ * The upstream version this build is on, e.g. "v2026.9.24". Written to
+ * UPSTREAM_VERSION by scripts/sync-upstream.sh.
  */
 function upstreamVersion(): string {
-  const subject = git('log', '-1', '--grep=^Upstream hermes-agent at ', '--format=%s', 'HEAD')
-  const match = subject.match(/at ([0-9a-f]+) \((\d{4}-\d{2}-\d{2})\)/)
-
-  return match ? `${match[2]}-${match[1]}` : 'dev'
+  try {
+    return fs.readFileSync(path.resolve(here, 'UPSTREAM_VERSION'), 'utf8').trim() || 'dev'
+  } catch {
+    return 'dev'
+  }
 }
 
 function webEntry(): Plugin {
