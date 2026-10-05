@@ -5,7 +5,7 @@ It replaces [przbadu/hermes-ui](https://github.com/przbadu/hermes-ui), which cop
 
 Here, the desktop code is not copied.
 This repo is a fork of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent), and this folder only adds a browser build on top of it.
-Pulling in upstream changes is a normal `git merge`.
+Pulling in upstream changes is one script and a normal `git merge`.
 
 ## How it works
 
@@ -23,8 +23,11 @@ Keep it that way where possible, because every change to an upstream file is a p
 
 ## Branches
 
-- `main` is an exact copy of upstream `main`. Don't commit to it.
+- `main` holds upstream's files without upstream's history: one snapshot commit per sync, each matching upstream `main` at that moment. Don't commit to it by hand.
 - `web` is `main` plus this folder. Work happens here.
+
+Leaving out upstream's history keeps this repo around 80 MB instead of over 1 GB.
+Upstream's history is still fetched to your machine (the `upstream` remote) for syncing, but never pushed.
 
 ## Setup
 
@@ -77,15 +80,20 @@ When upstream adds a required method to the bridge, this fails and names the met
 
 ## Pulling in upstream changes
 
+On the `web` branch, with no uncommitted changes:
+
 ```bash
-git fetch upstream
-git checkout main && git merge --ff-only upstream/main && git push origin main
-git checkout web && git merge main
-ELECTRON_SKIP_BINARY_DOWNLOAD=1 npx -y npm@11 ci --ignore-scripts
-npm run typecheck --prefix desktop-web
-npm run build --prefix desktop-web
-git push origin web
+desktop-web/scripts/sync-upstream.sh
 ```
+
+It adds a new snapshot of upstream to `main`, merges `main` into `web`, then installs packages, type-checks and builds.
+It doesn't push. When it finishes cleanly:
+
+```bash
+git push origin main web
+```
+
+If the merge stops on a conflict, fix it, commit, then run the type check and build by hand.
 
 If the type check fails, upstream changed the bridge.
 Compare `apps/desktop/electron/preload.ts` (the Electron version) with `src/bridge/bridge.ts` and add the missing piece.
