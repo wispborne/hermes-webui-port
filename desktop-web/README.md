@@ -18,7 +18,7 @@ So the browser build only needs a small replacement bridge:
 - `src/main.ts`: installs the bridge, then loads the unchanged desktop entry point.
 - `vite.config.ts`: reuses the desktop app's own Vite config, `index.html` and `public/` folder, and points the page's script at `src/main.ts`.
 
-No file outside `desktop-web/` is changed.
+No upstream file is changed. The only other addition is `.github/README.md`, the short page GitHub shows for this repo.
 Keep it that way where possible, because every change to an upstream file is a possible merge conflict later.
 
 ## Branches
@@ -71,6 +71,8 @@ That setting is also the `Host` and `Origin` the gateway accepts, so set it to t
 
 Build the UI from the same Hermes version your gateway runs. See "Pulling in upstream changes" below.
 
+Known to work: building in `node:24-bookworm-slim`, serving `dist/` from `caddy:2-alpine`, and Caddy proxying the paths above to a `nousresearch/hermes-agent` dashboard with password login.
+
 ## Run it locally
 
 You need a running gateway: `hermes dashboard` (default port 9119).
@@ -82,7 +84,8 @@ npm run dev --prefix desktop-web
 ```
 
 Open http://localhost:5175.
-The dev server forwards `/api`, `/auth` and `/login` to the gateway, and copies the gateway's session token into the page.
+The dev server forwards `/api`, `/auth` and `/login` to the gateway.
+If the gateway's login is off, it also copies the gateway's session token into the page. If login is on, sign in through the app.
 Set `HERMES_GATEWAY_URL` to use a gateway other than `http://127.0.0.1:9119`.
 
 **Served by the gateway itself**, in place of its own dashboard:
@@ -115,10 +118,11 @@ It doesn't push. When it finishes cleanly:
 git push origin main web
 ```
 
-If the merge stops on a conflict, fix it, commit, then run the type check and build by hand.
+If the merge stops on a conflict, fix it, commit, then run the script again with the same version. The second run finishes the version label, install, type check and build.
 
-If the type check fails, upstream changed the bridge.
-Compare `apps/desktop/electron/preload.ts` (the Electron version) with `src/bridge/bridge.ts` and add the missing piece.
+If the type check fails, upstream changed the bridge declaration in `apps/desktop/src/global.d.ts`.
+A newer version may need a new field: compare `apps/desktop/electron/preload.ts` (the Electron version) with `src/bridge/bridge.ts` and add it.
+An older version may lack a field the bridge has: remove it from `src/bridge/bridge.ts`.
 
 If the build fails with "apps/desktop/index.html no longer loads /src/main.tsx", upstream renamed its entry file.
 Update `webEntry()` in `vite.config.ts`.
