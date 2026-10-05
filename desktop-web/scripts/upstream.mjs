@@ -27,6 +27,10 @@ const KEEP_FILES = [
 
 const KEEP_DIRS = ['apps/desktop/src/', 'apps/desktop/public/', 'apps/shared/']
 
+// Tests and their helpers. Some import fixtures from parts of upstream that
+// aren't kept, and none of them are part of the build.
+const TEST_FILE = /(\.(test|spec)\.[cm]?tsx?$|\/test\/|\/__tests__\/|\/test-utils\.tsx?$)/
+
 // The UI imports a few type files from the Electron folder. These are found by
 // following imports, so a newer upstream that imports more still builds.
 const ELECTRON_DIR = 'apps/desktop/electron/'
@@ -75,7 +79,10 @@ function keptEntries(commit) {
   const kept = new Map()
 
   for (const entry of entries) {
-    if (KEEP_FILES.includes(entry.file) || KEEP_DIRS.some(dir => entry.file.startsWith(dir))) {
+    if (
+      KEEP_FILES.includes(entry.file) ||
+      (KEEP_DIRS.some(dir => entry.file.startsWith(dir)) && !TEST_FILE.test(entry.file))
+    ) {
       kept.set(entry.file, entry)
     }
   }
@@ -127,8 +134,50 @@ function buildTree(commit) {
   }
 }
 
+const BARE_IMPORT = /(?:from|import)\s*\(?\s*['"]([^'"./][^'"]*)['"]/g
+
+/**
+ * Packages the kept code imports without declaring them. Upstream sometimes
+ * relies on a package that another upstream workspace installs; with those
+ * workspaces gone, the build needs it listed. Pinned to upstream's lockfile.
+ */
+function undeclaredPackages(commit, lock) {
+  const declared = new Set()
+
+  for (const file of ['apps/desktop/package.json', 'apps/shared/package.json']) {
+    const pkg = JSON.parse(git(['show', `${commit}:${file}`]))
+
+    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+      Object.keys(pkg[field] ?? {}).forEach(name => declared.add(name))
+    }
+
+    declared.add(pkg.name)
+  }
+
+  const sources = keptEntries(commit).filter(entry => /\.(ts|tsx|mts|cts)$/.test(entry.file))
+  const missing = {}
+
+  for (const text of readBlobs(sources.map(entry => entry.id))) {
+    for (const [, spec] of text.matchAll(BARE_IMPORT)) {
+      if (spec.startsWith('@/') || spec.startsWith('@hermes/') || spec.includes(':')) {
+        continue
+      }
+
+      const name = spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]
+      const version = lock.packages?.[`node_modules/${name}`]?.version
+
+      if (!declared.has(name) && version) {
+        missing[name] = version
+      }
+    }
+  }
+
+  return Object.fromEntries(Object.entries(missing).sort())
+}
+
 function writePackage(commit) {
   const upstream = JSON.parse(git(['show', `${commit}:package.json`]))
+  const lockText = git(['show', `${commit}:package-lock.json`])
 
   const pkg = {
     name: 'hermes-web-ui',
@@ -143,13 +192,15 @@ function writePackage(commit) {
       typecheck: 'npm run typecheck --prefix desktop-web',
       'sync-upstream': 'bash desktop-web/scripts/sync-upstream.sh'
     },
+    // Filled in on every sync, see undeclaredPackages().
+    dependencies: undeclaredPackages(commit, JSON.parse(lockText)),
     // Copied from upstream's root package.json on every sync.
     engines: upstream.engines,
     overrides: upstream.overrides
   }
 
   fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n')
-  fs.writeFileSync('package-lock.json', git(['show', `${commit}:package-lock.json`]))
+  fs.writeFileSync('package-lock.json', lockText)
 }
 
 const [command, commit] = process.argv.slice(2)
