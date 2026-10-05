@@ -90,4 +90,14 @@ npm run typecheck
 npm run build
 
 echo
-echo "Done. To publish: git push origin hermes-agent main"
+
+# Release syncs are tagged ui-<agent tag>. A later fix for the same agent
+# version moves the tag, so deployments that follow it pick the fix up.
+if [ "$ref" = main ]; then
+  echo "Done. To publish: git push origin hermes-agent main"
+else
+  git tag -f "ui-$ref" HEAD
+  echo "Done. Tagged ui-$ref. To publish:"
+  echo "  git push origin hermes-agent main"
+  echo "  git push --force origin ui-$ref"
+fi

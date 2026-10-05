@@ -72,7 +72,9 @@ services:
     restart: unless-stopped
 ```
 
-Replace `#main` with a commit hash to pin a version.
+Each Hermes release has a matching tag, `ui-<Hermes version>`, for example `ui-v2026.9.24`.
+Replace `#main` with the tag for your Hermes version.
+A fix for the same Hermes version moves its tag, so rebuilding picks the fix up.
 
 If the dashboard runs in another container on the same Docker network, drop `network_mode: host`, publish the port (`ports: ["8080:8080"]`), and point `HERMES_DASHBOARD_URL` at that container, for example `http://hermes:9119`.
 
@@ -171,7 +173,9 @@ This type-checks the browser code together with the whole desktop app.
 
 The `hermes-agent` branch holds the hermes-agent files the UI is built from, one commit per version synced.
 `npm run sync-upstream` adds the next one and merges it into `main`, then regenerates `package.json` and `package-lock.json` from upstream's, with the same package versions.
-Publish with `git push origin hermes-agent main`.
+For a release tag, it also tags the result `ui-<tag>`, moving the tag if it exists.
+Publish with `git push origin hermes-agent main`, then `git push --force origin ui-<tag>`.
+After a fix for the same Hermes version, move its tag the same way: `git tag -f ui-<tag>`, then push it with `--force`.
 
 If the merge stops on a conflict, fix it, commit, then run the sync again with the same version.
 
