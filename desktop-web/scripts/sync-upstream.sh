@@ -8,7 +8,8 @@
 # `web`. Upstream's history stays on your machine (the `upstream` remote) and
 # is never pushed.
 #
-# Run from anywhere in the repo, on a clean `web` branch. It does not push.
+# Run from anywhere in the repo, on a clean `web` branch, with any dev server
+# stopped (the install replaces node_modules). It does not push.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -50,7 +51,7 @@ else
   echo "main now matches upstream ${upstream:0:10} ($date)."
 fi
 
-git merge --no-edit refs/heads/main
+git merge --no-edit -m "Merge upstream hermes-agent ${upstream:0:10}" refs/heads/main
 
 ELECTRON_SKIP_BINARY_DOWNLOAD=1 npx -y npm@11 ci --ignore-scripts --no-audit --no-fund
 npm run typecheck --prefix desktop-web
