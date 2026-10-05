@@ -207,8 +207,7 @@ function idleBootstrapState(): DesktopBootstrapState {
     startedAt: null,
     completedAt: null,
     setupChoice: null,
-    unsupportedPlatform: null,
-    bundled: false
+    unsupportedPlatform: null
   }
 }
 
@@ -522,14 +521,12 @@ export function createWebBridge(): HermesDesktop {
     quickEntry: {
       getSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
       setSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
-      submit: async () => ({ ok: false, error: 'unavailable' }),
-      ackSubmit: noop,
+      submit: noop,
       dismiss: noop,
       pushState: noop,
       onState: unsubscribe,
       onSubmit: unsubscribe,
-      onShown: unsubscribe,
-      onLateResult: unsubscribe
+      onShown: unsubscribe
     },
     findInPage: async () => ({ count: 0 }),
     stopFindInPage: async () => {},
@@ -582,7 +579,6 @@ export function createWebBridge(): HermesDesktop {
       platform: 'web',
       hermesRoot: ''
     }),
-    getSyncStatus: async () => null,
     updates: {
       check: async () => ({ supported: false }),
       apply: async () => ({ ok: false }),
