@@ -1,0 +1,12 @@
+{
+  "name": "hermes-desktop-web",
+  "private": true,
+  "description": "Browser build of the Hermes desktop app. Uses the packages installed at the repo root.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p . --noEmit"
+  }
+}

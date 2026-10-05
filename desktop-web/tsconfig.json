@@ -1,0 +1,8 @@
+{
+  // Type-checks the bridge together with the whole desktop renderer, so a
+  // change to the renderer's bridge declaration (apps/desktop/src/global.d.ts)
+  // that the bridge doesn't satisfy fails here.
+  "extends": "../apps/desktop/tsconfig.json",
+  "include": ["src", "../apps/desktop/src", "../apps/shared/src"],
+  "exclude": ["../apps/desktop/e2e", "../apps/desktop/electron"]
+}
