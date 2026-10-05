@@ -1,20 +1,17 @@
 #!/usr/bin/env bash
-# Brings an upstream hermes-agent version into this fork, then checks that the
-# browser build still type-checks and builds.
+# Moves the web UI to a hermes-agent version, then type-checks and builds it.
 #
-#   desktop-web/scripts/sync-upstream.sh             # upstream main
-#   desktop-web/scripts/sync-upstream.sh v2026.9.24  # a release tag
+#   npm run sync-upstream -- v2026.9.24   # a release tag (match your gateway)
+#   npm run sync-upstream                 # upstream main
 #
-# Use the tag of the hermes-agent image your gateway runs, so the UI and the
-# gateway match.
+# `main` holds the hermes-agent files the UI is built from: one snapshot commit
+# per version, each with only the files the build needs (picked by
+# upstream.mjs). This script adds the next snapshot to `main`, merges it into
+# `web`, and regenerates the root package.json and lockfile from upstream's.
+# Only the requested upstream commit is downloaded.
 #
-# This fork does not carry upstream's history. `main` is a chain of snapshot
-# commits, one per sync, each holding upstream's files as they were at that
-# version. This script adds the next snapshot to `main` and merges it into
-# `web`. Only the requested upstream commit is downloaded, never its history.
-#
-# Run from anywhere in the repo, on a clean `web` branch, with any dev server
-# stopped (the install replaces node_modules). It does not push.
+# Run on a clean `web` branch, with any dev server stopped (the install
+# replaces node_modules). It does not push.
 set -euo pipefail
 
 ref=${1:-main}
@@ -53,40 +50,42 @@ if git rev-parse -q --verify refs/remotes/origin/main >/dev/null; then
   fi
 fi
 
-if [ "$(git rev-parse "$upstream^{tree}")" = "$(git rev-parse 'refs/heads/main^{tree}')" ]; then
+tree=$(node desktop-web/scripts/upstream.mjs tree "$upstream")
+
+if [ "$tree" = "$(git rev-parse 'refs/heads/main^{tree}')" ]; then
   echo "main already matches upstream $ref (${upstream:0:10})."
 else
-  snapshot=$(git commit-tree "$upstream^{tree}" -p refs/heads/main \
+  snapshot=$(git commit-tree "$tree" -p refs/heads/main \
     -m "Upstream hermes-agent $ref at ${upstream:0:10} ($date)")
   git update-ref refs/heads/main "$snapshot"
   echo "main now matches upstream $ref (${upstream:0:10}, $date)."
 fi
 
-# The build reads the version label from this file, so it also works in a
-# shallow clone that can't see the snapshot commits.
-if [ "$ref" = main ]; then
-  label="$date-${upstream:0:10}"
-else
-  label=$ref
-fi
-
 if ! git merge --no-ff --no-commit refs/heads/main; then
-  echo "The merge has conflicts. Fix them, then run this script again." >&2
+  echo "The merge has conflicts. Fix them, commit, then run this script again with the same version." >&2
   exit 1
 fi
 
-printf '%s\n' "$label" > desktop-web/UPSTREAM_VERSION
-git add desktop-web/UPSTREAM_VERSION
+# The build reads the version label from this file.
+if [ "$ref" = main ]; then
+  printf '%s\n' "$date-${upstream:0:10}" > desktop-web/UPSTREAM_VERSION
+else
+  printf '%s\n' "$ref" > desktop-web/UPSTREAM_VERSION
+fi
+
+node desktop-web/scripts/upstream.mjs package "$upstream"
+npx -y npm@11 install --package-lock-only --ignore-scripts --no-audit --no-fund
+git add desktop-web/UPSTREAM_VERSION package.json package-lock.json
 
 if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
-  git commit -q -m "Merge upstream hermes-agent $ref (${upstream:0:10})"
+  git commit -q -m "Built from hermes-agent $ref (${upstream:0:10})."
 elif ! git diff --cached --quiet; then
-  git commit -q -m "The version label shows upstream $label."
+  git commit -q -m "Packages match hermes-agent $ref (${upstream:0:10})."
 fi
 
 ELECTRON_SKIP_BINARY_DOWNLOAD=1 npx -y npm@11 ci --ignore-scripts --no-audit --no-fund
-npm run typecheck --prefix desktop-web
-npm run build --prefix desktop-web
+npm run typecheck
+npm run build
 
 echo
 echo "Done. To publish: git push origin main web"
