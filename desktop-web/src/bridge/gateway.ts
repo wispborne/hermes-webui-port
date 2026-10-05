@@ -24,7 +24,6 @@ declare global {
   interface Window {
     __HERMES_SESSION_TOKEN__?: string
     __HERMES_BASE_PATH__?: string
-    __HERMES_AUTH_REQUIRED__?: boolean
   }
 }
 
@@ -39,7 +38,7 @@ export interface StoredGateway {
 }
 
 function defaultGateway(): StoredGateway {
-  return { url: '', authMode: window.__HERMES_AUTH_REQUIRED__ ? 'oauth' : 'token', token: '' }
+  return { url: '', authMode: 'oauth', token: '' }
 }
 
 export function loadGateway(): StoredGateway {
@@ -147,6 +146,16 @@ export function resolveToken(): string {
   const gateway = loadGateway()
 
   return gateway.authMode === 'token' ? gateway.token : ''
+}
+
+/**
+ * 'token' when there is a session token to send, else 'oauth' (cookie login,
+ * which covers both OAuth and password providers). Decided by what we
+ * actually have, not by a saved setting: a page served through a reverse proxy
+ * gets no injected token, and token mode with no token can never connect.
+ */
+export function activeAuthMode(): 'oauth' | 'token' {
+  return resolveToken() ? 'token' : 'oauth'
 }
 
 function wsBase(): string {
@@ -298,15 +307,18 @@ export async function apiFetch<T>(request: HermesApiRequest): Promise<T> {
 /**
  * Browser version of the desktop's login window: open the gateway's `/login`
  * in a popup and poll our own session until it is live. The app page is never
- * navigated away. Resolves false if the popup is blocked, closed early, or the
- * login does not finish within five minutes.
+ * navigated away (unless the popup is blocked, see below). Resolves false if
+ * the popup is closed early or the login does not finish within five minutes.
  */
 export function loginInPopup(base: string): Promise<boolean> {
   return new Promise(resolve => {
     const popup = window.open(`${base}/login`, 'hermes-login', 'width=520,height=720')
 
     if (!popup) {
-      resolve(false)
+      // Popup blocked. Sign in in this tab instead: the gateway's login page
+      // sends the browser back to `/` afterwards, and the app boots signed in.
+      // The promise never settles because the page is going away.
+      window.location.assign(`${base}/login`)
 
       return
     }

@@ -31,6 +31,7 @@ import type {
 } from '@/global'
 
 import {
+  activeAuthMode,
   apiFetch,
   baseUrl,
   fetchStatus,
@@ -92,7 +93,7 @@ function connection(profile?: null | string): HermesConnection {
     source: 'settings',
     // 'oauth' makes the renderer ask getGatewayWsUrl for a fresh URL on every
     // connect, which cookie mode needs because tickets are single-use.
-    authMode: token ? 'token' : 'oauth',
+    authMode: activeAuthMode(),
     token,
     wsUrl: token ? tokenWsUrl(token) : '',
     logs: [],
@@ -107,23 +108,25 @@ function connection(profile?: null | string): HermesConnection {
 }
 
 async function connectionConfig(stored: StoredGateway = loadGateway()): Promise<DesktopConnectionConfig> {
-  const token = resolveToken()
+  const authMode = activeAuthMode()
 
   return {
     envOverride: false,
     mode: 'remote',
     profile: null,
-    remoteAuthMode: stored.authMode,
+    remoteAuthMode: authMode,
     // Report the real session state. A false "connected" would hide the
     // sign-in button and leave the user stuck on a dead connection.
-    remoteOauthConnected: stored.authMode === 'oauth' ? await isSignedIn() : false,
+    remoteOauthConnected: authMode === 'oauth' ? await isSignedIn() : false,
     remoteTokenPreview: stored.token ? `...${stored.token.slice(-4)}` : null,
-    remoteTokenSet: stored.authMode === 'token' && Boolean(stored.token || token),
+    remoteTokenSet: authMode === 'token',
     // Browser storage is never encrypted at rest. Saying so up front keeps the
     // UI from offering an OS-keychain option that doesn't exist here.
     secureTokenStorage: false,
     remoteTokenPlainText: false,
-    remoteUrl: stored.url,
+    // Always a full address. The UI treats an empty URL as "not a remote
+    // gateway" and then won't offer its sign-in button.
+    remoteUrl: normalizeBase(stored.url),
     cloudOrg: '',
     sshHost: '',
     sshUser: '',
@@ -139,8 +142,13 @@ function saveConfigInput(input: DesktopConnectionConfigInput): StoredGateway {
     ...(input.remoteAuthMode !== undefined ? { authMode: input.remoteAuthMode } : {}),
     // An omitted token means "keep the saved one".
     ...(input.remoteToken !== undefined ? { token: input.remoteToken } : {}),
-    ...(input.remoteUrl !== undefined ? { url: input.remoteUrl.trim() } : {})
+    ...(input.remoteUrl !== undefined ? { url: storedUrl(input.remoteUrl) } : {})
   })
+}
+
+/** '' when `url` is the server this page came from, so the app keeps following it. */
+function storedUrl(url: string): string {
+  return normalizeBase(url) === normalizeBase('') ? '' : url.trim()
 }
 
 function registryEntry(): DesktopRegistryConnection {
@@ -151,8 +159,8 @@ function registryEntry(): DesktopRegistryConnection {
     kind: 'remote',
     label: stored.url ? normalizeBase(stored.url).replace(/^https?:\/\//, '') : 'This server',
     url: stored.url || baseUrl(),
-    authMode: stored.authMode,
-    tokenSet: Boolean(stored.token || resolveToken()),
+    authMode: activeAuthMode(),
+    tokenSet: activeAuthMode() === 'token',
     tokenPreview: stored.token ? `...${stored.token.slice(-4)}` : null
   }
 }
@@ -379,7 +387,7 @@ export function createWebBridge(): HermesDesktop {
         // The browser can only hold one gateway (see gateway.ts), so every
         // save edits that one entry.
         saveGateway({
-          ...(input.url !== undefined ? { url: input.url.trim() } : {}),
+          ...(input.url !== undefined ? { url: storedUrl(input.url) } : {}),
           ...(input.authMode !== undefined ? { authMode: input.authMode } : {}),
           ...(input.token !== undefined ? { token: input.token } : {})
         })
