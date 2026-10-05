@@ -52,28 +52,27 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     () => initialProfileScope(searchParams, bootstrapProfile),
   );
 
-  // A profile param that CHANGED (e.g. the Profiles page's "Manage skills &
-  // tools" linking to /skills?profile=X) is an explicit scope request and
-  // wins over current state. Adopt it during render, before any effect runs,
-  // so the URL sync below never sees the old state next to the new URL and
-  // writes it back.
-  const urlProfile = searchParams.get("profile");
-  const [seenUrlProfile, setSeenUrlProfile] = useState(urlProfile);
-  if (urlProfile !== seenUrlProfile) {
-    setSeenUrlProfile(urlProfile);
-    if (urlProfile !== null && urlProfile !== profile) {
-      setProfileState(urlProfile);
-    }
-  }
-
   // Mirror into the api module synchronously on every render where it
   // changed, so fetches fired by child effects in the same commit see it.
   setManagementProfile(profile);
 
-  // Re-assert ?profile= after navigations that dropped it (bare nav links)
-  // and after state-only changes. No-ops when already in sync.
+  // A profile param arriving via in-app navigation (e.g. the Profiles
+  // page's "Manage skills & tools" linking to /skills?profile=X) must win
+  // over current state — it's an explicit scope request.
+  const urlProfile = searchParams.get("profile");
   useEffect(() => {
-    if ((profile || "") === (urlProfile ?? "")) return;
+    if (urlProfile !== null && urlProfile !== profile) {
+      setManagementProfile(urlProfile);
+      setProfileState(urlProfile);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlProfile]);
+
+  // Re-assert ?profile= after navigations that dropped it (bare nav links).
+  // Runs on every pathname/profile change; no-ops when already in sync.
+  useEffect(() => {
+    const inUrl = searchParams.get("profile") ?? "";
+    if ((profile || "") === inUrl) return;
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -84,7 +83,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       { replace: true },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, urlProfile, profile]);
+  }, [pathname, profile]);
 
   useEffect(() => {
     let cancelled = false;

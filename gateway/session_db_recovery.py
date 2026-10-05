@@ -43,14 +43,6 @@ def _publish_health(source: _HealthSource, path: Path, state: str) -> None:
         pass  # Runtime health is diagnostic only; persistence must not depend on it.
 
 
-def _registry_owned(handle: Any) -> bool:
-    """True while the process-wide registry owns *handle*; an ``AsyncSessionDB`` (the only handle
-    type with a ``_db``) is judged by the SessionDB it wraps. ``close_all`` / ``close_all_under``
-    clear the flag when they tear the generation down."""
-    inner = getattr(handle, "_db", handle)
-    return getattr(inner, "_shared_registry_owned", None) is True
-
-
 class RecoverableHandleCache:
     """Cache handles by path while allowing failed opens to heal in-process.
 
@@ -70,9 +62,6 @@ class RecoverableHandleCache:
         self._initial_retry_delay = max(0.0, float(initial_retry_delay))
         self._max_retry_delay = max(self._initial_retry_delay, float(max_retry_delay))
         self._unavailable: dict[Path, _Unavailable] = {}
-        # Paths whose cached handle the registry owned when it was cached: once the registry tears
-        # that generation down (profile unserve/delete), the entry is dead and must be reopened.
-        self._registry_backed: set[Path] = set()
         self._health_source = _HealthSource()
         self._generation = 0
         self._close_rejected: Callable[[Any], None] | None = None
@@ -92,14 +81,7 @@ class RecoverableHandleCache:
         path = Path(path)
         with self.lock:
             if path in self.handles:
-                handle = self.handles[path]
-                if path not in self._registry_backed or _registry_owned(handle):
-                    return handle
-                # The registry force-closed this generation. Serving it would let its self-heal reopen
-                # a writer the registry cannot see (a second writer beside the next ``acquire``), or keep
-                # raising StateDbReplacedError after a delete + recreate: reopen through the registry.
-                del self.handles[path]
-                self._registry_backed.discard(path)
+                return self.handles[path]
             unavailable = self._unavailable.setdefault(path, _Unavailable())
             if unavailable.in_flight or self._clock() < unavailable.next_retry_at:
                 return None
@@ -134,10 +116,6 @@ class RecoverableHandleCache:
             stale = self._is_stale(path, unavailable, generation)
             if not stale:
                 self.handles[path] = handle
-                if _registry_owned(handle):
-                    self._registry_backed.add(path)
-                else:
-                    self._registry_backed.discard(path)
                 self._unavailable.pop(path, None)
             close_rejected = self._close_rejected if stale else None
         if stale:
@@ -158,7 +136,6 @@ class RecoverableHandleCache:
             handles = list(self.handles.values())
             paths = set(self.handles) | set(self._unavailable)
             self.handles.clear()
-            self._registry_backed.clear()
             self._unavailable.clear()
         for handle in handles:
             with contextlib.suppress(Exception):

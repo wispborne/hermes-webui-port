@@ -3,10 +3,6 @@ import { type ReactNode, useCallback, useRef, useState } from 'react'
 import { useResizeObserver } from '@/hooks/use-resize-observer'
 
 interface PaneBodyProps {
-  /** Wraps the body's own element (the zone's right-click menu) WITHOUT an
-   *  extra layout box: the wrapper receives the div itself, so asChild-style
-   *  triggers attach to it directly. */
-  wrap?: (body: ReactNode) => ReactNode
   hidden: boolean
   children: ReactNode
 }
@@ -14,7 +10,7 @@ interface PaneBodyProps {
 /** Collapse the zone, not its guests. Retaining the last visible viewport lets
  * background browser input use the same page coordinates while the restore
  * rail occupies only a sliver of the layout. Never detach/reparent a webview. */
-export function PaneBody({ wrap, hidden, children }: PaneBodyProps) {
+export function PaneBody({ hidden, children }: PaneBodyProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<{ width: number; height: number }>()
 
@@ -37,7 +33,7 @@ export function PaneBody({ wrap, hidden, children }: PaneBodyProps) {
 
   useResizeObserver(remember, ref)
 
-  const body = (
+  return (
     <div
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       ref={ref}
@@ -46,8 +42,4 @@ export function PaneBody({ wrap, hidden, children }: PaneBodyProps) {
       {children}
     </div>
   )
-
-  // The wrap must not add a layout box: `relative min-h-0 flex-1` rides the
-  // body itself so the zone's flex column geometry is unchanged.
-  return wrap ? wrap(body) : body
 }

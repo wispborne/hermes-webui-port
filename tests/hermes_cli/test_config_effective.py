@@ -4,8 +4,7 @@ bootstrap modules) goes through."""
 import textwrap
 
 import pytest
-
-import hermes_yaml as yaml
+import yaml
 
 
 @pytest.fixture

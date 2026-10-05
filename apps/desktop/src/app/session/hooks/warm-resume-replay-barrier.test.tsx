@@ -109,8 +109,7 @@ async function mountWithPendingReplay() {
       getRouteToken: () => 'A',
       getRoutedStoredSessionId: () => null,
       navigate: vi.fn(),
-      requestGateway,
-      routedSessionId: null
+      requestGateway
     })
 
     const stream = useMessageStream({

@@ -56,8 +56,7 @@ cfg = {
     "browser": browser_cfg,
     "display": {"quiet": True},
 }
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-import hermes_yaml as yaml
+import yaml
 
 with open(os.path.join(hh, "config.yaml"), "w", encoding="utf-8") as f:
     yaml.safe_dump(cfg, f)

@@ -7,10 +7,13 @@ The transport is now a file (--query-file) / stdin, and the protocol text
 must never regress to inlining the body into -q.
 """
 
+
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+
+
 
 def _parse(argv):
     sys.path.insert(0, str(REPO))
@@ -23,10 +26,14 @@ def _parse(argv):
     finally:
         sys.path.remove(str(REPO))
 
+
 def test_chat_parser_accepts_query_file():
     args = _parse(["chat", "--query-file", "/tmp/x.txt"])
     assert args.query_file == "/tmp/x.txt"
     assert args.query is None
+
+
+
 
 def test_query_and_query_file_mutually_exclusive(tmp_path):
     """argparse rejects -q + --query-file at parse time (exit 2), no env needed."""
@@ -37,3 +44,5 @@ def test_query_and_query_file_mutually_exclusive(tmp_path):
     with pytest.raises(SystemExit) as exc:
         _parse(["chat", "-q", "x", "--query-file", str(f)])
     assert exc.value.code == 2
+
+

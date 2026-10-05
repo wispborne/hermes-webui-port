@@ -26,8 +26,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from agent.i18n import t
-
 from hermes_state import SessionDB
 
 
@@ -141,7 +139,7 @@ class TestCLIWaitLoop:
         keep, printed, _ = _run_handoff(db, "cli-sess-a", monkeypatch)
         out = "\n".join(printed)
         assert keep is True
-        assert t("cli.commands.handoff.timed_out") in out
+        assert "Timed out waiting for the gateway" in out
         assert db.get_handoff_state("cli-sess-a")["state"] == "failed"
 
     def test_running_row_is_never_failed_by_cli(self, db, monkeypatch):
@@ -168,8 +166,8 @@ class TestCLIWaitLoop:
         keep, printed, _ = _run_handoff(db_proxy, "cli-sess-b", monkeypatch)
         out = "\n".join(printed)
         assert keep is True
-        assert t("cli.commands.handoff.timed_out") not in out
-        assert t("cli.commands.handoff.taking_long") in out
+        assert "Is `hermes gateway` running?" not in out
+        assert "taking unusually long" in out
         # The row is still owned by the gateway — untouched by the CLI.
         assert db.get_handoff_state("cli-sess-b")["state"] == "running"
         # Late gateway completion wins cleanly (no split-brain).
@@ -203,8 +201,8 @@ class TestCLIWaitLoop:
         keep, printed, host = _run_handoff(db_proxy, "cli-sess-c", monkeypatch)
         out = "\n".join(printed)
         assert keep is False  # completed -> CLI exits like /quit
-        assert t("cli.commands.handoff.complete", platform="discord") in out
-        assert t("cli.commands.handoff.timed_out") not in out
+        assert "Handoff complete" in out
+        assert "Timed out waiting for the gateway" not in out
         assert host._should_exit is True
         assert db.get_handoff_state("cli-sess-c")["state"] == "completed"
 

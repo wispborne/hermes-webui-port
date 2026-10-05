@@ -21,12 +21,11 @@ def window_overrides_path():
 
 def load_window_overrides() -> dict:
     """model_id -> granted window (int). Empty on any read problem."""
-    try:
-        with open(window_overrides_path(), encoding="utf-8-sig") as fh:
+    with suppress(Exception):
+        with open(window_overrides_path(), encoding="utf-8") as fh:
             data = json.load(fh)
         return {str(k): int(v) for k, v in data.items()}
-    except Exception:
-        return {}
+    return {}
 
 
 def _write_overrides(overrides: dict) -> None:
@@ -71,13 +70,12 @@ def maybe_grow_window(model_id: str, *, base_url: str, session_tokens: int,
     window — nothing rewinds.
     """
     from hermes_cli.local_runtime.bootstrap import (
-        _launch_budget, get_supervisor, refresh_local_runtime, staged_models)
+        get_supervisor, refresh_local_runtime, staged_models)
     from hermes_cli.local_runtime.context_policy import growth_decision
     from hermes_cli.local_runtime.estimator import profile_from_gguf
     from hermes_cli.local_runtime.gguf import model_id_from_stem, read_gguf_header
     from hermes_cli.local_runtime.hardware import probe_budget
-    from hermes_cli.local_runtime.presets import (
-        preset_for_model, read_preset_decisions, resident_footprint)
+    from hermes_cli.local_runtime.presets import preset_for_model, read_preset_decisions
 
     sup = get_supervisor()
     if sup is None or not is_managed_endpoint(base_url):
@@ -117,13 +115,9 @@ def maybe_grow_window(model_id: str, *, base_url: str, session_tokens: int,
         logger.debug("growth %s: %s (%s)", model_id, decision.action, decision.reason)
         return None
 
-    # The grown instance loads after this one exits, so the model's own memory counts as free.
-    # Other loaded models still count as held, which errs toward a smaller window.
-    live = _launch_budget(budget, own_bytes=resident_footprint(gguf, budget, current_window) or 0)
-    plan = preset_for_model(gguf, budget, set(), requested_window=decision.next_window, live=live)
+    plan = preset_for_model(gguf, budget, set(), requested_window=decision.next_window)
     if plan is None or plan.refusal or plan.window < decision.next_window:
-        logger.debug("growth %s: the next rung does not fit beside other programs' GPU memory",
-                     model_id)
+        logger.debug("growth %s: complete launch footprint does not admit the next rung", model_id)
         return None
 
     logger.info("context growth %s: %s", model_id, decision.reason)

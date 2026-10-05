@@ -97,7 +97,7 @@ class TestResolveSynchronousLevel:
 
 
 class TestAppliedFromConfig:
-    @pytest.mark.platforms("linux")
+    @pytest.mark.linux_only
     def test_configured_level_reaches_the_connection(self, tmp_path, monkeypatch):
         _config(monkeypatch, {"synchronous": "NORMAL"})
         conn = _wal_conn(tmp_path)
@@ -172,7 +172,7 @@ class TestMacOSFloor:
     floor the config value would simply win by running last.
     """
 
-    @pytest.mark.platforms("macos")
+    @pytest.mark.macos_only
     def test_lowering_below_full_is_refused_on_darwin(
         self, tmp_path, monkeypatch, caplog
     ):
@@ -187,7 +187,7 @@ class TestMacOSFloor:
         finally:
             conn.close()
 
-    @pytest.mark.platforms("macos")
+    @pytest.mark.macos_only
     def test_raising_above_full_is_allowed_on_darwin(self, tmp_path, monkeypatch):
         """The floor is a floor, not a pin -- EXTRA is strictly safer."""
         _config(monkeypatch, {"synchronous": "EXTRA"})

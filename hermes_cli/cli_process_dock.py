@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import time
 
-from agent.i18n import t
-
 # A finished process stays on the dock long enough to read its exit line, then
 # leaves; the completion notification in the transcript is the durable record.
 RETAIN_SECONDS = 60
@@ -60,7 +58,7 @@ def process_rows(now: float | None = None) -> list:
             "kind": "process",
             "key": proc.id,
             "id": proc.id,
-            "command": " ".join((proc.command or "").split()) or t("cli.dock.process_goal_label"),
+            "command": " ".join((proc.command or "").split()) or "background process",
             "status": status,
             "exit_code": proc.exit_code,
             "elapsed": max(0, int(end - proc.started_at)),
@@ -72,20 +70,16 @@ def process_rows(now: float | None = None) -> list:
 
 
 _GLYPH = {"running": "⚙", "done": "✔", "failed": "✘", "killed": "✘", "lost": "?"}
-# Finished-status id → catalog key of the exit verdict (looked up at paint time).
-_VERDICT_KEYS = {"done": "cli.dock.exit_code", "failed": "cli.dock.exit_code",
-                 "killed": "cli.dock.verdict_killed", "lost": "cli.dock.verdict_lost"}
 
 
 def process_activity(row: dict) -> str:
     """The trailing ``· …`` part of a dock line: elapsed + latest output while running, the exit
     verdict + age once finished."""
     if row["status"] == "running":
-        return f"{row['elapsed']}s · " + (
-            t("cli.dock.last_output", detail=row["detail"]) if row["detail"] else t("cli.dock.starting"))
-    verdict = _VERDICT_KEYS[row["status"]]
-    verdict = t(verdict, code=row["exit_code"])
-    return t("cli.dock.verdict_ago", verdict=verdict, seconds=row["since_exit"])
+        return f"{row['elapsed']}s · " + (f"last: {row['detail']}" if row["detail"] else "starting")
+    verdict = {"done": f"exit {row['exit_code']}", "failed": f"exit {row['exit_code']}",
+               "killed": "killed", "lost": "lost"}[row["status"]]
+    return f"{verdict} · {row['since_exit']}s ago"
 
 
 def process_glyph(row: dict) -> str:
@@ -97,10 +91,10 @@ def process_tail(process_id: str) -> str:
 
     proc = process_registry.get(process_id)
     if proc is None:
-        return t("cli.dock.process_gone")
+        return "This process is no longer tracked."
     text = (proc.output_buffer or "")[-32768:]
     text = "".join(c for c in text if c.isprintable() or c in "\n\t")
-    return text or t("cli.dock.no_output")
+    return text or "No output yet."
 
 
 def kill(process_id: str) -> dict:

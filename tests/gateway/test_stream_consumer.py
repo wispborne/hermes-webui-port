@@ -1145,17 +1145,15 @@ class TestOnNewMessageCallback:
             on_new_message=lambda: events.append("reset"),
         )
 
-        consumer.on_delta("First preamble")
+        consumer.on_delta("A")
         consumer.on_delta(None)
-        consumer.on_delta("Second preamble")
+        consumer.on_delta("B")
         consumer.on_delta(None)
-        consumer.on_delta("Final answer")
+        consumer.on_delta("C")
         consumer.finish()
         await consumer.run()
 
-        # Three content bubbles ⇒ three reset notifications. (Segment text
-        # must clear the sub-floor standalone-message guard — a 1-2 token
-        # preamble is intentionally held back now, see #99026.)
+        # Three content bubbles ⇒ three reset notifications
         assert events == ["reset", "reset", "reset"]
 
 

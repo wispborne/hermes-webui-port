@@ -1,19 +1,12 @@
 import { useStore } from '@nanostores/react'
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect } from 'react'
 
-import { endChatOnboardingSolo, takeGuideShape } from '@/components/onboarding-chat/assembly'
+import { takeGuideShape } from '@/components/onboarding-chat/assembly'
 import { isOnboardingEnabled } from '@/lib/onboarding-enabled'
 import { ackFreeTierNotice, type FreeTierRequester } from '@/store/free-tier'
-import { $desktopOnboarding, clearFreeTierIntro } from '@/store/onboarding'
-import {
-  $guideOpening,
-  $onboardingGate,
-  beginOnboardingFlow,
-  runGuideKickoff,
-  skipGuide
-} from '@/store/onboarding-gate'
-
-import { GuideLoading } from './guide-loading'
+import { $introReveal } from '@/store/intro-reveal'
+import { clearFreeTierIntro } from '@/store/onboarding'
+import { $onboardingGate, runGuideKickoff } from '@/store/onboarding-gate'
 
 interface OnboardingChatGateProps {
   enabled: boolean
@@ -23,14 +16,18 @@ interface OnboardingChatGateProps {
 
 export function OnboardingChatGate({ enabled, onKickoff, requestGateway }: OnboardingChatGateProps) {
   const gate = useStore($onboardingGate)
-  const opening = useStore($guideOpening)
+  const intro = useStore($introReveal)
 
-  useLayoutEffect(() => {
-    beginOnboardingFlow($desktopOnboarding.get().firstRunSkipped)
-
-    if ($onboardingGate.get().guideQueued) {
+  // A guide is owed the moment the renderer knows it (cinematic with the film
+  // seen, or a relaunch mid-guide). Take the solo shape now, before the
+  // gateway opens. Otherwise the normal shell paints at full size for the
+  // seconds the backend takes to come up, and then snaps down to the guide.
+  useEffect(() => {
+    if (gate.guideQueued && intro.phase === 'hidden') {
       takeGuideShape()
     }
+    // Once, on mount: the queued flag is a boot fact, not a live signal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -38,6 +35,10 @@ export function OnboardingChatGate({ enabled, onKickoff, requestGateway }: Onboa
       return
     }
 
+    // The guide is the free tier's introduction, whichever way it opens: the
+    // film, or the guided chat directly when the film is skipped. Ack the
+    // one-time notice as soon as either takes the screen, or a readiness
+    // round mid-guide raises the ready screen over the conversation.
     const ack = () => {
       clearFreeTierIntro()
       void ackFreeTierNotice(requestGateway).then(acked => {
@@ -47,27 +48,30 @@ export function OnboardingChatGate({ enabled, onKickoff, requestGateway }: Onboa
       })
     }
 
-    return $onboardingGate.subscribe(state => {
+    // subscribe also sees an intro started by the preceding sibling's effect.
+    const offIntro = $introReveal.subscribe(state => {
+      if (state.phase === 'playing') {
+        ack()
+      }
+    })
+
+    const offGate = $onboardingGate.subscribe(state => {
       if (state.phase === 'guided') {
         ack()
       }
     })
+
+    return () => {
+      offIntro()
+      offGate()
+    }
   }, [enabled, requestGateway])
 
   useEffect(() => {
-    if (enabled && gate.guideQueued) {
-      const recover = () => {
-        endChatOnboardingSolo()
-        skipGuide()
-      }
-
-      void runGuideKickoff(onKickoff).then(started => {
-        if (!started) {
-          recover()
-        }
-      }, recover)
+    if (enabled && gate.guideQueued && intro.phase === 'hidden') {
+      void runGuideKickoff(onKickoff)
     }
-  }, [enabled, gate.guideQueued, onKickoff])
+  }, [enabled, gate.guideQueued, intro.phase, onKickoff])
 
-  return opening ? <GuideLoading /> : null
+  return null
 }

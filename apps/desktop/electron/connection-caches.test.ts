@@ -5,7 +5,6 @@ import { beforeEach, test } from 'vitest'
 import {
   connectionInstallIds,
   evictConnectionCaches,
-  rosterSourceErrors,
   sshInventoryAttemptedAt,
   sshRosterCache
 } from './connection-caches'
@@ -15,14 +14,12 @@ beforeEach(() => {
   sshRosterCache.clear()
   sshInventoryAttemptedAt.clear()
   connectionInstallIds.clear()
-  rosterSourceErrors.clear()
 })
 
 function seed(id: string) {
   sshRosterCache.set(id, ['default', 'dixie'])
   sshInventoryAttemptedAt.set(id, Date.now())
   connectionInstallIds.set(id, { id: 'aaa', ts: Date.now() })
-  rosterSourceErrors.set(id, 'previous failure')
 }
 
 test('evicting a connection id forgets every cache keyed by it', () => {
@@ -36,12 +33,10 @@ test('evicting a connection id forgets every cache keyed by it', () => {
   assert.equal(sshRosterCache.has('mac-mini'), false)
   assert.equal(sshInventoryAttemptedAt.has('mac-mini'), false)
   assert.equal(connectionInstallIds.has('mac-mini'), false)
-  assert.equal(rosterSourceErrors.has('mac-mini'), false)
 
   // Its neighbours are untouched.
   assert.deepEqual(sshRosterCache.get('spark'), ['default', 'dixie'])
   assert.equal(connectionInstallIds.get('spark')?.id, 'aaa')
-  assert.equal(rosterSourceErrors.get('spark'), 'previous failure')
 })
 
 test('an evicted id enumerates from the live target again instead of serving the old one', () => {
@@ -71,5 +66,4 @@ test('evicting an unknown or empty id is a no-op', () => {
   assert.equal(sshRosterCache.size, 1)
   assert.equal(sshInventoryAttemptedAt.size, 1)
   assert.equal(connectionInstallIds.size, 1)
-  assert.equal(rosterSourceErrors.size, 1)
 })

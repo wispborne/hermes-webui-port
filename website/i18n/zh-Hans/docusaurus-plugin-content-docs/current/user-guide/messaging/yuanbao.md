@@ -17,11 +17,12 @@ description: "通过 WebSocket gateway 将 Hermes Agent 连接到元宝企业消
 - 拥有机器人创建权限的元宝账号
 - 元宝 APP_ID 和 APP_SECRET（由平台管理员提供）
 - Python 包：`websockets` 和 `httpx`
+- 媒体支持需要：`aiofiles`
 
 安装所需依赖：
 
 ```bash
-hermes pm repair
+pip install websockets httpx aiofiles
 ```
 
 ## 配置

@@ -1,6 +1,8 @@
 """Tests for tool token estimation and curses_ui status_fn support."""
 
+
 # ─── Curses UI Status Bar Tests ──────────────────────────────────────────────
+
 
 def test_curses_checklist_numbered_fallback_shows_status(monkeypatch, capsys):
     """The numbered fallback should print the status_fn output."""
@@ -24,4 +26,11 @@ def test_curses_checklist_numbered_fallback_shows_status(monkeypatch, capsys):
     assert "Selected 2 items" in captured.out
     assert result == {0, 2}
 
+
+
+
 # ─── Registry get_schema Tests ───────────────────────────────────────────────
+
+
+
+

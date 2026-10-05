@@ -1,5 +1,4 @@
 import type { AsyncDelegationRecord } from '../gatewayTypes.js'
-import { t } from '../i18n/runtime.js'
 import type { SubagentProgress } from '../types.js'
 
 // Pure merge + layout logic for the docked agents panel. Kept ink-free so it is
@@ -120,9 +119,9 @@ export const buildAgentRows = (
 
   for (const s of subagents) {
     const row: AgentRow = {
-      detail: s.notes.at(-1) || s.outputTail?.at(-1)?.preview || s.tools.at(-1) || t('libText.agentRows.starting'),
+      detail: s.notes.at(-1) || s.outputTail?.at(-1)?.preview || s.tools.at(-1) || 'Starting…',
       elapsedSeconds: liveElapsed(s, nowMs),
-      goal: s.goal || t('libText.agentRows.agent'),
+      goal: s.goal || 'agent',
       id: shortAgentId(s.id, ids),
       key: `live:${s.id}`,
       name: '',
@@ -148,12 +147,12 @@ export const buildAgentRows = (
     const elapsedSeconds = d.dispatched_at != null ? Math.max(0, (endMs - d.dispatched_at * 1000) / 1000) : null
 
     const row: AgentRow = {
-      detail: resultReady ? t('libText.agentRows.resultReady') : status,
+      detail: resultReady ? 'result ready' : status,
       elapsedSeconds,
       goal: d.goal ?? '',
       id: shortAgentId(d.delegation_id, ids),
       key: `async:${d.delegation_id}`,
-      name: d.role ?? t('libText.agentRows.agent'),
+      name: d.role ?? 'agent',
       resultReady,
       status
     }

@@ -27,29 +27,14 @@
  * Pure so it is testable without booting Electron.
  */
 
-import fs from 'node:fs'
-import path from 'node:path'
-
 import { isFallbackCommit } from './bundle-skew'
 
 export interface BundleSwapStamp {
   /** write-build-stamp.mjs build timestamp — differs on every rebuild. */
-  builtAt: null | string
-  commit: string | null
+  builtAt?: null | string
+  commit: string
   /** write-build-stamp.mjs source tag — 'fallback' means the commit is fake. */
   source?: null | string
-}
-
-/** Read the current installed artifact only to detect replacement by an update.
- * This never chooses a runtime, normalizes a schema, or reads dev build output.
- */
-export function readBundleSwapStamp(resourcesPath: string): BundleSwapStamp | null {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(resourcesPath, 'install-stamp.json'), 'utf8'))
-  } catch {
-    // An unreadable replacement is not proof of a swap.
-    return null
-  }
 }
 
 /** True only on positive proof that the bundle on disk is not the running one. */
@@ -70,5 +55,7 @@ export function detectBundleSwap(running: BundleSwapStamp | null, onDisk: Bundle
     return true
   }
 
-  return running.builtAt !== onDisk.builtAt
+  // Same commit: only a builtAt PRESENT ON BOTH sides can prove a rebuild —
+  // a missing timestamp (older stamp schema) proves nothing.
+  return Boolean(running.builtAt && onDisk.builtAt && running.builtAt !== onDisk.builtAt)
 }

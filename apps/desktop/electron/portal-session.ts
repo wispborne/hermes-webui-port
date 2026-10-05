@@ -1,6 +1,5 @@
 import type { BrowserWindow, BrowserWindowConstructorOptions, Session } from 'electron'
 
-import { isExpectedOauthNavigationAbort } from './oauth-navigation'
 import { cookiesHavePortalSession, portalAccessCookies, type PortalCookie } from './portal-cookies'
 import { installWindowRendererLifecycle } from './window-renderer-lifecycle'
 
@@ -176,17 +175,7 @@ export function createPortalSession({
       }
 
       win.on('closed', () => finish('closed'))
-      win.loadURL(portalBaseUrl).catch(error => {
-        // A portal redirect can supersede the initial load. Keep watching the
-        // cookie jar instead of destroying the window before sign-in completes.
-        if (isExpectedOauthNavigationAbort(error)) {
-          void checkCookie()
-
-          return
-        }
-
-        finish(error instanceof Error ? error : new Error(String(error)))
-      })
+      win.loadURL(portalBaseUrl).catch(error => finish(error instanceof Error ? error : new Error(String(error))))
     })
   }
 

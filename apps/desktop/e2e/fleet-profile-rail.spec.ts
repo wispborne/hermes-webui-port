@@ -17,9 +17,6 @@ import * as fs from 'node:fs'
 import * as net from 'node:net'
 import * as path from 'node:path'
 
-import { writeEnvFile, writeMockProviderConfig } from '../../../tests-js/scripts/mock-provider-config'
-import { startMockServer } from '../../../tests-js/scripts/mock-server'
-
 import {
   buildAppEnv,
   createSandbox,
@@ -27,7 +24,10 @@ import {
   type MockBackendFixture,
   type Sandbox,
   waitForAppReady,
+  writeEnvFile,
+  writeMockProviderConfig,
 } from './fixtures'
+import { startMockServer } from '../../../tests-js/scripts/mock-server'
 import { type ElectronApplication, expect, type Page, test } from './test'
 
 const DESKTOP_ROOT = path.resolve(import.meta.dirname, '..')

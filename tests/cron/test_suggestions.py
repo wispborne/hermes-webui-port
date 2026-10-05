@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+
 @pytest.fixture
 def store(tmp_path, monkeypatch):
     """A cron.suggestions module bound to an isolated HERMES_HOME."""
@@ -22,6 +23,7 @@ def store(tmp_path, monkeypatch):
     importlib.reload(s)
     return s
 
+
 def _add(store, key="k1", title="Test", source="catalog", schedule="0 9 * * *"):
     return store.add_suggestion(
         title=title,
@@ -30,6 +32,7 @@ def _add(store, key="k1", title="Test", source="catalog", schedule="0 9 * * *"):
         job_spec={"prompt": "do it", "schedule": schedule, "name": title, "deliver": "origin"},
         dedup_key=key,
     )
+
 
 class TestStore:
     def test_explicit_file_override_wins_over_profile_home(self, tmp_path, monkeypatch):
@@ -179,6 +182,7 @@ class TestStore:
         # Dismissed record retained so its dedup_key still latches.
         assert _add(store, key="b") is None
 
+
 class TestCatalog:
     def test_seed_registers_all_entries(self, store):
         from cron.suggestion_catalog import CATALOG, seed_catalog_suggestions
@@ -186,6 +190,7 @@ class TestCatalog:
         created = seed_catalog_suggestions(add_fn=store.add_suggestion)
         assert len(created) == len(CATALOG)
         assert len(store.list_pending()) == min(len(CATALOG), store.MAX_PENDING)
+
 
     def test_no_catalog_prompt_bakes_in_absolute_script_path(self):
         from cron.suggestion_catalog import CATALOG, classify_items_script_path
@@ -195,6 +200,7 @@ class TestCatalog:
         # scripts by module path instead.
         for entry in CATALOG:
             assert classify_items_script_path() not in entry.job_spec.get("prompt", ""), entry.key
+
 
 class TestBlueprintBridge:
     def test_blueprint_registers_suggestion(self, store):
@@ -208,6 +214,7 @@ class TestBlueprintBridge:
         assert rec["job_spec"]["skills"] == ["morning-brief"]
         assert rec["job_spec"]["schedule"] == "0 8 * * *"
 
+
 class TestCommandHandler:
     def test_bare_lists_pending(self, store):
         _add(store, key="c1", title="Daily thing")
@@ -217,3 +224,6 @@ class TestCommandHandler:
             with patch.dict("sys.modules"):
                 out = handle_suggestions_command("")
         assert "Daily thing" in out
+
+
+

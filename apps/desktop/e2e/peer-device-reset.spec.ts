@@ -15,8 +15,9 @@ import {
   createSandbox,
   launchDesktop,
   type Sandbox,
+  writeEnvFile,
+  writeMockProviderConfig,
 } from './fixtures'
-import { writeEnvFile, writeMockProviderConfig } from '../../../tests-js/scripts/mock-provider-config'
 import { collectErrorBanners, type ElectronApplication, expect, installErrorBannerGuard, type Page, test } from './test'
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../../..')

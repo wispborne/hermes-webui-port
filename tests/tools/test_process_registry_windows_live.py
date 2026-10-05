@@ -19,7 +19,9 @@ import time
 
 import pytest
 
-pytestmark = pytest.mark.platforms("windows")  # live Windows background-executor E2E
+pytestmark = pytest.mark.skipif(
+    sys.platform != "win32", reason="live Windows background-executor E2E"
+)
 
 
 @pytest.fixture()

@@ -92,7 +92,8 @@ describe('waitForBackendRelease (#74805 first-attempt race)', () => {
   })
 
   it('proceeds at the deadline when the shim is unlocked but PIDs still linger (pre-#74805 escape hatch)', async () => {
-    // Lingering PIDs past the deadline are reported, not a new failure mode.
+    // Lingering PIDs past the deadline are the venv-blocker re-scan's job —
+    // the gate must not invent a new failure mode for them.
     const deps = makeDeps({ isPidAlive: () => true })
 
     const result = await waitForBackendRelease([4021], deps, 'test', 3 * RELEASE_GATE_POLL_MS)

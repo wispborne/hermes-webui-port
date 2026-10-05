@@ -24,13 +24,14 @@ from collections import defaultdict
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Import resolve_author from the release tooling's author map
+# Import AUTHOR_MAP and resolve_author from the sibling release.py module
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parent
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(SCRIPT_DIR))
 
-from scripts.releases.authors import resolve_author  # noqa: E402
+from release import resolve_author  # noqa: E402
+
+REPO_ROOT = SCRIPT_DIR.parent
 
 # ---------------------------------------------------------------------------
 # AI assistants, bots, and machine accounts to exclude from contributor lists
@@ -317,7 +318,7 @@ def check_release_file(release_file, all_contributors):
         missing: set of handles NOT found in the file
     """
     try:
-        content = Path(release_file).read_text(encoding="utf-8-sig")
+        content = Path(release_file).read_text(encoding="utf-8")
     except FileNotFoundError:
         print(f"  [error] Release file not found: {release_file}", file=sys.stderr)
         return set(), set(all_contributors)

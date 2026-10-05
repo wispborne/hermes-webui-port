@@ -21,6 +21,7 @@ import textwrap
 
 import pytest
 
+
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     """Ensure the two env-var gates start AND end each test in a known state.
@@ -35,6 +36,7 @@ def _clean_env(monkeypatch):
     yield
     for var in ("HERMES_IGNORE_USER_CONFIG", "HERMES_IGNORE_RULES"):
         os.environ.pop(var, None)
+
 
 class TestIgnoreUserConfigEnvGate:
     """``load_cli_config()`` must honour ``HERMES_IGNORE_USER_CONFIG=1``.
@@ -108,3 +110,10 @@ class TestIgnoreUserConfigEnvGate:
 
         # "true" != "1", so user config IS loaded
         assert cfg["model"]["default"] == "test-vendor/ignore-user-config-sentinel"
+
+
+
+
+
+
+

@@ -30,12 +30,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
 @pytest.fixture()
 def hermes_home(tmp_path, monkeypatch):
     home = tmp_path / ".hermes"
     home.mkdir()
     monkeypatch.setenv("HERMES_HOME", str(home))
     return home
+
 
 @pytest.fixture()
 def tui_server():
@@ -48,6 +50,7 @@ def tui_server():
     ):
         yield importlib.import_module("tui_gateway.server")
 
+
 def _write_config(home, yaml_text: str | None) -> None:
     cfg = home / "config.yaml"
     if yaml_text is None:
@@ -55,6 +58,7 @@ def _write_config(home, yaml_text: str | None) -> None:
             cfg.unlink()
     else:
         cfg.write_text(yaml_text, encoding="utf-8")
+
 
 # (config yaml, expected mode, expected timeout)
 CASES = [
@@ -87,6 +91,7 @@ CASES = [
     ),
 ]
 
+
 def _approval_module():
     """Resolve tools.approval via sys.modules, not the package attribute.
 
@@ -98,6 +103,7 @@ def _approval_module():
     the same sys.modules entry.
     """
     return importlib.import_module("tools.approval")
+
 
 @pytest.mark.parametrize("yaml_text,expected_mode,expected_timeout", CASES)
 def test_mode_and_timeout_parity_across_surfaces(
@@ -129,3 +135,5 @@ def test_mode_and_timeout_parity_across_surfaces(
             assert approval_mod.is_approval_bypass_active() == (
                 core_mode == "off"
             )
+
+

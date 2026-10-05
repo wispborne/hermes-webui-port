@@ -1,7 +1,7 @@
 /**
  * Regression for #54551: macOS Info.plist privacy usage descriptions
  * declared by the Desktop electron-builder config
- * (`apps/desktop/electron-builder.config.cjs -> mac.extendInfo`) must pin every
+ * (`apps/desktop/package.json -> build.mac.extendInfo`) must pin every
  * `NS*UsageDescription` key the renderer relies on.
  *
  * Each entry is a key/value pair that lands in the packaged Hermes.app's
@@ -20,7 +20,7 @@
  * Why this test lives in tests-js/, not tests/*.py
  * -------------------------------------------------
  *
- * `AGENTS.md` requires assertions about JS-side packaging
+ * `AGENTS.md:1319-1329` requires assertions about `package.json` and JS-side
  * artifacts to live in the JS/Vitest suite: the CI change classifier can
  * skip Python coverage on a JS-only PR (the classifier's `python` lane is
  * skipped when all paths match `_FRONTEND` or `_PY_SKIP`, both of which
@@ -47,61 +47,51 @@
  */
 
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { test } from 'vitest'
 
 const REPO_ROOT = path.resolve(__dirname, '..')
-
-const DESKTOP_CONFIG = path.join(
-  REPO_ROOT,
-  'apps',
-  'desktop',
-  'electron-builder.config.cjs'
-)
-
-const require = createRequire(import.meta.url)
+const DESKTOP_PKG = path.join(REPO_ROOT, 'apps', 'desktop', 'package.json')
 
 interface UsageDescriptionRow {
   key: string
   reason: string
 }
 
-interface DesktopBuilderMacConfig {
-  extendInfo?: object
+function desktopPkg(): Record<string, unknown> {
+  assert.ok(fs.existsSync(DESKTOP_PKG), `missing ${DESKTOP_PKG}`)
+
+  return JSON.parse(fs.readFileSync(DESKTOP_PKG, 'utf-8'))
 }
 
-interface DesktopBuilderConfig {
-  mac?: DesktopBuilderMacConfig
-}
-
-const desktopBuilderConfig: DesktopBuilderConfig = require(DESKTOP_CONFIG)
-
-function usageDescriptions(): Map<string, string> {
-  const raw = desktopBuilderConfig.mac?.extendInfo
+function extendInfo(): Record<string, string> {
+  const pkg = desktopPkg()
+  const build = (pkg.build ?? {}) as Record<string, unknown>
+  const mac = (build.mac ?? {}) as Record<string, unknown>
   assert.ok(
-    typeof raw === 'object' && raw !== null && !Array.isArray(raw),
-    'mac.extendInfo is missing or invalid in apps/desktop/electron-builder.config.cjs'
+    typeof mac.extendInfo === 'object' &&
+      mac.extendInfo !== null &&
+      !Array.isArray(mac.extendInfo),
+    'build.mac.extendInfo is missing or invalid in apps/desktop/package.json'
   )
-  const result = new Map<string, string>()
+  const extend = mac.extendInfo as Record<string, unknown>
 
-  // electron-builder accepts arbitrary plist scalars in extendInfo, so only
-  // narrow the usage-description subset this contract owns.
-  for (const [key, value] of Object.entries(raw)) {
-    if (!key.startsWith('NS') || !key.endsWith('UsageDescription')) {
-      continue
-    }
-
+  // Narrow to Record<string, string> with a runtime guard — the value type
+  // for NS*UsageDescription is string, but electron-builder's `extendInfo`
+  // accepts arbitrary plist scalars (bool, number, array, object) and we want
+  // a clean assertion error here, not a downstream `value.trim is not a
+  // function` crash in the whitespace test.
+  for (const [key, value] of Object.entries(extend)) {
     assert.equal(
       typeof value,
       'string',
-      `\`${key}\` in mac.extendInfo must be a string (got ${typeof value})`
+      `\`${key}\` in build.mac.extendInfo must be a string (got ${typeof value})`
     )
-    result.set(key, value)
   }
 
-  return result
+  return extend as Record<string, string>
 }
 
 // Each entry: Info.plist key and a plain-language reason. Catches silent
@@ -156,14 +146,15 @@ const EXPECTED_USAGE_DESCRIPTIONS: UsageDescriptionRow[] = [
 ]
 
 test.each(EXPECTED_USAGE_DESCRIPTIONS)(
-  '`$key` is declared in mac.extendInfo',
+  '`$key` is declared in build.mac.extendInfo',
   ({ key, reason }) => {
-    const info = usageDescriptions()
+    const info = extendInfo()
+    const value = info[key]
 
     assert.ok(
-      info.has(key),
+      value !== undefined,
       `Info.plist privacy usage description \`${key}\` is missing from ` +
-        'apps/desktop/electron-builder.config.cjs mac.extendInfo. macOS will surface ' +
+        'apps/desktop/package.json build.mac.extendInfo. macOS will surface ' +
         'a misleading system prompt or silently deny the related API.\n' +
         `Reason: ${reason}`
     )
@@ -171,13 +162,13 @@ test.each(EXPECTED_USAGE_DESCRIPTIONS)(
 )
 
 test('every extendInfo value is free of leading/trailing whitespace and newlines', () => {
-  const info = usageDescriptions()
+  const info = extendInfo()
 
-  for (const [key, value] of info) {
+  for (const [key, value] of Object.entries(info)) {
     assert.equal(
       value,
       value.trim(),
-      `\`${key}\` in mac.extendInfo has leading/trailing whitespace: ` +
+      `\`${key}\` in build.mac.extendInfo has leading/trailing whitespace: ` +
         JSON.stringify(value)
     )
     // electron-builder writes strings as-is; newlines would render as

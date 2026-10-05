@@ -12,7 +12,6 @@ import re
 import time
 from typing import Any, Optional
 
-from agent.i18n import t
 from agent.retry_utils import parse_retry_after_seconds
 
 logger = logging.getLogger(__name__)
@@ -75,7 +74,7 @@ def _is_signal_rate_limit_error(err: Any) -> bool:
 def _format_wait(seconds: float) -> str:
     """Human-friendly wait label for user-facing pacing notices."""
     s = max(0.0, seconds)
-    return t("platform.signal.wait_seconds", count=int(round(s))) if s < 90 else t("platform.signal.wait_minutes", count=max(1, int(round(s / 60))))
+    return f"{int(round(s))}s" if s < 90 else f"{max(1, int(round(s / 60)))} min"
 
 
 def _signal_send_timeout(num_attachments: int) -> float:

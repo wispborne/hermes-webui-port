@@ -74,12 +74,12 @@ def _run_stream(monkeypatch):
     return sd_called["hit"]
 
 
-@pytest.mark.platforms("macos")
+@pytest.mark.macos_only
 def test_streaming_tts_skips_sounddevice_on_macos(monkeypatch):
     assert _run_stream(monkeypatch) is False
 
 
-@pytest.mark.platforms("linux")
+@pytest.mark.linux_only
 def test_streaming_tts_uses_sounddevice_off_macos(monkeypatch):
     # Off macOS the OutputStream setup runs; _import_sounddevice raising here
     # is caught by the function's own guard, so the call itself is what we assert.

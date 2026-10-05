@@ -6,7 +6,10 @@ from hermes_constants import set_hermes_home_override, reset_hermes_home_overrid
 from hermes_cli.main_dashboard import _read_ssh_session_token_file
 
 
-@pytest.mark.platforms("posix")  # POSIX fixture uses mode bits; Windows read_token requires protected DACLs
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="POSIX fixture uses mode bits; Windows read_token requires protected DACLs",
+)
 def test_token_file_is_read_and_unlinked_through_private_directory(tmp_path, monkeypatch):
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
@@ -24,7 +27,7 @@ def test_token_file_is_read_and_unlinked_through_private_directory(tmp_path, mon
         reset_hermes_home_override(override)
 
 
-@pytest.mark.platforms("posix")  # POSIX desktop-ssh token path
+@pytest.mark.skipif(os.name == "nt", reason="POSIX desktop-ssh token path")
 def test_token_anchor_is_os_home_not_active_profile(tmp_path, monkeypatch):
     """Regression for #69551: the Desktop client always writes the token under
     ``$HOME/.hermes/desktop-ssh`` (a literal ``~/.hermes/desktop-ssh`` in
@@ -52,7 +55,7 @@ def test_token_anchor_is_os_home_not_active_profile(tmp_path, monkeypatch):
             reset_hermes_home_override(override)
 
 
-@pytest.mark.platforms("posix")  # POSIX desktop-ssh token path
+@pytest.mark.skipif(os.name == "nt", reason="POSIX desktop-ssh token path")
 def test_token_under_profile_desktop_ssh_is_rejected(tmp_path, monkeypatch):
     """The client never writes under a profile-scoped desktop-ssh dir, so a token
     placed there must be rejected even while that profile is active — proving the
@@ -73,7 +76,7 @@ def test_token_under_profile_desktop_ssh_is_rejected(tmp_path, monkeypatch):
         reset_hermes_home_override(override)
 
 
-@pytest.mark.platforms("posix")  # POSIX symlink contract
+@pytest.mark.skipif(os.name == "nt", reason="POSIX symlink contract")
 def test_token_file_rejects_symlink(tmp_path, monkeypatch):
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
@@ -94,7 +97,6 @@ def test_token_file_rejects_symlink(tmp_path, monkeypatch):
         reset_hermes_home_override(override)
 
 
-@pytest.mark.platforms("linux")
 def test_token_file_rejects_parent_escape(tmp_path, monkeypatch):
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))

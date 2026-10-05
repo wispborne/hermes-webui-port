@@ -408,7 +408,6 @@ export function ConnectorExecution(props: ToolCallMessagePartProps) {
           <ToolFallback
             {...props}
             args={recordOf(recordOf(batch[index]).arguments ?? props.args)}
-            innerToolName={props.toolName === 'tool_call' ? label.name : props.toolName}
             isError={Boolean(result.error) || props.isError === true}
             key={`${props.toolCallId}:${index}`}
             result={item}

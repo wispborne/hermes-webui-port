@@ -1,7 +1,6 @@
 import { Box, Text } from '@hermes/ink'
 import { memo, useState } from 'react'
 
-import { useT } from '../i18n/useT.js'
 import { countPendingTodos } from '../lib/liveProgress.js'
 import { todoGlyph, todoTone, todoTree } from '../lib/todo.js'
 import type { Theme } from '../theme.js'
@@ -32,7 +31,6 @@ export const TodoPanel = memo(function TodoPanel({
   // external controller. Live TodoPanel passes collapsed+onToggle from the
   // turn store so clicks still work there.
   const [localCollapsed, setLocalCollapsed] = useState(defaultCollapsed)
-  const T = useT().chatBits.todo
   const isControlled = typeof collapsed === 'boolean'
   const effectiveCollapsed = isControlled ? collapsed : localCollapsed
 
@@ -61,7 +59,7 @@ export const TodoPanel = memo(function TodoPanel({
         <Text color={t.color.muted}>
           <Text color={t.color.accent}>{effectiveCollapsed ? '▸ ' : '▾ '}</Text>
           <Text bold color={t.color.text}>
-            {T.title}
+            Todo
           </Text>{' '}
           <Text color={t.color.statusFg} dim>
             ({done}/{todos.length})
@@ -69,7 +67,7 @@ export const TodoPanel = memo(function TodoPanel({
           {incomplete && pending > 0 && (
             <Text color={t.color.muted} dim>
               {' '}
-              {pending === 1 ? T.incompleteOne(pending) : T.incompleteOther(pending)}
+              · incomplete · {pending} still {pending === 1 ? 'pending' : 'pending/in_progress'}
             </Text>
           )}
         </Text>

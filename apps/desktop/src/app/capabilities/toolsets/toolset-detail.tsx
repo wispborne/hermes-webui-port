@@ -77,13 +77,7 @@ export function ToolsetDetail({
           config option users kept missing because its only GUI home was the
           generic Settings → Config editor. */}
       {toolset.name === 'browser' && <BrowserRealProfilePanel profile={profile} />}
-      {toolset.name === 'terminal' && (
-        <TerminalBackendPanel
-          key={profileScopeKey(profile)}
-          onConfiguredChange={onConfiguredChange}
-          profile={profile}
-        />
-      )}
+      {toolset.name === 'terminal' && <TerminalBackendPanel onConfiguredChange={onConfiguredChange} />}
       <ToolsetConfigPanel
         key={`${toolset.name}:${profileScopeKey(profile)}`}
         onConfiguredChange={onConfiguredChange}

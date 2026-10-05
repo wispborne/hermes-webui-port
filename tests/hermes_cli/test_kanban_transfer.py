@@ -319,12 +319,15 @@ def test_traversal_members_are_rejected(member):
 
 
 def test_extract_refuses_a_symlink_member(tmp_path):
+    payload = tmp_path / "payload"
+    payload.mkdir()
+    (payload / "real.txt").write_text("fine")
+    link = payload / "link"
+    link.symlink_to("/etc/passwd")
+
     archive = tmp_path / "evil.tar.gz"
     with tarfile.open(archive, "w:gz") as tf:
-        link = tarfile.TarInfo("payload/link")
-        link.type = tarfile.SYMTYPE
-        link.linkname = "/etc/passwd"
-        tf.addfile(link)
+        tf.add(payload, arcname="payload")
 
     with pytest.raises(ValueError, match="Unsupported archive member"):
         safe_extract_targz(archive, tmp_path / "out")

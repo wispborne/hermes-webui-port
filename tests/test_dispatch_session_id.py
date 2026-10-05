@@ -3,6 +3,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
+
 def _make_registry(captured: dict):
     """Return a mock registry whose dispatch records the kwargs it receives."""
     registry = MagicMock()
@@ -13,6 +14,7 @@ def _make_registry(captured: dict):
 
     registry.dispatch.side_effect = _dispatch
     return registry
+
 
 class TestSessionIdForwarding:
 
@@ -43,3 +45,5 @@ class TestSessionIdForwarding:
                 skip_pre_tool_call_hook=True,
             )
         assert captured.get("session_id") == "sess-xyz"
+
+

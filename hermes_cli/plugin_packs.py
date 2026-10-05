@@ -140,7 +140,7 @@ def validate_config_seed(plugin_id: str, seed: Any) -> dict[str, Any]:
 
 def parse_pack(text: str, *, source: str = "<pack>") -> PluginPack:
     """Parse and validate a pack YAML document."""
-    import hermes_yaml as yaml
+    import yaml
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -223,7 +223,7 @@ def load_pack(path_or_url: str) -> PluginPack:
         raise PackError(f"Pack file not found: {path}")
     if path.stat().st_size > _MAX_PACK_BYTES:
         raise PackError("Pack file exceeds the 1 MiB size limit.")
-    return parse_pack(path.read_text(encoding="utf-8-sig"), source=str(path))
+    return parse_pack(path.read_text(encoding="utf-8"), source=str(path))
 
 
 # ── Resolution (bare index names → owner/repo) + review screen ──────────────────────────────
@@ -354,13 +354,15 @@ def install_pack_plugins(
     from hermes_cli.plugins_cmd import (
         PluginOperationError,
         _declared_capabilities_from_manifest,
+        _get_disabled_set,
+        _get_enabled_set,
         _install_plugin_core,
+        _install_python_dependencies,
         _prompt_plugin_env_vars,
         _run_capability_consent,
-        _set_plugin_enabled,
+        _save_disabled_set,
+        _save_enabled_set,
     )
-    from hermes_cli.plugins_admission import AdmissionRefused
-    from hermes_cli.plugins_cmd_install import recorded_install
     results: List[PackInstallResult] = []
 
     def _fail(display: str, error: str) -> None:
@@ -374,10 +376,8 @@ def install_pack_plugins(
             continue
         console.print(f"[dim]Installing {display} @ {rp.entry.ref[:12]}...[/dim]")
         try:
-            # A bare pack name resolved through the plugin catalog; repo entries are custom sources.
-            target, manifest, installed_name = recorded_install(
-                lambda: _install_plugin_core(rp.identifier, force=force, ref=rp.entry.ref),
-                catalog_name=None if rp.entry.repo else rp.entry.name, identifier=rp.identifier)
+            target, manifest, installed_name = _install_plugin_core(
+                rp.identifier, force=force, ref=rp.entry.ref)
         except PluginOperationError as exc:
             _fail(display, str(exc))
             continue
@@ -391,12 +391,14 @@ def install_pack_plugins(
             _prompt_plugin_env_vars(manifest, console)
         except Exception:
             logger.debug("requires_env prompt failed for %s", installed_name, exc_info=True)
+        _install_python_dependencies(target, console)
 
-        try:
-            _set_plugin_enabled(installed_name, enable=True)
-        except AdmissionRefused as exc:
-            _fail(display, str(exc))
-            continue
+        enabled = _get_enabled_set()
+        disabled = _get_disabled_set()
+        enabled.add(installed_name)
+        disabled.discard(installed_name)
+        _save_enabled_set(enabled)
+        _save_disabled_set(disabled)
 
         # Per-plugin capability consent — the SAME flow as a single install (#64228). A pack never
         # bulk-grants capabilities.
@@ -453,7 +455,7 @@ def _sanitized_entry_config(plugin_id: str) -> dict[str, Any]:
 def export_pack(*, enabled_only: bool = False, pack_name: str = "my-hermes-pack") -> tuple[str, List[str]]:
     """Build pack YAML from the current install; returns ``(yaml_text, warnings)``. Plugins with
     unknown Git provenance (no install metadata) become warnings + YAML comments, never entries."""
-    import hermes_yaml as yaml
+    import yaml
     from hermes_cli.plugins_cmd import _get_enabled_set, _plugins_dir, _read_install_metadata
     metadata = _read_install_metadata()
     enabled = _get_enabled_set()

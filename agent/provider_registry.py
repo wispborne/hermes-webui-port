@@ -15,7 +15,7 @@ import logging
 import threading
 from typing import Any, Callable, Dict, FrozenSet, Generic, List, Optional, TypeVar
 
-from hermes_constants import hermes_home_key, normalize_scope
+from hermes_constants import hermes_home_key
 
 P = TypeVar("P")
 
@@ -54,7 +54,6 @@ class ProviderRegistry(Generic[P]):
         self._log_label = label if label.isupper() else label[0].lower() + label[1:]
 
     def _target(self, scope: Optional[str], *, create: bool) -> Dict[str, P]:
-        scope = normalize_scope(scope)
         if scope is None:
             return self._providers
         if create:
@@ -62,7 +61,6 @@ class ProviderRegistry(Generic[P]):
         return self._scoped_providers.get(scope, {})
 
     def _bump(self, scope: Optional[str]) -> None:
-        scope = normalize_scope(scope)
         if scope is None:
             self._generation += 1
         else:
@@ -102,7 +100,7 @@ class ProviderRegistry(Generic[P]):
         """Global map overlaid with the active profile's scoped map (a copy)."""
         with self._lock:
             merged = dict(self._providers)
-            merged.update(self._scoped_providers.get(hermes_home_key(scope), {}))
+            merged.update(self._scoped_providers.get(scope or hermes_home_key(), {}))
         return merged
 
     def list_providers(self, *, scope: Optional[str] = None) -> List[P]:
@@ -116,13 +114,13 @@ class ProviderRegistry(Generic[P]):
         key = self.normalize(name)
         with self._lock:
             return (
-                self._scoped_providers.get(hermes_home_key(scope), {}).get(key)
+                self._scoped_providers.get(scope or hermes_home_key(), {}).get(key)
                 or self._providers.get(key)
             )
 
     def registry_generation(self, *, scope: Optional[str] = None) -> tuple:
         """Cache fingerprint ``(global_generation, scoped_generation)``."""
-        active_scope = hermes_home_key(scope)
+        active_scope = scope or hermes_home_key()
         with self._lock:
             return self._generation, self._scoped_generations.get(active_scope, 0)
 
@@ -136,7 +134,6 @@ class ProviderRegistry(Generic[P]):
     ) -> bool:
         """Restore *previous* only when *current* is still installed under *name*."""
         key = self.normalize(name)
-        scope = normalize_scope(scope)
         with self._lock:
             target = self._target(scope, create=True)
             if target.get(key) is not current:

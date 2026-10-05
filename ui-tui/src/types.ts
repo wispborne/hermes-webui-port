@@ -115,7 +115,7 @@ export interface ConfirmReq {
   title: string
 }
 
-export interface ClarifyQuestion {
+export interface ClarifyBatchQuestion {
   choices: string[] | null
   multiSelect?: boolean
   qid: string
@@ -123,8 +123,11 @@ export interface ClarifyQuestion {
 }
 
 export interface ClarifyReq {
+  choices: string[] | null
+  question: string
   requestId: string
-  questions: ClarifyQuestion[]
+  /** Batch (multi-question) clarify: present instead of question/choices. */
+  questions?: ClarifyBatchQuestion[]
   /** Answers already locked server-side (qid → answer): seeded from the
    *  reconnect replay, updated as the user locks each question. */
   answers?: Record<string, string>
@@ -199,24 +202,6 @@ export interface VaultUnlockReq {
   backend: string
   displayName: string
   requestId: string
-}
-
-/**
- * `vault.save_login` server→client request — save a new website login from a
- * browser sign-in page. Two-step capture (identifier shown, password masked);
- * the answer goes only to the encrypted vault, never to the model.
- */
-export interface VaultSaveLoginReq {
-  origin: string
-  requestId: string
-  site: string
-}
-
-/** `vault.code` server→client request — a one-time sign-in code the user reads from their device. */
-export interface VaultCodeReq {
-  hint: string
-  requestId: string
-  site: string
 }
 
 export interface PanelData {

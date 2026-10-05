@@ -17,7 +17,6 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -217,7 +216,7 @@ class TestLooksLikeGitUrl:
     def test_accepts_git_sources(self, src):
         assert _looks_like_git_url(src)
 
-    @pytest.mark.platforms("windows")
+    @pytest.mark.windows_only
     def test_git_source_removes_read_only_git_metadata(self, tmp_path, monkeypatch):
         origin = tmp_path / "origin"
         subprocess.run(["git", "init", "--quiet", str(origin)], check=True)
@@ -304,13 +303,13 @@ class TestInstall:
         staged = _make_staging_dir(profile_env, "legacy_all")
         # Extra top-level payload not covered by DEFAULT_DIST_OWNED
         (staged / "extra.txt").write_text("bonus\n")
-        (staged / "assets").mkdir()
-        (staged / "assets" / "helper.py").write_text("# helper\n")
+        (staged / "tools").mkdir()
+        (staged / "tools" / "helper.py").write_text("# helper\n")
 
         plan = install_distribution(str(staged), name="legacy_all")
         assert (plan.target_dir / "extra.txt").read_text() == "bonus\n", \
             "omitted distribution_owned must keep copying undeclared files"
-        assert (plan.target_dir / "assets" / "helper.py").exists(), \
+        assert (plan.target_dir / "tools" / "helper.py").exists(), \
             "omitted distribution_owned must keep copying undeclared dirs"
 
     def test_install_allowlist_supports_nested_paths(self, profile_env):
@@ -405,10 +404,8 @@ class TestInstall:
 
     def test_install_enforces_hermes_requires(self, profile_env, monkeypatch):
         # Pin current Hermes version to something well below the requirement
-        monkeypatch.setattr(
-            "hermes_cli.version_info.get_version_info",
-            lambda: SimpleNamespace(base_version="0.1.0"),
-        )
+        import hermes_cli
+        monkeypatch.setattr(hermes_cli, "__version__", "0.1.0", raising=False)
 
         mf = DistributionManifest(
             name="future",
@@ -463,65 +460,6 @@ class TestUpdate:
 
         assert (custom / "SKILL.md").read_text(encoding="utf-8") == "custom skill\n"
         assert (plan.target_dir / "cron" / "mine.json").exists()
-
-    @staticmethod
-    def _owned_category(profile_env, name):
-        """A distribution owning only ``skills/research/`` (the docs' own example) plus SOUL.md."""
-        mf = DistributionManifest(name=name, version="0.1.0", distribution_owned=["SOUL.md", "skills/research/"])
-        staged = _make_staging_dir(profile_env, name, manifest=mf)
-        (staged / "skills" / "research" / "web-search").mkdir(parents=True)
-        (staged / "skills" / "research" / "web-search" / "SKILL.md").write_text("author skill\n", encoding="utf-8")
-        (staged / "skills" / "research" / "DESCRIPTION.md").write_text("research skills\n", encoding="utf-8")
-        (staged / "skills" / "research" / ".DS_Store").write_bytes(b"\0")  # stray dotfile a macOS author ships
-        return staged, install_distribution(str(staged), name=name)
-
-    def test_an_owned_category_keeps_skills_the_installer_added_to_it(self, profile_env):
-        """``distribution_owned: [skills/research/]`` owns the author's research skills, not the
-        category: ``hermes skills install`` and agent-created skills land in ``skills/<category>/``
-        too. The category was replaced wholesale, deleting them (the #25120 loss, still live for
-        the explicit form the docs show)."""
-        staged, plan = self._owned_category(profile_env, "rb")
-        research = plan.target_dir / "skills" / "research"
-        mine = research / "my-notes"
-        mine.mkdir()
-        (mine / "SKILL.md").write_text("my own skill\n", encoding="utf-8")
-        (research / "web-search" / "stale.txt").write_text("old\n", encoding="utf-8")
-        (staged / "skills" / "research" / "web-search" / "SKILL.md").write_text("author v2\n", encoding="utf-8")
-        (staged / "skills" / "research" / "arxiv").mkdir()
-        (staged / "skills" / "research" / "arxiv" / "SKILL.md").write_text("new author skill\n", encoding="utf-8")
-        # Category metadata beyond DESCRIPTION.md must not turn the category into a root.
-        (staged / "skills" / "research" / "README.md").write_text("about research\n", encoding="utf-8")
-
-        update_distribution("rb")
-
-        assert (mine / "SKILL.md").read_text(encoding="utf-8") == "my own skill\n"
-        assert (research / "web-search" / "SKILL.md").read_text(encoding="utf-8") == "author v2\n"
-        assert not (research / "web-search" / "stale.txt").exists()  # an owned root is still replaced whole
-        assert (research / "arxiv" / "SKILL.md").exists()
-        assert (research / "DESCRIPTION.md").read_text(encoding="utf-8") == "research skills\n"
-        assert (research / "README.md").read_text(encoding="utf-8") == "about research\n"
-        # A dir inside a skill is part of that skill: owning ``web-search/scripts`` replaces it whole.
-        from hermes_cli.profile_distribution import _merges_per_root
-        scripts = staged / "skills" / "research" / "web-search" / "scripts"
-        scripts.mkdir()
-        assert not _merges_per_root(scripts, ("skills", "research", "web-search", "scripts"))
-
-    def test_an_owned_category_refuses_a_symlinked_subcategory_before_writing(self, profile_env, tmp_path):
-        staged, plan = self._owned_category(profile_env, "rb")
-        (staged / "skills" / "research" / "papers" / "summarize").mkdir(parents=True)
-        (staged / "skills" / "research" / "papers" / "summarize" / "SKILL.md").write_text("s\n", encoding="utf-8")
-        outside = tmp_path / "outside"
-        outside.mkdir()
-        (plan.target_dir / "skills" / "research" / "papers").symlink_to(outside, target_is_directory=True)
-        soul = plan.target_dir / "SOUL.md"
-        before = soul.read_text(encoding="utf-8")
-        (staged / "SOUL.md").write_text("changed\n", encoding="utf-8")
-
-        with pytest.raises(DistributionError, match="symlink"):
-            update_distribution("rb")
-
-        assert not any(outside.iterdir())
-        assert soul.read_text(encoding="utf-8") == before  # refused before the first write
 
     def test_update_merges_cron_jobs_without_losing_local_state(self, profile_env):
         """Updating one shipped definition cannot replace the profile's whole cron store."""
@@ -744,20 +682,21 @@ class TestSecurity:
 class TestNestedUserOwnedExcludeNotFiltered:
 
     def test_nested_bin_dir_is_preserved(self, profile_env):
-        """A distribution shipping assets/bin/ must not have assets/bin/ dropped
+        """A distribution shipping tools/bin/ must not have tools/bin/ dropped
         during install even though 'bin' is in USER_OWNED_EXCLUDE."""
         mf = DistributionManifest(
             name="nested_bin",
             version="0.1.0",
-            distribution_owned=list(DEFAULT_DIST_OWNED) + ["assets"],
+            distribution_owned=list(DEFAULT_DIST_OWNED) + ["tools"],
         )
         staged = _make_staging_dir(profile_env, "src", manifest=mf)
-        (staged / "assets" / "bin").mkdir(parents=True)
-        (staged / "assets" / "bin" / "tool.py").write_text("# tool\n")
+        (staged / "tools" / "bin").mkdir(parents=True)
+        (staged / "tools" / "bin" / "tool.py").write_text("# tool\n")
 
         plan = install_distribution(str(staged), name="nested_bin")
-        assert (plan.target_dir / "assets" / "bin").is_dir(), "nested bin/ was dropped"
-        assert (plan.target_dir / "assets" / "bin" / "tool.py").exists()
+        assert (plan.target_dir / "tools" / "bin").is_dir(), "nested bin/ was dropped"
+        assert (plan.target_dir / "tools" / "bin" / "tool.py").exists()
+
 
     def test_top_level_user_owned_still_skipped(self, profile_env):
         """Top-level entries in USER_OWNED_EXCLUDE must still be skipped —
@@ -780,23 +719,6 @@ class TestNestedUserOwnedExcludeNotFiltered:
         # so check that the staged file did NOT land there.
         assert not (plan.target_dir / "logs" / "shipped.log").exists(), \
             "staged logs/ content should not leak into target"
-
-    def test_both_nested_and_top_level_coexist(self, profile_env):
-        """Top-level bin/ filtered, but assets/bin/ kept."""
-        mf = DistributionManifest(
-            name="coexist",
-            version="0.1.0",
-            distribution_owned=list(DEFAULT_DIST_OWNED) + ["assets"],
-        )
-        staged = _make_staging_dir(profile_env, "src", manifest=mf)
-        (staged / "bin").mkdir(exist_ok=True)
-        (staged / "bin" / "top.sh").write_text("# top\n")
-        (staged / "assets" / "bin").mkdir(parents=True)
-        (staged / "assets" / "bin" / "helper.py").write_text("# helper\n")
-
-        plan = install_distribution(str(staged), name="coexist")
-        assert not (plan.target_dir / "bin").exists()
-        assert (plan.target_dir / "assets" / "bin" / "helper.py").exists()
 
 
 
@@ -944,7 +866,9 @@ class TestManifestCrashDurability:
         # No temp file left behind next to the manifest.
         assert list(tmp_path.glob("*.tmp")) == []
 
-    @pytest.mark.platforms("posix")  # POSIX permission bits
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="POSIX permission bits"
+    )
     def test_existing_file_mode_is_preserved(self, tmp_path):
         import os
         import stat
@@ -958,7 +882,9 @@ class TestManifestCrashDurability:
         mode = stat.S_IMODE(mf.stat().st_mode)
         assert mode == 0o644, f"mode changed to {oct(mode)}"
 
-    @pytest.mark.platforms("posix")  # POSIX permission bits
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="POSIX permission bits"
+    )
     def test_created_file_mode_is_not_tightened(self, tmp_path):
         """A manifest this function *creates* must not land owner-only.
 

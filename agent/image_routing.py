@@ -31,16 +31,11 @@ _VALID_MODES = frozenset({"auto", "native", "text"})
 # the gateway routes them via send_document and a PDF must never become a vision part.
 _IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tiff", ".tif", ".heic")
 _IMAGE_EXT_PATTERN = "|".join(e.lstrip(".") for e in _IMAGE_EXTS)
-
-# Absolute / home-relative local image path. Matches the same shape gateway's
-# extract_local_files() uses: anchors to ``~/``, ``/``, or a Windows drive
-# (``C:\``), ignores matches inside URLs (the ``(?<![/:\w.])`` lookbehind), and
-# case-insensitive on the extension.
+# Local path: same shape as gateway extract_local_files() — anchored to ``~/`` or
+# ``/``, lookbehind skips matches inside URLs. URL: strict ``http(s)://`` so
+# ``file://`` and other schemes are not grabbed; optional query string.
 _LOCAL_IMAGE_PATH_RE = re.compile(
-    r"(?<![/:\w.])(?:~/|/|[A-Za-z]:[\\/])(?:[\w.\-]+[\\/])*[\w.\-]+\.(?:"
-    + _IMAGE_EXT_PATTERN
-    + r")\b",
-    re.IGNORECASE,
+    r"(?<![/:\w.])(?:~/|/)(?:[\w.\-]+/)*[\w.\-]+\.(?:" + _IMAGE_EXT_PATTERN + r")\b", re.IGNORECASE,
 )
 _IMAGE_URL_RE = re.compile(
     r"https?://[^\s<>\"']+?\.(?:" + _IMAGE_EXT_PATTERN + r")(?:\?[^\s<>\"']*)?", re.IGNORECASE,
@@ -55,13 +50,10 @@ def _matches_outside_code(pattern: re.Pattern, text: str) -> Iterable[str]:
 
 
 def _existing_file(candidate: str) -> Optional[str]:
-    """Normalized path when it is a regular file; None otherwise (incl. OSError on pathological input).
-    The return value is the OS-canonical spelling of the real file (same norm class as
-    ``str(Path(...))``), so callers can compare it against actual paths — ``~`` expansion
-    alone would leave the textual ``/`` separators of the source text in place on Windows."""
+    """Expanded path when it is a regular file; None otherwise (incl. OSError on pathological input)."""
     expanded = os.path.expanduser(candidate)
     try:
-        return os.path.normpath(expanded) if os.path.isfile(expanded) else None
+        return expanded if os.path.isfile(expanded) else None
     except OSError:
         return None
 
@@ -337,12 +329,8 @@ def _lookup_supports_vision(
     """Return True/False if vision capability can be resolved, None if unknown.
 
     Order: config ``supports_vision`` override → :data:`_VISION_PROBES`
-    (managed local runtime → models.dev catalog → Ollama probe). A plugin's
-    per-model ``ProviderProfile.model_capabilities`` reaches this through the
-    catalog probe. The provider-wide ``ProviderProfile.supports_vision`` flag is
-    deliberately NOT consulted: it declares that tool-result messages may carry
-    images (``tools.vision_tools``), not that every model on the provider can see
-    user attachments — relays such as ``router`` set it for mixed catalogs.
+    (managed local runtime → models.dev catalog → Ollama probe → registered
+    ``ProviderProfile.supports_vision`` declaration).
     """
     # Named custom providers are canonicalized to ``provider="custom"``; the
     # original name lives in the context-local main runtime. Borrow it only on an
@@ -444,8 +432,8 @@ def _transcode_to_png(raw: bytes) -> Optional[bytes]:
     except ImportError:
         logger.info(
             "image_routing: Pillow not installed; cannot transcode "
-            "non-standard image format to PNG. Run `hermes pm repair` to restore Pillow, "
-            "or convert the image to PNG before sending it."
+            "non-standard image format to PNG. Install with `pip install Pillow` "
+            "(and `pillow-heif` / `pillow-avif-plugin` for those formats)."
         )
         return None
     with suppress(Exception):

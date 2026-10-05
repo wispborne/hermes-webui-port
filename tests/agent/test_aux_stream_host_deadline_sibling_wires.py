@@ -121,7 +121,6 @@ class _AnthropicStream:
             yield SimpleNamespace(
                 type="content_block_delta", delta=SimpleNamespace(text="tok"),
             )
-        yield SimpleNamespace(type="message_stop")
 
     def get_final_message(self):
         return SimpleNamespace(content=[SimpleNamespace(type="text", text="summary")])

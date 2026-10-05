@@ -18,9 +18,11 @@ import pytest
 from hermes_cli import copilot_auth
 import hermes_cli.web_routers.ops as _rt_ops
 
+
 # ---------------------------------------------------------------------------
 # _urlopen_bounded
 # ---------------------------------------------------------------------------
+
 
 class TestUrlopenBounded:
 
@@ -54,9 +56,11 @@ class TestUrlopenBounded:
             release.set()
             assert closed.wait(timeout=2), "late response was not closed"
 
+
 # ---------------------------------------------------------------------------
 # single-flight exchange
 # ---------------------------------------------------------------------------
+
 
 class TestExchangeSingleFlight:
     @pytest.fixture(autouse=True)
@@ -162,9 +166,11 @@ class TestExchangeSingleFlight:
         finally:
             lock.release()
 
+
 # ---------------------------------------------------------------------------
 # web_server credential-pool handlers off the loop
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_list_credential_pool_runs_off_event_loop(monkeypatch):
@@ -182,3 +188,5 @@ async def test_list_credential_pool_runs_off_event_loop(monkeypatch):
 
     assert result == {"providers": []}
     assert seen["thread"] != loop_thread
+
+

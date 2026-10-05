@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 
 from hermes_constants import get_hermes_home
 
+from plugins.google_meet._jsonfile import read_json
 from utils import atomic_json_write
 
 
@@ -28,22 +29,12 @@ def _root() -> Path:
     return Path(get_hermes_home()) / "workspace" / "meetings"
 
 
-def _active_file() -> Path:
-    return _root() / ".active.json"
-
-
 def _read_active() -> Optional[Dict[str, Any]]:
-    p = _active_file()
-    if not p.is_file():
-        return None
-    try:
-        return json.loads(p.read_text(encoding="utf-8-sig"))
-    except Exception:
-        return None
+    return read_json(_root() / ".active.json")
 
 
 def _write_active(data: Dict[str, Any]) -> None:
-    atomic_json_write(_active_file(), data)
+    atomic_json_write(_root() / ".active.json", data)
 
 
 def _pid_alive(pid: int) -> bool:
@@ -115,26 +106,9 @@ def status() -> Dict[str, Any]:
     if not active:
         return dict(_NO_ACTIVE)
     pid = int(active.get("pid", 0))
-    alive = _pid_alive(pid) if pid else False
-
-    status_path = Path(active.get("out_dir", "")) / "status.json"
-    bot_status: Dict[str, Any] = {}
-    if status_path.is_file():
-        try:
-            bot_status = json.loads(status_path.read_text(encoding="utf-8-sig"))
-        except Exception:
-            pass
-
-    return {
-        "ok": True,
-        "alive": alive,
-        "pid": pid,
-        "meetingId": active.get("meeting_id"),
-        "url": active.get("url"),
-        "startedAt": active.get("started_at"),
-        "outDir": active.get("out_dir"),
-        **bot_status,
-    }
+    return {"ok": True, "alive": _pid_alive(pid), "pid": pid, "meetingId": active.get("meeting_id"),
+            "url": active.get("url"), "startedAt": active.get("started_at"), "outDir": active.get("out_dir"),
+            **(read_json(Path(active.get("out_dir", "")) / "status.json") or {})}
 
 
 def transcript(last: Optional[int] = None) -> Dict[str, Any]:
@@ -143,15 +117,7 @@ def transcript(last: Optional[int] = None) -> Dict[str, Any]:
     if not active:
         return dict(_NO_ACTIVE)
     tp = Path(active.get("out_dir", "")) / "transcript.txt"
-    if not tp.is_file():
-        return {
-            "ok": True,
-            "meetingId": active.get("meeting_id"),
-            "lines": [],
-            "total": 0,
-            "path": str(tp),
-        }
-    text = tp.read_text(encoding="utf-8-sig", errors="replace")
+    text = tp.read_text(encoding="utf-8", errors="replace") if tp.is_file() else ""
     all_lines = [ln for ln in text.splitlines() if ln.strip()]
     return {"ok": True, "meetingId": active.get("meeting_id"),
             "lines": all_lines[-last:] if last else all_lines, "total": len(all_lines), "path": str(tp)}
@@ -195,6 +161,6 @@ def stop(*, reason: str = "requested") -> Dict[str, Any]:
             time.sleep(0.5)
         else:
             _kill(pid, signal.SIGKILL)  # windows-footgun: ok — POSIX-only plugin (google_meet registers no-op on Windows; see __init__.py)
-    _active_file().unlink(missing_ok=True)
+    (_root() / ".active.json").unlink(missing_ok=True)
     return {"ok": True, "reason": reason, "meetingId": active.get("meeting_id"),
             "transcriptPath": str(Path(out_dir) / "transcript.txt") if out_dir else None}

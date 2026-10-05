@@ -13,6 +13,7 @@ from agent.session_activity import (
     normalize_activity_provenance,
 )
 
+
 @pytest.mark.parametrize(
     "max_iterations, expected",
     [
@@ -26,11 +27,17 @@ def test_format_iteration_progress_hides_unbounded_ceiling(max_iterations, expec
     assert out == expected
     assert str(sys.maxsize) not in out
 
+
 def test_bound_activity_description_truncates():
     long = "x" * (ACTIVITY_DESCRIPTION_MAX + 80)
     out = bound_activity_description(long)
     assert len(out) == ACTIVITY_DESCRIPTION_MAX
     assert out.endswith("…")
+
+
+
+
+
 
 def test_normalize_activity_provenance_defaults_to_unknown():
     assert normalize_activity_provenance(None) is ActivityProvenance.UNKNOWN
@@ -45,6 +52,7 @@ def test_normalize_activity_provenance_defaults_to_unknown():
         normalize_activity_provenance("agent.compression_timeout")
         is ActivityProvenance.AGENT_COMPRESSION_TIMEOUT
     )
+
 
 def test_build_activity_snapshot_includes_compat_aliases():
     snap = build_activity_snapshot(
@@ -64,3 +72,7 @@ def test_build_activity_snapshot_includes_compat_aliases():
     assert snap["api_call_count"] == 1
     assert "phase" not in snap
     assert "last_progress_at" not in snap
+
+
+
+

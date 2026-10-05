@@ -8,6 +8,10 @@ import concurrent.futures
 import threading
 import time
 
+
+
+
+
 class TestRunningJobGuard:
     """_running_job_ids prevents double-dispatch of active jobs."""
 
@@ -47,6 +51,7 @@ class TestRunningJobGuard:
 
         sched._running_job_ids.discard(sched._inflight_key("guard-job"))
         sched._shutdown_parallel_pool()
+
 
     def test_fire_claim_is_acquired_only_when_executor_worker_starts(self, monkeypatch):
         """Queue wait must not consume the durable claim TTL."""
@@ -96,6 +101,7 @@ class TestRunningJobGuard:
 
         assert claim_calls == [("queued-job", {"return_job": True})]
         assert sched._inflight_key("queued-job") not in sched._running_job_ids
+
 
     def test_create_execution_failure_does_not_wedge_running_set(self, tmp_path, monkeypatch):
         """create_execution failures clear the running lock and still allow next jobs."""
@@ -160,6 +166,7 @@ class TestRunningJobGuard:
         assert sched._inflight_key("healthy-job") not in sched._running_job_ids
 
         sched._shutdown_parallel_pool()
+
 
 class TestSyncMode:
     """tick() blocks by default (sync=True); tick(sync=False) returns immediately."""
@@ -233,3 +240,6 @@ class TestSyncMode:
         barrier.wait()
         time.sleep(0.1)
         sched._shutdown_parallel_pool()
+
+
+

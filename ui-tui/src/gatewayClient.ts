@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
+import { existsSync } from 'node:fs'
 import { delimiter, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 
@@ -15,7 +16,6 @@ import { reconnectBackoffDelayMs } from '@hermes/shared/reconnect-backoff'
 import { WebSocket as UndiciWebSocket } from 'undici'
 
 import type { AnyGatewayEvent } from './gatewayTypes.js'
-import { t } from './i18n/runtime.js'
 import { CircularBuffer } from './lib/circularBuffer.js'
 import { recordParentLifecycle } from './lib/parentLog.js'
 
@@ -67,24 +67,25 @@ const resolveSidecarUrl = () => {
   return raw ? raw : null
 }
 
-const resolvePython = () => {
-  // Trust HERMES_PYTHON only. The launcher guarantees it: hermes_cli/main.py
-  // validates it and falls back to its own sys.executable, and the Nix
-  // wrapper sets it too. So a TUI started the normal way already knows its
-  // interpreter, and scanning VIRTUAL_ENV / .venv here can only find a
-  // DIFFERENT python than the parent process runs on — with the pm store,
-  // a stale venv path is actively dangerous (the interpreter a gateway
-  // child gets must match the one that spawned it).
-  const configured = process.env.HERMES_PYTHON?.trim()
+const resolvePython = (root: string) => {
+  const configured = process.env.HERMES_PYTHON?.trim() || process.env.PYTHON?.trim()
 
   if (configured) {
     return configured
   }
 
-  // The one case with no launcher above it: `npm run dev` / `npm start`
-  // straight out of ui-tui/. A developer doing that runs inside their own
-  // activated environment, so PATH is the right question there.
-  return process.platform === 'win32' ? 'python' : 'python3'
+  const venv = process.env.VIRTUAL_ENV?.trim()
+
+  const hit = [
+    venv && resolve(venv, 'bin/python'),
+    venv && resolve(venv, 'Scripts/python.exe'),
+    resolve(root, '.venv/bin/python'),
+    resolve(root, '.venv/bin/python3'),
+    resolve(root, 'venv/bin/python'),
+    resolve(root, 'venv/bin/python3')
+  ].find(p => p && existsSync(p))
+
+  return hit || (process.platform === 'win32' ? 'python' : 'python3')
 }
 
 // Matches `<scheme>://user:pass@host…` style user-info segments in
@@ -296,7 +297,7 @@ export class GatewayClient extends EventEmitter {
     // handlers (now identity-gated to ignore unrelated transports)
     // never fire `rejectPending`, leaving callers hanging on promises
     // attached to a discarded child / socket.
-    this.channel.detach(new Error(t('libText.gateway.restarting')))
+    this.channel.detach(new Error('gateway restarting'))
     this.ready = false
     // `subscribed` is NOT reset here: the renderer drain()s once on mount, so a
     // reset would strand every post-reconnect event (gateway.ready included) in
@@ -340,9 +341,7 @@ export class GatewayClient extends EventEmitter {
     this.ready = false
     this.closeSidecarSocket()
     this.lifecycle(`[lifecycle] transport exit code=${code ?? 'null'} reason=${reason ?? 'none'}`)
-    this.channel.detach(
-      new Error(reason || (code === null ? t('libText.gateway.exited') : t('libText.gateway.exitedWithCode', code)))
-    )
+    this.channel.detach(new Error(reason || `gateway exited${code === null ? '' : ` (${code})`}`))
 
     // Self-heal: a dropped transport (real close OR silent drop caught by the
     // heartbeat) should reconnect instead of stranding the UI on a dead socket
@@ -442,7 +441,7 @@ export class GatewayClient extends EventEmitter {
   }
 
   private startSpawnedGateway(root: string) {
-    const python = resolvePython()
+    const python = resolvePython(root)
     const cwd = process.env.HERMES_CWD || root
     const env = { ...process.env }
     const pyPath = env.PYTHONPATH?.trim()
@@ -498,7 +497,7 @@ export class GatewayClient extends EventEmitter {
       // `gateway.start_timeout`, rejects pending RPCs, and emits or
       // queues a single `exit`.
       this.proc = null
-      this.handleTransportExit(1, t('libText.gateway.error', err.message))
+      this.handleTransportExit(1, `gateway error: ${err.message}`)
     })
     this.proc.on('exit', (code, signal) => {
       // start() can replace `this.proc` while an old child is still
@@ -530,7 +529,7 @@ export class GatewayClient extends EventEmitter {
 
       this.pushLog(line)
       this.publish({ type: 'gateway.stderr', payload: { line } })
-      this.handleTransportExit(1, t('libText.gateway.websocketUnavailable'))
+      this.handleTransportExit(1, 'gateway websocket unavailable')
 
       return
     }
@@ -570,7 +569,7 @@ export class GatewayClient extends EventEmitter {
             if (!settled) {
               this.pushLog('[startup] gateway websocket connect error')
               settled = true
-              reject(new Error(t('libText.gateway.websocketConnectionFailed')))
+              reject(new Error('gateway websocket connection failed'))
             }
           },
           { once: true }
@@ -580,7 +579,7 @@ export class GatewayClient extends EventEmitter {
           ev => {
             if (!settled) {
               settled = true
-              reject(new Error(t('libText.gateway.websocketClosedDuringConnect', ev.code)))
+              reject(new Error(`gateway websocket closed (${ev.code}) during connect`))
             }
           },
           { once: true }
@@ -616,10 +615,7 @@ export class GatewayClient extends EventEmitter {
         this.pushLog(`[lifecycle] websocket close code=${ev.code}`)
         this.ws = null
         this.wsConnectPromise = null
-        this.handleTransportExit(
-          ev.code,
-          ev.code ? t('libText.gateway.websocketClosedWithCode', ev.code) : t('libText.gateway.websocketClosed')
-        )
+        this.handleTransportExit(ev.code, `gateway websocket closed${ev.code ? ` (${ev.code})` : ''}`)
       })
       ws.addEventListener('error', () => {
         const line = '[gateway] websocket transport error'
@@ -629,7 +625,7 @@ export class GatewayClient extends EventEmitter {
       })
     } catch (err) {
       this.pushLog(`[startup] failed to connect websocket gateway ${safeAttachUrl} (constructor error)`)
-      this.handleTransportExit(1, t('libText.gateway.websocketStartupFailed'))
+      this.handleTransportExit(1, 'gateway websocket startup failed')
     }
   }
 
@@ -781,7 +777,7 @@ export class GatewayClient extends EventEmitter {
         // switching from spawned-gateway mode to attach mode also
         // tears down the old Python child. Merely closing `this.ws`
         // would leave a previously spawned gateway process alive.
-        this.channel.detach(new Error(t('libText.gateway.attachUrlChanged')))
+        this.channel.detach(new Error('gateway attach url changed'))
         this.start()
       }
 
@@ -826,6 +822,6 @@ export class GatewayClient extends EventEmitter {
     // and we just nulled `this.ws`, so it will short-circuit and
     // skip handleTransportExit. Reject pending RPCs explicitly so
     // attach-mode promises do not hang after an intentional kill.
-    this.channel.detach(new Error(t('libText.gateway.closed')))
+    this.channel.detach(new Error('gateway closed'))
   }
 }

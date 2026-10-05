@@ -15,10 +15,6 @@ vi.mock('@/hermes', () => ({
   getGlobalModelOptions: () => getGlobalModelOptions()
 }))
 
-// Load once at module scope so no test's 15s budget pays the heavy transform
-// + import (the first-test timeout flake under CI load).
-const { FallbackModelsField } = await import('./fallback-models-field')
-
 beforeEach(() => {
   getGlobalModelOptions.mockResolvedValue({
     providers: [
@@ -34,7 +30,8 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-function renderField(value: unknown, onChange = vi.fn()) {
+async function renderField(value: unknown, onChange = vi.fn()) {
+  const { FallbackModelsField } = await import('./fallback-models-field')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
   render(
@@ -46,7 +43,8 @@ function renderField(value: unknown, onChange = vi.fn()) {
   return onChange
 }
 
-function renderFieldWithRerender(value: unknown, onChange = vi.fn()) {
+async function renderFieldWithRerender(value: unknown, onChange = vi.fn()) {
+  const { FallbackModelsField } = await import('./fallback-models-field')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
   const view = render(

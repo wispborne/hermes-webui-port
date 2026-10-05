@@ -668,24 +668,16 @@ export default function CronPage() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
     api
-      .getCronDeliveryTargets(resourceProfile)
-      .then((res) => {
-        if (!cancelled) setDeliveryTargets(res.targets);
-      })
-      .catch(() => {
+      .getCronDeliveryTargets()
+      .then((res) => setDeliveryTargets(res.targets))
+      .catch(() =>
         // Fall back to local-only so the modal still works if the endpoint fails.
-        if (!cancelled) {
-          setDeliveryTargets([
-            { id: "local", name: "Local", home_target_set: true, home_env_var: null },
-          ]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [resourceProfile]);
+        setDeliveryTargets([
+          { id: "local", name: "Local", home_target_set: true, home_env_var: null },
+        ]),
+      );
+  }, []);
 
   useEffect(() => {
     jobsActiveRef.current = true;

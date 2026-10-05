@@ -1,15 +1,5 @@
 import { createClient, type Message, type Variant } from 'dbus-native'
 
-// dbus-native 0.15 defaults plainValues to true, so a property Get returns the
-// bare boolean. Older builds still wrap it as { value }.
-function statusNotifierHostRegistered(value: unknown): boolean {
-  if (value === true) {
-    return true
-  }
-
-  return typeof value === 'object' && value !== null && (value as { value?: unknown }).value === true
-}
-
 // Electron can construct a Linux Tray even when the desktop has no tray host
 // (notably stock GNOME). Never use that object alone as proof of a restore path.
 export async function watchLinuxTrayHost(onLost: () => void): Promise<() => void> {
@@ -103,7 +93,7 @@ export async function watchLinuxTrayHost(onLost: () => void): Promise<() => void
       options
     )
 
-    if (disposed || !statusNotifierHostRegistered(value)) {
+    if (disposed || value.value !== true) {
       throw new Error('No system tray host is available')
     }
 

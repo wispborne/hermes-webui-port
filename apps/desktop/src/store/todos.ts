@@ -18,8 +18,6 @@ import { $sessionStates } from './session-states'
  */
 export const $todosBySession = atom<Record<string, TodoItem[]>>({})
 export const $todoRevisionsBySession = atom<Record<string, number>>({})
-/** Last authoritative snapshot, separate from the transient live panel. */
-export const $retainedTodosBySession = atom<Record<string, TodoItem[]>>({})
 
 export const todoListActive = (todos: readonly TodoItem[]) =>
   todos.some(t => t.status === 'pending' || t.status === 'in_progress')
@@ -72,11 +70,6 @@ export function todosForHydration(todos: readonly TodoItem[] | null): TodoItem[]
 const FINISHED_LINGER_MS = 4_000
 const clearTimers = keyedTimeouts()
 
-const hasSessionTodos = (map: Record<string, TodoItem[]>, sid: string): boolean => Object.hasOwn(map, sid)
-
-const getSessionTodos = (map: Record<string, TodoItem[]>, sid: string): TodoItem[] | undefined =>
-  hasSessionTodos(map, sid) ? map[sid] : undefined
-
 function acceptRevision(sid: string, revision?: null | number): boolean {
   const revisions = $todoRevisionsBySession.get()
   const current = revisions[sid]
@@ -98,17 +91,6 @@ function acceptRevision(sid: string, revision?: null | number): boolean {
   return true
 }
 
-function retainSessionTodos(sid: string, todos: TodoItem[]) {
-  const current = $retainedTodosBySession.get()
-
-  if (todos.length) {
-    $retainedTodosBySession.set({ ...current, [sid]: todos })
-  } else if (sid in current) {
-    const { [sid]: _drop, ...rest } = current
-    $retainedTodosBySession.set(rest)
-  }
-}
-
 export function setSessionTodos(sid: string, todos: TodoItem[], revision?: null | number) {
   if (!sid) {
     return
@@ -116,11 +98,6 @@ export function setSessionTodos(sid: string, todos: TodoItem[], revision?: null 
 
   if (!acceptRevision(sid, revision)) {
     return
-  }
-
-  // An unversioned tool.start is optimistic, not a durable result.
-  if (revision != null) {
-    retainSessionTodos(sid, todos)
   }
 
   clearTimers.cancel(sid)
@@ -136,7 +113,7 @@ function dropSessionTodos(sid: string, forgetRevision: boolean) {
 
   const map = $todosBySession.get()
 
-  if (hasSessionTodos(map, sid)) {
+  if (sid in map) {
     const { [sid]: _drop, ...rest } = map
     $todosBySession.set(rest)
   }
@@ -144,29 +121,15 @@ function dropSessionTodos(sid: string, forgetRevision: boolean) {
   if (forgetRevision) {
     const revisions = $todoRevisionsBySession.get()
 
-    if (Object.hasOwn(revisions, sid)) {
+    if (sid in revisions) {
       const { [sid]: _drop, ...rest } = revisions
       $todoRevisionsBySession.set(rest)
     }
-
-    retainSessionTodos(sid, [])
   }
 }
 
 export function clearSessionTodos(sid: string) {
   dropSessionTodos(sid, true)
-}
-
-export function clearAllSessionTodos() {
-  const ids = new Set([
-    ...Object.keys($todosBySession.get()),
-    ...Object.keys($todoRevisionsBySession.get()),
-    ...Object.keys($retainedTodosBySession.get())
-  ])
-
-  for (const sid of ids) {
-    clearSessionTodos(sid)
-  }
 }
 
 // Drop a still-active todo list (any pending/in_progress item) — used at turn
@@ -175,7 +138,7 @@ export function clearAllSessionTodos() {
 // composer forever. A finished list is left untouched so its short linger
 // still shows the last checkmark landing.
 export function clearActiveSessionTodos(sid: string) {
-  const todos = getSessionTodos($todosBySession.get(), sid)
+  const todos = $todosBySession.get()[sid]
 
   if (!todos || !todoListActive(todos)) {
     return
@@ -208,10 +171,6 @@ export function restoreSessionTodosFromSnapshot(sid: string, snapshot: unknown, 
   if (visible !== null) {
     setSessionTodos(sid, visible, revision)
   } else if (acceptRevision(sid, revision)) {
-    if (revision != null) {
-      retainSessionTodos(sid, todos)
-    }
-
     dropSessionTodos(sid, false)
   }
 }

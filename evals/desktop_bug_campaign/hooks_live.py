@@ -10,8 +10,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-import hermes_yaml as yaml
+import yaml
 from websockets.sync.client import connect
 
 p = argparse.ArgumentParser()

@@ -6,7 +6,7 @@ import type { InflightTurn, SessionResumeResult, Usage } from '@hermes/shared/ga
 import { type RefObject, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { STARTUP_WORKSPACE_CWD } from '../config/env.js'
-import { buildSetupRequiredSections, setupRequiredTitle } from '../content/setup.js'
+import { buildSetupRequiredSections, SETUP_REQUIRED_TITLE } from '../content/setup.js'
 import { introMsg, toTranscriptMessages } from '../domain/messages.js'
 import { ZERO } from '../domain/usage.js'
 import { type GatewayClient } from '../gatewayClient.js'
@@ -17,7 +17,6 @@ import type {
   SessionTitleResponse,
   SetupStatusResponse
 } from '../gatewayTypes.js'
-import { t } from '../i18n/runtime.js'
 import { asRpcResult } from '../lib/rpc.js'
 import type { Msg, PanelSection, SessionInfo } from '../types.js'
 
@@ -36,11 +35,11 @@ const usageFrom = (info: null | SessionInfo): Usage => (info?.usage ? { ...ZERO,
 
 const statusFromLiveSession = (status?: string, running = false) => {
   if (status === 'waiting') {
-    return t('session.status.waitingForInput')
+    return 'waiting for input…'
   }
 
   if (status === 'starting') {
-    return t('session.status.startingAgent')
+    return 'starting agent…'
   }
 
   return running || status === 'working' ? 'running…' : 'ready'
@@ -200,8 +199,8 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
       const setup = await rpc<SetupStatusResponse>('setup.status', {})
 
       if (setup?.provider_configured === false) {
-        panel(setupRequiredTitle(), buildSetupRequiredSections())
-        patchUiState({ status: t('session.status.setupRequired') })
+        panel(SETUP_REQUIRED_TITLE, buildSetupRequiredSections())
+        patchUiState({ status: 'setup required' })
 
         return null
       }
@@ -236,7 +235,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
       patchUiState({
         info,
         sid: r.session_id,
-        status: info?.version ? 'ready' : t('session.status.startingAgent'),
+        status: info?.version ? 'ready' : 'starting agent…',
         storedSid,
         usage: usageFrom(info)
       })
@@ -268,9 +267,9 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
             }
 
             const nextTitle = (result.title ?? requestedTitle).trim()
-            const suffix = result.pending ? t('session.lifecycle.titleQueuedSuffix') : ''
+            const suffix = result.pending ? ' (queued while session initializes)' : ''
             patchUiState({ sessionTitle: nextTitle })
-            sys(`${t('session.lifecycle.sessionTitleSet', nextTitle)}${suffix}`)
+            sys(`session title set: ${nextTitle}${suffix}`)
           })
           .catch((err: unknown) => {
             if (getUiState().sid !== r.session_id) {
@@ -278,7 +277,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
             }
 
             const message = err instanceof Error ? err.message : String(err)
-            sys(`warning: ${t('session.lifecycle.failedToSetTitle', message)}`)
+            sys(`warning: failed to set session title: ${message}`)
           })
       }
 
@@ -295,7 +294,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
   )
 
   const newLiveSession = useCallback(
-    (msg = t('session.lifecycle.newLiveSessionStarted'), title?: string) => {
+    (msg = 'new live session started', title?: string) => {
       patchOverlayState({ sessions: false })
 
       return startNewSession(msg, title, true)
@@ -306,7 +305,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
   const activateLiveSession = useCallback(
     (id: string) => {
       patchOverlayState({ sessions: false })
-      patchUiState({ status: t('session.status.switchingSession') })
+      patchUiState({ status: 'switching session…' })
       // The card belongs to the session being left; the activated one answers with its own.
       clearConnectionOperation()
 
@@ -315,7 +314,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
           const r = asRpcResult<SessionActivateResponse>(raw)
 
           if (!r) {
-            sys(`error: ${t('session.common.invalidResponse', 'session.activate')}`)
+            sys('error: invalid response: session.activate')
 
             return patchUiState({ status: 'ready' })
           }
@@ -359,12 +358,12 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
   const resumeById = useCallback(
     (id: string) => {
       patchOverlayState({ sessions: false })
-      patchUiState({ status: t('session.status.resuming') })
+      patchUiState({ status: 'resuming…' })
 
       return rpc<SetupStatusResponse>('setup.status', {}).then(setup => {
         if (setup?.provider_configured === false) {
-          panel(setupRequiredTitle(), buildSetupRequiredSections())
-          patchUiState({ status: t('session.status.setupRequired') })
+          panel(SETUP_REQUIRED_TITLE, buildSetupRequiredSections())
+          patchUiState({ status: 'setup required' })
 
           return
         }
@@ -377,7 +376,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
             const r = asRpcResult<SessionResumeResult>(raw)
 
             if (!r) {
-              sys(`error: ${t('session.common.invalidResponse', 'session.resume')}`)
+              sys('error: invalid response: session.resume')
 
               return patchUiState({ status: 'ready' })
             }
@@ -427,12 +426,12 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
   )
 
   const guardBusySessionSwitch = useCallback(
-    (what = t('session.lifecycle.switchSessions')) => {
+    (what = 'switch sessions') => {
       if (!getUiState().busy) {
         return false
       }
 
-      sys(t('session.lifecycle.interruptBeforeSwitch', what))
+      sys(`interrupt the current turn before trying to ${what}`)
 
       return true
     },

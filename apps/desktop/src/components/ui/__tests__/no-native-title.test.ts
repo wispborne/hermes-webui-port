@@ -37,13 +37,11 @@ function collectTsxFiles(dir: string): string[] {
   return results
 }
 
-/** Every button-element opening tag in `content` — native `<button>`, the
- *  `<Button>` primitive, and `<RowButton>` (a bare `<button>` that forwards
- *  every prop) — with the attribute text up to the tag's real `>`. Wrappers
- *  with their own `title` prop (CopyButton, …) render it through Tip. */
+/** Every `<button …>` / `<Button …>` opening tag in `content`, with the
+ *  attribute text up to the tag's real closing `>`. */
 function eachButtonOpenTag(content: string): Array<{ attrs: string; index: number; tagName: string }> {
   const tags: Array<{ attrs: string; index: number; tagName: string }> = []
-  const openPattern = /<(Button|button|RowButton)\b/gu
+  const openPattern = /<(Button|button)\b/gu
   let match: RegExpExecArray | null
 
   while ((match = openPattern.exec(content)) !== null) {
@@ -141,8 +139,7 @@ describe('no native title= on button elements', () => {
     const flagged = [
       '<button onClick={() => {}} title="probe">hi</button>',
       '<Button\n  onClick={event => {\n    event.preventDefault()\n  }}\n  // macOS doesn\'t focus a button on mousedown\n  title={copy.send}\n  type="button"\n>',
-      "<button className={cn(saved ? 'a' : 'b')} title={on ? m.off(t) : m.on(t)}>",
-      '<RowButton onClick={pick} title={hint}>'
+      "<button className={cn(saved ? 'a' : 'b')} title={on ? m.off(t) : m.on(t)}>"
     ]
 
     const clean = [

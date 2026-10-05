@@ -16,7 +16,6 @@ Contract:
 """
 
 import os
-import signal
 import subprocess
 import sys
 import threading
@@ -27,7 +26,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-pytestmark = pytest.mark.platforms("macos")
+pytestmark = pytest.mark.macos_only
 
 
 def _lstart(pid: int, tz: str) -> str:
@@ -113,13 +112,7 @@ def test_live_backend_survives_timezone_drifted_parent_marker(tmp_path):
         parent.kill()
         parent.wait(timeout=10)
         assert _wait_exit(serve, timeout=15.0), "backend outlived its dead parent"
-        # The watchdog raises SIGTERM so the graceful exit-flush handlers run
-        # (#108601) instead of the old os._exit(0); the chaining handler then
-        # restores the default disposition, so the process dies by SIGTERM
-        # exactly like a SIGTERM from a live desktop — not os._exit(0).
-        assert serve.returncode == -int(signal.SIGTERM), (
-            f"expected death by SIGTERM (graceful path), got returncode {serve.returncode}"
-        )
+        assert serve.returncode == 0
     finally:
         for proc in (serve, parent):
             if proc is not None and proc.poll() is None:

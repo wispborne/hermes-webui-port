@@ -35,30 +35,19 @@ def get_provider_env(name: str) -> str:
         from hermes_cli.config import get_env_value
 
         val = get_env_value(name)
-    except Exception as exc:  # noqa: BLE001 — config layer optional here
-        try:
-            from agent.secret_scope import UnscopedSecretError
-        except ImportError:
-            UnscopedSecretError = ()  # type: ignore[assignment,misc]
-        if isinstance(exc, UnscopedSecretError):
-            raise
+    except Exception:  # noqa: BLE001 — config layer optional here
         val = None
-    scope_bound, multiplex_active = _secret_scope_state()
-    if val is None and multiplex_active and not scope_bound:
-        from agent.secret_scope import UnscopedSecretError
-
-        raise UnscopedSecretError(name, f"get_provider_env({name!r}) called with no active profile scope")
-    if val is None and not scope_bound:
+    if val is None and not _secret_scope_bound():
         val = os.getenv(name, "")
     return (val or "").strip()
 
 
-def _secret_scope_state() -> tuple[bool, bool]:
+def _secret_scope_bound() -> bool:
     try:
-        from agent.secret_scope import current_secret_scope, is_multiplex_active
+        from agent.secret_scope import current_secret_scope
     except Exception:  # noqa: BLE001 — stripped install without the scope module
-        return False, False
-    return current_secret_scope() is not None, is_multiplex_active()
+        return False
+    return current_secret_scope() is not None
 
 
 class WebSearchProvider(ProviderBase):
@@ -99,3 +88,11 @@ class WebSearchProvider(ProviderBase):
         raise NotImplementedError(
             f"{self.name} does not support extract (override supports_extract)"
         )
+
+
+# ---- BEGIN PLUGIN-COMPAT (revert-scheduled; see COMPAT_MANIFEST.md) ----
+# Names external plugins imported from this module before the Sep 2026 decomposition.
+# Internal code MUST NOT use these (scripts/check_compat_pointers.py fails CI if it does).
+# The whole block is removed by reverting the commit that added it.
+from typing import Optional  # noqa: F401,E402
+# ---- END PLUGIN-COMPAT ----

@@ -4,14 +4,13 @@
  * async entry points with a resolved git binary.
  */
 
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { publishDesktopTree, writeDesktopHalfMarker } from './desktop-plugins-root'
-import { execGit, hiddenGitSpawnSpec } from './no-console-git'
+import { publishDesktopTree } from './desktop-plugins-root'
 
 const GITHUB_BROWSER_SEGMENTS = new Set(['tree', 'blob', 'commit'])
 
@@ -268,13 +267,12 @@ const GIT_TIMEOUT_MS = 300_000
 
 function runGit(gitBin: string, args: string[], cwd?: string): Promise<{ code: number; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const spec = hiddenGitSpawnSpec(gitBin, args, {
+    const child = spawn(gitBin, args, {
       cwd,
       env: noninteractiveGitEnv(),
-      stdio: ['ignore', 'ignore', 'pipe']
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true
     })
-
-    const child = spawn(spec.command, spec.args, spec.options)
 
     let stderr = ''
 
@@ -430,13 +428,7 @@ export async function installDesktopPluginFromGit(
       const sourceDir =
         detected.desktopSourceSubdir === '.' ? pluginRoot : path.join(pluginRoot, detected.desktopSourceSubdir)
 
-      // A repo carrying BOTH halves is one package: land its desktop half under
-      // the AGENT package name, so the copy this app makes and the one
-      // `reconcileUnifiedDesktopHalves` would make are the same folder (#100412)
-      // and the Plugins page pairs them into one row. A desktop-only repo keeps
-      // the git-derived folder name and stays a standalone plugin.
-      const packageName = detected.agent ? (detected.agentName ?? desktopPluginFolderName(gitUrl, subdir)) : null
-      const pluginName = packageName ?? desktopPluginFolderName(gitUrl, subdir)
+      const pluginName = desktopPluginFolderName(gitUrl, subdir)
       const targetDir = path.join(desktopPluginsRoot, pluginName)
       const targetPlugin = path.join(targetDir, 'plugin.js')
 
@@ -453,28 +445,7 @@ export async function installDesktopPluginFromGit(
 
       // Staged copy + rename: a failed copy must not leave an empty `targetDir`
       // that turns every retry into "already exists. Enable force reinstall".
-      // The half of a unified package is stamped with the package marker as
-      // part of that publication — without it the Plugins page cannot tell this
-      // copy belongs to the agent row (it sits on "copying…" forever) and the
-      // half loads default-enabled instead of opt-in.
-      await publishDesktopTree(sourceDir, targetDir, async staged => {
-        if (!packageName) {
-          return
-        }
-
-        await writeDesktopHalfMarker(staged, {
-          package: packageName,
-          repo: gitUrl,
-          // The published folder, not the temp clone. The clone is deleted
-          // below; a source that disappears is ghost-pruned on the next
-          // reconcile when no local `plugins/<name>/desktop` exists to
-          // re-copy from (remote backend, or Desktop UI only). A later pass
-          // that does find the agent package still replaces this copy,
-          // because this path is not that package's `desktop/` dir.
-          source: targetDir,
-          sourceMtimeMs: (await fsp.stat(path.join(staged, 'plugin.js'))).mtimeMs
-        })
-      })
+      await publishDesktopTree(sourceDir, targetDir)
 
       if (!(await pathIsFile(targetPlugin))) {
         return { ok: false, error: `Install completed but ${targetPlugin} is missing.` }
@@ -491,8 +462,9 @@ export async function installDesktopPluginFromGit(
 
 /** Resolve git binary via execFile which path on unix; caller passes Windows-resolved path. */
 export function runGitVersion(gitBin: string): Promise<boolean> {
-  return execGit(gitBin, ['--version'], { timeoutMs: 5_000 }).then(
-    result => result.code === 0,
-    () => false
-  )
+  return new Promise(resolve => {
+    execFile(gitBin, ['--version'], { windowsHide: true, timeout: 5_000 }, err => {
+      resolve(!err)
+    })
+  })
 }

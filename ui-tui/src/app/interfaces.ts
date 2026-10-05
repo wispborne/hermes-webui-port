@@ -30,8 +30,6 @@ import type {
   SessionInfo,
   SlashCatalog,
   SudoReq,
-  VaultCodeReq,
-  VaultSaveLoginReq,
   VaultUnlockReq
 } from '../types.js'
 
@@ -305,8 +303,6 @@ export interface OverlayState {
   petPicker: boolean
   pluginsHub: boolean
   secret: null | SecretReq
-  vaultCode: null | VaultCodeReq
-  vaultSaveLogin: null | VaultSaveLoginReq
   vaultUnlock: null | VaultUnlockReq
   sessions: boolean
   skillsHub: boolean
@@ -447,8 +443,8 @@ export interface UseComposerStateResult {
 }
 
 export interface InputHandlerActions {
+  answerClarify: (answer: string) => void
   appendMessage: (msg: Msg) => void
-  cancelClarify: () => void
   die: () => void
   dispatchSubmission: (full: string) => void
   guardBusySessionSwitch: (what?: string) => boolean
@@ -576,13 +572,11 @@ export interface SlashHandlerContext {
 
 export interface AppLayoutActions {
   answerApproval: (choice: string) => void
+  answerClarify: (answer: string) => void
   answerClarifyQuestion: (qid: string, answer: string) => void
   answerSecret: (value: string) => void
   answerSudo: (pw: string) => void
-  answerVaultCode: (code: string) => void
-  answerVaultSaveLogin: (identifier: string, password: string) => void
   answerVaultUnlock: (password: string) => void
-  cancelClarify: () => void
   clearSelection: () => void
   activateLiveSession: (id: string) => void
   closeLiveSession: (id: string) => Promise<null | SessionCloseResponse>
@@ -647,7 +641,7 @@ export interface AppOverlaysProps {
   compIdx: number
   completions: CompletionItem[]
   onApprovalChoice: (choice: string) => void
-  onClarifyCancel: () => void
+  onClarifyAnswer: (value: string) => void
   onClarifyQuestionAnswer: (qid: string, value: string) => void
   onActiveSessionSelect: (sessionId: string) => void
   onActiveSessionClose: (sessionId: string) => Promise<null | SessionCloseResponse>
@@ -657,8 +651,6 @@ export interface AppOverlaysProps {
   onResumeSelect: (sessionId: string) => void
   onSecretSubmit: (value: string) => void
   onSudoSubmit: (pw: string) => void
-  onVaultCodeSubmit: (code: string) => void
-  onVaultSaveLoginSubmit: (identifier: string, password: string) => void
   onVaultUnlockSubmit: (password: string) => void
   pagerPageSize: number
 }

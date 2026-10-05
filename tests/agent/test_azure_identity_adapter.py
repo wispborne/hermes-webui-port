@@ -352,17 +352,18 @@ class TestRequireAzureIdentityMissing:
         monkeypatch.setattr("builtins.__import__", _fake_import)
 
         # Simulate lazy installs disabled.
-        from pm import InstallError as FeatureUnavailable
+        from tools.lazy_deps import FeatureUnavailable
 
         def _fake_ensure(*args, **kwargs):
             raise FeatureUnavailable(
-                "azure-identity",
+                "provider.azure_identity",
+                ("azure-identity==1.25.3",),
                 "lazy installs disabled (test simulation)",
             )
 
-        # The adapter calls ``ensure_import`` from ``pm``; intercept
+        # The adapter calls ``ensure`` from ``tools.lazy_deps``; intercept
         # it by patching the actual symbol path.
-        monkeypatch.setattr("pm.ensure_import", _fake_ensure)
+        monkeypatch.setattr("tools.lazy_deps.ensure", _fake_ensure)
 
         with pytest.raises(ImportError) as exc_info:
             _adapter._require_azure_identity()
@@ -380,7 +381,7 @@ class TestHasAzureIdentityCredentials:
         """With allow_install=True (default), the probe must trigger the
         lazy-install path before bailing — otherwise the wizard's
         ``preflight`` would silently fail for fresh installs that haven't
-        enabled the Azure identity extra yet."""
+        run ``pip install azure-identity`` yet."""
         from agent import azure_identity_adapter as _adapter
 
         installed = {"called": False}
@@ -467,7 +468,7 @@ class TestDescribeActiveCredential:
         )
         assert info["ok"] is False
         assert "lazy installs disabled" in info["error"]
-        assert "hermes pm install --extra azure-identity" in info["hint"]
+        assert "lazy" in info["hint"].lower()
 
     def test_reports_env_sources_for_managed_identity(self, fake_azure_identity, monkeypatch):
         from agent.azure_identity_adapter import describe_active_credential

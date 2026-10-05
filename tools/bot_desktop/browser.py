@@ -11,6 +11,7 @@ DevTools endpoint, so the dock exposes a debugging port and the agent ATTACHES t
 
 from __future__ import annotations
 
+import glob
 import os
 import shutil
 import socket
@@ -46,17 +47,18 @@ def executable() -> Optional[str]:
     explicit = os.environ.get("AGENT_BROWSER_EXECUTABLE_PATH", "").strip()
     if explicit and os.access(explicit, os.X_OK) and not _is_headless_shell(explicit):
         return explicit
-    finders = [_managed_executable, _system_executable]
+    finders = [_playwright_executable, _system_executable]
     if not _is_root() and _userns_restricted():
         finders.reverse()
     return next((exe for find in finders if (exe := find())), None)
 
 
-def _managed_executable() -> Optional[str]:
-    from hermes_cli.browser_runtime import chromium_executable
-
-    exe = chromium_executable(allow_override=False)
-    return exe if exe and os.access(exe, os.X_OK) and not _is_headless_shell(exe) else None
+def _playwright_executable() -> Optional[str]:
+    from tools.browser_tool_install import _chromium_search_roots
+    candidates = sorted(
+        (p for root in _chromium_search_roots() for p in glob.glob(os.path.join(root, "chromium-*", "chrome-linux*", "chrome"))),
+        key=os.path.getmtime, reverse=True)
+    return next((exe for exe in candidates if os.access(exe, os.X_OK)), None)
 
 
 def _is_headless_shell(exe: str) -> bool:
@@ -86,7 +88,7 @@ def dock_launch() -> Optional[Tuple[str, str]]:
     return (exe, str(profile_dir())) if exe else None
 
 
-def dock_argv(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[bool] = None) -> list[str]:
+def dock_argv(exe: str, user_data_dir: str) -> list[str]:
     """Command the dock's Browser icon runs. ``--remote-debugging-port=0`` makes a human-started
     instance attachable (Chromium writes the chosen port to ``<user-data-dir>/DevToolsActivePort``);
     first-run / default-browser dialogs would sit between the human and the bot's tabs."""
@@ -100,11 +102,10 @@ def dock_argv(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[bool] = 
     # gateway's disk: uncapped it grows for months toward a hosted instance's 6 GB.
     return [exe, f"--user-data-dir={user_data_dir}", "--remote-debugging-port=0", "--no-first-run",
             "--no-default-browser-check", "--test-type", f"--disk-cache-size={DISK_CACHE_BYTES}",
-            *(CHROMIUM_SANDBOX_BYPASS_ARGS if (_needs_chromium_sandbox_bypass() if sandbox_bypass is None
-                                              else sandbox_bypass) else ())]
+            *(CHROMIUM_SANDBOX_BYPASS_ARGS if _needs_chromium_sandbox_bypass() else ())]
 
 
-def dock_exec_line(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[bool] = None) -> str:
+def dock_exec_line(exe: str, user_data_dir: str) -> str:
     """The ``Exec=`` line of the dock's ``.desktop`` entry. Every argument is double-quoted per the
     Desktop Entry spec (a browser under ``/opt/Google Chrome/`` or a profile under a spaced HERMES_HOME
     otherwise splits into garbage): inside the quotes ``" ` $ \\`` are backslash-escaped, and because the
@@ -112,7 +113,7 @@ def dock_exec_line(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[boo
     def quote(arg: str) -> str:
         quoted = "".join("\\" + ch if ch in '"`$\\' else ch for ch in arg)
         return '"' + quoted.replace("\\", "\\\\") + '"'
-    return "Exec=" + " ".join(quote(arg) for arg in dock_argv(exe, user_data_dir, sandbox_bypass=sandbox_bypass))
+    return "Exec=" + " ".join(quote(arg) for arg in dock_argv(exe, user_data_dir))
 
 
 def running_instance_cdp_port(user_data_dir: str, *, exclude_session: Optional[str] = None) -> Optional[int]:
@@ -125,7 +126,7 @@ def running_instance_cdp_port(user_data_dir: str, *, exclude_session: Optional[s
     close the browser as a config change and then attach to the port that just died with it.
     """
     try:
-        with open(os.path.join(user_data_dir, "DevToolsActivePort"), encoding="utf-8-sig") as fh:
+        with open(os.path.join(user_data_dir, "DevToolsActivePort"), encoding="utf-8") as fh:
             port_line = fh.readline().strip()
         target = os.readlink(os.path.join(user_data_dir, "SingletonLock"))
     except OSError:

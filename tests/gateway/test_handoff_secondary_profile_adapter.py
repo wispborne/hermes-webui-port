@@ -67,7 +67,7 @@ def _make_multiplex_runner():
         platform=Platform.TELEGRAM, chat_type="dm",
     ))
 
-    async def _switch(key, sid, *, preserve_prompt_pin=True):
+    async def _switch(key, sid):
         captured["session_key"] = key
         return SessionEntry(
             session_key=key, session_id=sid,

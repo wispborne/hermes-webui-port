@@ -14,9 +14,10 @@ Currently:
 
 import pytest
 
+
 class TestMatrixHiddenOnWindows:
 
-    @pytest.mark.platforms("windows")
+    @pytest.mark.windows_only
     def test_matrix_absent_on_windows(self):
         """The gate itself: matrix must be dropped on a real Windows host.
 
@@ -29,3 +30,4 @@ class TestMatrixHiddenOnWindows:
         platforms = gateway_mod._all_platforms()
         keys = {p["key"] for p in platforms}
         assert "matrix" not in keys, "matrix must be hidden on Windows"
+

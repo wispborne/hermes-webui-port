@@ -7,7 +7,6 @@ import { getUiState } from '../app/uiStore.js'
 import { inlineSlashTrigger } from '../domain/slash.js'
 import type { GatewayClient } from '../gatewayClient.js'
 import type { CompletionResponse } from '../gatewayTypes.js'
-import { t } from '../i18n/runtime.js'
 import { asRpcResult } from '../lib/rpc.js'
 import { listWidgetApps } from '../sdk/registry.js'
 
@@ -113,7 +112,7 @@ export function useCompletion(input: string, blocked: boolean, gw: GatewayClient
       return
     }
 
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       if (ref.current !== input) {
         return
       }
@@ -163,8 +162,8 @@ export function useCompletion(input: string, blocked: boolean, gw: GatewayClient
           setCompletions([
             {
               text: '',
-              display: t('libText.completion.unavailable'),
-              meta: e instanceof Error && e.message ? e.message : t('libText.completion.unavailableMeta')
+              display: 'completion unavailable',
+              meta: e instanceof Error && e.message ? e.message : 'unavailable'
             }
           ])
           setCompIdx(0)
@@ -172,7 +171,7 @@ export function useCompletion(input: string, blocked: boolean, gw: GatewayClient
         })
     }, 60)
 
-    return () => clearTimeout(timer)
+    return () => clearTimeout(t)
   }, [blocked, gw, input])
 
   return { completions, compIdx, setCompIdx, compReplace }

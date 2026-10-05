@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { t } from '../i18n/runtime.js'
 import {
   buildSubagentTree,
   descendantIds,
@@ -155,7 +154,7 @@ describe('formatSummary with tokens', () => {
       totalTools: 14
     })
 
-    expect(summary).toContain(t('libText.subagentTree.tokens', '10k'))
+    expect(summary).toContain('10k tok')
     expect(summary).not.toContain('$')
   })
 })

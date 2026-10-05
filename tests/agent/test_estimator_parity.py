@@ -21,6 +21,7 @@ now charge it in the walk too — one policy per session shape, chosen by
 ``message_sanitization.stale_thinking_reaches_wire``.
 """
 
+
 from agent.context_compressor import (
     ContextCompressor,
     _estimate_msg_budget_tokens,
@@ -30,7 +31,9 @@ from agent.model_metadata import (
     estimate_messages_tokens_rough,
 )
 
+
 STALE_THINKING = "considering the next move carefully... " * 200  # ~2K tok
+
 
 def _reasoning_heavy_session(n_turns: int = 40) -> list:
     """Transcript whose bulk is stale reasoning replay (the #84371 shape)."""
@@ -54,6 +57,7 @@ def _reasoning_heavy_session(n_turns: int = 40) -> list:
         msgs.append({"role": "tool", "tool_call_id": f"c{i}", "content": f"r{i}"})
     return msgs
 
+
 class TestWireTruthPredicate:
     def test_codex_responses_never_ships_stale_thinking_text(self):
         assert stale_thinking_reaches_wire(
@@ -71,6 +75,7 @@ class TestWireTruthPredicate:
         assert stale_thinking_reaches_wire(
             "", "mistral", "mistral-large", "https://api.mistral.ai"
         ) is False
+
 
 class TestEstimatorParity:
     """Trigger-fires must imply the walk finds a compactable middle."""
@@ -193,6 +198,7 @@ class TestEstimatorParity:
         # And the echo route genuinely charges the stale thinking bulk.
         assert walk_echo > 3 * walk_codex
 
+
 class TestReasoningDoubleCount:
     """``reasoning`` and ``reasoning_content`` carrying the same text must be
     charged once — the wire ships at most one of them."""
@@ -252,6 +258,7 @@ class TestReasoningDoubleCount:
         )
         assert w > w_base + 500
 
+
 class TestNoProgressDeadLoopBreaker:
     """A fired compaction that returns the transcript unchanged must arm the
     structural backoff so it cannot re-fire (and re-summarize) every turn."""
@@ -274,3 +281,4 @@ class TestNoProgressDeadLoopBreaker:
         assert cc.should_compress(over) is False
         reason = cc._compression_block_reason() or ""
         assert reason.startswith("structural_backoff")
+

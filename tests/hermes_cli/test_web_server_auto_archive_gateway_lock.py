@@ -19,7 +19,9 @@ import pytest
 from hermes_cli.profiles import _check_gateway_running
 from hermes_cli import web_server_sessions as wss
 
-pytestmark = pytest.mark.platforms("posix")  # POSIX flock holder
+pytestmark = pytest.mark.skipif(
+    sys.platform.startswith("win"), reason="POSIX flock holder"
+)
 
 _HOLDER = (
     "import fcntl, sys, time\n"

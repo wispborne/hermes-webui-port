@@ -9,8 +9,6 @@ Covers:
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 from hermes_cli.sessions_cmd_browse import _session_browse_picker
 
@@ -97,7 +95,6 @@ class TestSessionBrowsePicker:
 
 # ─── Curses-based picker (mocked curses) ────────────────────────────────────
 
-@pytest.mark.platforms("linux")
 class TestCursesBrowse:
     """Tests for the curses-based interactive picker via simulated key sequences."""
 

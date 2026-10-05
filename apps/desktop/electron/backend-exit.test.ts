@@ -5,18 +5,20 @@ import { test, vi } from 'vitest'
 
 import { waitForBackendExit } from './backend-child'
 
-test('backend exit escalation rejects within its bound when no exit or close arrives', async (): Promise<void> => {
+test('backend exit escalation remains bounded when no exit or close arrives', async () => {
   vi.useFakeTimers()
 
   try {
     const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null, kill: vi.fn() })
+    const waiting = waitForBackendExit(child, { forceKillProcessTree: () => {} }, 20)
 
-    const waiting = assert.rejects(
-      waitForBackendExit(child, { forceKillProcessTree: (): void => {} }, 20),
-      /did not exit/
+    const outcome = waiting.then(
+      () => null,
+      error => error
     )
 
-    await Promise.all([waiting, vi.advanceTimersByTimeAsync(1020)])
+    await vi.advanceTimersByTimeAsync(1020)
+    assert.match(String(await outcome), /did not exit/)
     assert.equal(child.exitCode, null)
     assert.equal(child.signalCode, null)
     assert.equal(child.kill.mock.calls.length, 1)

@@ -13,9 +13,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_agent(provider="openrouter", model="gpt-4o"):
     """Create a minimal AIAgent mock with provider/model attributes."""
@@ -41,6 +44,7 @@ def _make_agent(provider="openrouter", model="gpt-4o"):
     )
     return agent
 
+
 def _multimodal_result(text="screenshot", image_url="data:image/png;base64,AAAA"):
     return {
         "_multimodal": True,
@@ -51,13 +55,18 @@ def _multimodal_result(text="screenshot", image_url="data:image/png;base64,AAAA"
         "text_summary": text,
     }
 
+
 # ---------------------------------------------------------------------------
 # _provider_supports_vision_tool_messages
 # ---------------------------------------------------------------------------
 
+
+
+
 # ---------------------------------------------------------------------------
 # _tool_result_content_for_active_model — proactive downgrade
 # ---------------------------------------------------------------------------
+
 
 class TestToolResultContentProactiveDowngrade:
     def test_xiaomi_downgrades_to_text_summary(self):
@@ -102,6 +111,9 @@ class TestToolResultContentProactiveDowngrade:
         assert isinstance(content, list)
         assert any(p.get("type") == "image_url" for p in content if isinstance(p, dict))
 
+
+
+
     def test_reactive_cache_still_works(self):
         """In-session cache (_no_list_tool_content_models) still triggers."""
         agent = _make_agent("openrouter", "some-model")
@@ -114,6 +126,10 @@ class TestToolResultContentProactiveDowngrade:
         assert isinstance(content, str)
         assert "cached downgrade" in content
 
+
 # ---------------------------------------------------------------------------
 # ProviderProfile.supports_vision_tool_messages field
 # ---------------------------------------------------------------------------
+
+
+

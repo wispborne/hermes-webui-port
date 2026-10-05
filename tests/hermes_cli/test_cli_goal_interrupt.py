@@ -18,9 +18,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
 # ──────────────────────────────────────────────────────────────────────
 # Fixtures
 # ──────────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def hermes_home(tmp_path, monkeypatch):
@@ -35,6 +37,7 @@ def hermes_home(tmp_path, monkeypatch):
     goals._DB_CACHE.clear()
     yield home
     goals._DB_CACHE.clear()
+
 
 def _make_cli_with_goal(session_id: str, goal_text: str = "build a thing"):
     """Build a minimal HermesCLI stub with an active goal wired in."""
@@ -57,9 +60,11 @@ def _make_cli_with_goal(session_id: str, goal_text: str = "build a thing"):
     cli._goal_manager = mgr
     return cli, mgr
 
+
 # ──────────────────────────────────────────────────────────────────────
 # Tests
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestInterruptAutoPause:
 
@@ -77,6 +82,9 @@ class TestInterruptAutoPause:
 
         mgr.resume()
         assert mgr.state.status == "active"
+
+
+
 
 class TestHealthyTurnStillRuns:
     def test_clean_response_enqueues_continuation_when_judge_says_continue(
@@ -120,3 +128,5 @@ class TestHealthyTurnStillRuns:
 
         assert cli._pending_input.empty()
         assert mgr.state.status == "done"
+
+

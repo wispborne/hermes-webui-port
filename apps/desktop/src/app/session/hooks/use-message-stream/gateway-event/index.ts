@@ -13,7 +13,6 @@ import { $activeGatewayProfile, normalizeProfileKey } from '@/store/profile'
 import { replayPendingApproval } from '@/store/prompts'
 import { setSessionProviderWait } from '@/store/provider-wait'
 import { isSessionGone } from '@/store/session-gone-latch'
-import { noteSessionEvent } from '@/store/session-states'
 import { setSessionDraftingTool } from '@/store/tool-drafting'
 
 import { handleDesktopBridgeEvent } from './desktop-bridge'
@@ -94,9 +93,7 @@ const HANDLERS: GatewayEventHandler[] = [
 export function useGatewayEventHandler(deps: GatewayEventDeps) {
   const { activeSessionIdRef, compactedTurnRef, refreshHermesConfig, sessionStateByRuntimeIdRef } = deps
 
-  // One pin per concurrent unscoped stream, not a single shared slot: two chats
-  // streaming at once used to clobber each other's pin (#46194 / #62823).
-  const unscopedStreamSessionIdsRef = useRef<readonly string[]>([])
+  const unscopedStreamSessionIdRef = useRef<string | null>(null)
 
   // session.info arrives in bursts (agent build ready + turn end + title /
   // MCP / compress edges within the same second). Each used to fire its own
@@ -159,10 +156,10 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
         activeSessionId: activeSessionIdRef.current,
         eventType: event.type,
         explicitSessionId: explicitSid,
-        unscopedStreamSessionIds: unscopedStreamSessionIdsRef.current
+        unscopedStreamSessionId: unscopedStreamSessionIdRef.current
       })
 
-      unscopedStreamSessionIdsRef.current = route.nextUnscopedStreamSessionIds
+      unscopedStreamSessionIdRef.current = route.nextUnscopedStreamSessionId
 
       if (route.drop) {
         return
@@ -234,18 +231,9 @@ export function useGatewayEventHandler(deps: GatewayEventDeps) {
         scheduleConfigRefresh
       }
 
-      try {
-        for (const handler of HANDLERS) {
-          if (handler(ctx)) {
-            return
-          }
-        }
-      } finally {
-        // Any attributed event — including a heartbeat that does not change
-        // state — proves this session is still producing. Silence after the
-        // last one force-settles a dead turn, partial payload included.
-        if (sessionId) {
-          noteSessionEvent(sessionId)
+      for (const handler of HANDLERS) {
+        if (handler(ctx)) {
+          return
         }
       }
     },

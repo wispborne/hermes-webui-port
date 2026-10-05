@@ -35,12 +35,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import hermes_yaml as yaml
+import yaml
 
 from . import _helpers as H
-
-# The api_server platform's aiohttp ships in a PM runtime extra the test env does not carry.
-pytest.importorskip("aiohttp")
 
 # The gateway child is spawned and reaped by this module (fake HOME, no systemd bus in its env).
 pytestmark = pytest.mark.spawns_gateway_lookalike

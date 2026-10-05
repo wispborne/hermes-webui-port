@@ -9,11 +9,18 @@ an alphabetical skill entry.
 
 from agent.plan_prompt import build_plan_prompt
 
+
 class TestBuildPlanPrompt:
     def test_task_is_included_verbatim(self):
         task = "migrate the auth provider to OIDC with zero downtime"
         prompt = build_plan_prompt(task)
         assert task in prompt
+
+
+
+
+
+
 
 class TestPlanRegistryWiring:
     def test_plan_is_registered_and_resolves(self):
@@ -22,3 +29,7 @@ class TestPlanRegistryWiring:
         cmd = resolve_command("plan")
         assert cmd is not None
         assert cmd.name == "plan"
+
+
+
+

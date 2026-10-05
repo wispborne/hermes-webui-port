@@ -61,7 +61,6 @@ export function renderRosterDialogs({
           setCreateOpen(false)
           void refetch()
         }}
-        onConfigureModel={setEditing}
         open={createOpen}
         roster={activeSourceRoster}
       />

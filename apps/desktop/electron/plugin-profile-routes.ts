@@ -20,8 +20,6 @@ export interface EffectiveSshRoute {
 export interface OpaqueProfileRoute {
   connectionId: string
   mode: 'local' | 'remote'
-  /** Present only when this route belongs to the window's authoritative primary connection. */
-  primary?: true
   profile: string
   targetProfile: string
 }
@@ -41,7 +39,6 @@ interface RegistryProfileRouteSource {
 interface BuildRegistryProfileRoutesOptions {
   agents: RegistryProfileRouteAgent[]
   legacyRoutes?: OpaqueProfileRoute[]
-  primaryConnectionId?: string
   sources: RegistryProfileRouteSource[]
 }
 
@@ -260,7 +257,6 @@ export async function buildOpaqueProfileRoutes({
  */
 export function buildRegistryProfileRoutes({
   agents,
-  primaryConnectionId,
   sources
 }: BuildRegistryProfileRoutesOptions): OpaqueProfileRoute[] {
   const sourceById = new Map(sources.map(source => [source.id, source]))
@@ -282,7 +278,6 @@ export function buildRegistryProfileRoutes({
       routes.push({
         connectionId: source.id,
         mode: 'local',
-        ...(source.id === primaryConnectionId ? { primary: true } : {}),
         profile,
         targetProfile: profile
       })
@@ -293,7 +288,6 @@ export function buildRegistryProfileRoutes({
     routes.push({
       connectionId: source.id,
       mode: 'remote',
-      ...(source.id === primaryConnectionId ? { primary: true } : {}),
       profile,
       targetProfile: source.kind === 'ssh' && source.remoteProfile ? normalizeProfile(source.remoteProfile) : profile
     })

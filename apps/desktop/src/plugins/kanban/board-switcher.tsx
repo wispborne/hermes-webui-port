@@ -1,8 +1,6 @@
 /**
- * Board switcher. On the full page it is projected through
- * `WORKSPACE_PAGE_HEADER_AREA` into the workspace panel's tab-header space; in
- * a split route tile it renders in the board's own header row. Placed by
- * `WorkspacePageHeaderControl` (board.tsx).
+ * Board switcher projected through `WORKSPACE_PAGE_HEADER_AREA` into the
+ * workspace panel's tab-header space while the board page is mounted.
  */
 
 import {

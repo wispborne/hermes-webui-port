@@ -12,6 +12,7 @@ import pytest
 from hermes_state import SessionDB
 from hermes_state_common import SCHEMA_VERSION
 
+
 @pytest.fixture
 def db(tmp_path):
     session_db = SessionDB(db_path=tmp_path / "state.db")
@@ -21,16 +22,19 @@ def db(tmp_path):
     yield session_db
     session_db.close()
 
+
 def _trigram_rowids(db: SessionDB) -> set[int]:
     return {
         row[0]
         for row in db._conn.execute("SELECT id FROM messages_fts_trigram_docsize").fetchall()
     }
 
+
 def _fts_rowids(db: SessionDB) -> set[int]:
     return {
         row[0] for row in db._conn.execute("SELECT id FROM messages_fts_docsize").fetchall()
     }
+
 
 def _seed(db: SessionDB) -> dict[str, int]:
     db.create_session("root", source="cli")
@@ -55,10 +59,12 @@ def _seed(db: SessionDB) -> dict[str, int]:
         "cont": db.append_message("cont", role="assistant", content="继续会话内容 cont-word"),
     }
 
+
 def test_subagent_rows_skip_trigram_but_stay_in_standard_fts(db: SessionDB):
     ids = _seed(db)
     assert _trigram_rowids(db) == {ids["root"], ids["cont"]}
     assert _fts_rowids(db) >= set(ids.values())
+
 
 def test_subagent_rows_remain_word_searchable(db: SessionDB):
     _seed(db)
@@ -72,6 +78,7 @@ def test_subagent_rows_remain_word_searchable(db: SessionDB):
     # Top-level CJK substring search unaffected.
     assert [r["session_id"] for r in db.search_messages("交付状态")] == ["root"]
 
+
 def test_update_and_delete_of_unindexed_child_row_keep_trigram_consistent(db: SessionDB):
     ids = _seed(db)
     db._conn.execute(
@@ -82,6 +89,7 @@ def test_update_and_delete_of_unindexed_child_row_keep_trigram_consistent(db: Se
         "INSERT INTO messages_fts_trigram(messages_fts_trigram) VALUES('integrity-check')"
     )
     assert _trigram_rowids(db) == {ids["root"], ids["cont"]}
+
 
 def test_deferred_rebuild_does_not_reintroduce_children(db: SessionDB):
     ids = _seed(db)
@@ -94,10 +102,12 @@ def test_deferred_rebuild_does_not_reintroduce_children(db: SessionDB):
     assert _trigram_rowids(db) == {ids["root"], ids["cont"]}
     assert _fts_rowids(db) >= set(ids.values())
 
+
 def test_full_rebuild_honours_exclusion(db: SessionDB):
     ids = _seed(db)
     db.rebuild_fts()
     assert _trigram_rowids(db) == {ids["root"], ids["cont"]}
+
 
 def test_v29_install_purges_child_rows_on_upgrade(tmp_path):
     db_path = tmp_path / "state.db"
@@ -142,3 +152,5 @@ def test_v29_install_purges_child_rows_on_upgrade(tmp_path):
         )
     finally:
         migrated.close()
+
+

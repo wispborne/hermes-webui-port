@@ -9,7 +9,6 @@ import type { StarmapGraph } from '@/types/hermes'
 
 import { computePalette, memoryInkFor, resolveRgb, rgba } from './color'
 import { RING_OUTER, TILT, ZOOM_MAX, ZOOM_MIN } from './constants'
-import { registerStarMapContextMenu } from './context-menu-handle'
 import { clamp, distToSegmentSq, fitScale, fitViewport, nodeRadius } from './geometry'
 import { NodeContextMenu, type NodeMenuTarget } from './node-context-menu'
 import { shouldIgnorePlaybackHotkey } from './playback-hotkey'
@@ -230,16 +229,7 @@ export function StarMap({
 
   const memById = useMemo(() => {
     const m = new Map<string, MemoryCard>()
-    // A node id carries the card's fingerprint (agent.learning_graph.memory_node_id) so an edit
-    // still names the card the user clicked after the list shifts. An imported or older graph
-    // has no fingerprint, so key both shapes or the tooltip/body lookup misses every card.
-    graph.memory.forEach((card, i) => {
-      m.set(`memory:${card.source}:${i}`, card)
-
-      if (card.fingerprint) {
-        m.set(`memory:${card.source}:${i}:${card.fingerprint}`, card)
-      }
-    })
+    graph.memory.forEach((card, i) => m.set(`memory:${card.source}:${i}`, card))
 
     return m
   }, [graph.memory])
@@ -693,7 +683,7 @@ export function StarMap({
   }, [invalidate, size])
 
   // ── Pointer interactions (invert the tilted projection for hit-testing) ─────
-  const pickNode = useCallback((cssX: number, cssY: number): null | SimNode => {
+  const pickNode = (cssX: number, cssY: number): null | SimNode => {
     const vp = viewportRef.current
     // Hit radius mirrors the billboarded draw: rested fit scale, screen space.
     const nodeK = fitScale(sizeRef.current.w, sizeRef.current.h, ringsRef.current)
@@ -713,7 +703,7 @@ export function StarMap({
     }
 
     return best
-  }, [])
+  }
 
   // Nearest link within ~5px of the cursor (screen space), or null.
   const pickLink = (cssX: number, cssY: number): null | string => {
@@ -762,37 +752,6 @@ export function StarMap({
 
     return { x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) }
   }
-
-  const openNodeMenuAt = useCallback(
-    (clientX: number, clientY: number): boolean => {
-      const rect = canvasRef.current?.getBoundingClientRect()
-      const node = pickNode(clientX - (rect?.left ?? 0), clientY - (rect?.top ?? 0))
-
-      if (!node) {
-        setMenuTarget(null)
-
-        return false
-      }
-
-      setSelectedId(node.id)
-      setMenuTarget({
-        id: node.id,
-        kind: node.kind === 'memory' ? 'memory' : 'skill',
-        label: node.label,
-        x: clientX,
-        y: clientY
-      })
-
-      return true
-    },
-    [pickNode]
-  )
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-
-    return canvas ? registerStarMapContextMenu(canvas, { openNodeMenuAt }) : undefined
-  }, [openNodeMenuAt])
 
   const resetView = () => {
     setPlaying(false)
@@ -904,9 +863,22 @@ export function StarMap({
   }
 
   const onContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (openNodeMenuAt(e.clientX, e.clientY)) {
-      e.preventDefault()
+    e.preventDefault()
+    const { x, y } = localXY(e)
+    const node = pickNode(x, y)
+
+    if (!node) {
+      return setMenuTarget(null)
     }
+
+    setSelectedId(node.id)
+    setMenuTarget({
+      id: node.id,
+      kind: node.kind === 'memory' ? 'memory' : 'skill',
+      label: node.label,
+      x: e.clientX,
+      y: e.clientY
+    })
   }
 
   const onWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {

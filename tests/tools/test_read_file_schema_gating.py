@@ -139,22 +139,17 @@ class TestNeedsOcrPath(unittest.TestCase):
         self.assertEqual(len(calls), 1)  # no hosted attempt
 
     def test_pin_lockstep(self):
-        """The doc-extract extra PM uses to self-heal must pin core's anydoc."""
-        import tomllib
+        """pyproject core pin and lazy_deps self-heal pin must match."""
+        import re
         from pathlib import Path
 
-        from packaging.requirements import Requirement
+        from tools.lazy_deps import LAZY_DEPS
 
-        pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
-        project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
+        py = Path(__file__).resolve().parents[2].joinpath("pyproject.toml").read_text(encoding="utf-8")
+        m1 = re.search(r'"(firecrawl-anydoc==[\d.]+)"', py)
+        self.assertIsNotNone(m1)
+        self.assertEqual(LAZY_DEPS["tool.doc_extract"], (m1.group(1),))
 
-        def anydoc_pins(reqs):
-            return {str(r.specifier) for r in map(Requirement, reqs) if r.name == "firecrawl-anydoc"}
-
-        core = anydoc_pins(project["dependencies"])
-        extra = anydoc_pins(project["optional-dependencies"]["doc-extract"])
-        self.assertEqual(len(core), 1)
-        self.assertEqual(extra, core)
 
 if __name__ == "__main__":
     unittest.main()

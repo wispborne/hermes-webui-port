@@ -5,7 +5,9 @@ chat-completions API, via both the API-boundary guard in
 _sanitize_api_messages() and the CLI session-restore paths.
 """
 
+
 from run_agent import AIAgent
+
 
 # ---------------------------------------------------------------------------
 # Layer 1 — _sanitize_api_messages role-allowlist guard
@@ -39,10 +41,16 @@ class TestSanitizeApiMessagesRoleFilter:
         assert "assistant" in roles
         assert "tool" in roles
 
+
+
+
 # ---------------------------------------------------------------------------
 # Layer 1b — display-only timeline fields must not reach the provider
 # ---------------------------------------------------------------------------
 
+
+
 # ---------------------------------------------------------------------------
 # Layer 2 — CLI session-restore filters session_meta before loading
 # ---------------------------------------------------------------------------
+
