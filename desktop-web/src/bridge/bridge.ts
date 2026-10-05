@@ -47,6 +47,7 @@ import {
   type StoredGateway,
   tokenWsUrl
 } from './gateway'
+import { notify, onFocusSession, onNotificationActivate } from './notifications'
 
 type HermesDesktop = Window['hermesDesktop']
 
@@ -434,23 +435,9 @@ export function createWebBridge(): HermesDesktop {
 
     // ── REST and Web APIs ─────────────────────────────────────────────────
     api: apiFetch,
-    notify: async payload => {
-      if (!('Notification' in window)) {
-        return false
-      }
-
-      if (Notification.permission === 'default') {
-        await Notification.requestPermission()
-      }
-
-      if (Notification.permission !== 'granted') {
-        return false
-      }
-
-      new Notification(payload.title ?? 'Hermes', { body: payload.body, silent: payload.silent, tag: payload.tag })
-
-      return true
-    },
+    notify,
+    onFocusSession,
+    onNotificationActivate,
     requestMicrophoneAccess: async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })

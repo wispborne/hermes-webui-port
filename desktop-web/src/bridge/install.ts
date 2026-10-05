@@ -8,9 +8,11 @@
  * Skipped when a bridge already exists (Electron, test mocks).
  */
 import { createWebBridge } from './bridge'
+import { askPermissionOnFirstClick } from './notifications'
 
 if (typeof window !== 'undefined' && !window.hermesDesktop) {
   window.hermesDesktop = createWebBridge()
+  askPermissionOnFirstClick()
 }
 
 export {}
