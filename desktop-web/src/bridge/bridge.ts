@@ -580,7 +580,8 @@ export function createWebBridge(): HermesDesktop {
     cancelBootstrap: async () => ({ ok: true, cancelled: true }),
     onBootstrapEvent: unsubscribe,
     getVersion: async () => ({
-      appVersion: __HERMES_WEB_VERSION__,
+      // Bare version: the UI adds its own "v" ("client v2026.9.24").
+      appVersion: __HERMES_WEB_VERSION__.replace(/^v/, ''),
       commit: __HERMES_WEB_COMMIT__ || null,
       electronVersion: '',
       nodeVersion: '',
