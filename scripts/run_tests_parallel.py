@@ -58,12 +58,6 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# The CI lane selector owns the platforms() spec resolver; share it so the
-# "skipped on this host" note and the lanes can never disagree.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.ci.list_os_marked_tests import gated_specs, spec_hosts  # noqa: E402
-
-
 def _sweep_killed_run_roots(root: str) -> None:
     """Remove per-file temp roots older runs left behind. Each attempt deletes its own root
     in ``finally``, but a runner that is SIGKILLed (a tool timeout, a stray pkill) never gets
@@ -86,24 +80,18 @@ def _rmtree_force(path: str) -> None:
             pass
     shutil.rmtree(path, onerror=_chmod_retry)
 
+
 def _runner_scratch_root() -> str:
     """Per-run temp roots live on DISK, never the system temp dir: a full-suite run writes
     gigabytes of tmp_path fixtures and /tmp is RAM-backed tmpfs on many Linux hosts. /var/tmp is
     the FHS disk-backed temp root and is used because the alternatives fail tests that assume
     the root's shape: under the Hermes home conftest relocates the basetemp; under a dot-dir
     (~/.cache) the hidden-dir search tests see every fixture as hidden; anything longer than
-    the old /tmp root pushes AF_UNIX test sockets past sun_path.
-
-    The name is per-USER because a fixed literal in a world-writable sticky dir belongs to
-    whoever created it first: a root-owned root (a container or system-service run) makes every
-    later makedirs/mkdtemp here fail with EPERM for every other user on the host, with no way
-    back that does not need root. Keying by uid means no run is blocked by another's leftovers.
-    """
-    name = "hermes-pytest" + (f"-{os.getuid()}" if hasattr(os, "getuid") else "")
+    the old /tmp root pushes AF_UNIX test sockets past sun_path."""
     if os.name == "nt" or not os.path.isdir("/var/tmp"):  # no-tmp: ok — probing the disk-backed FHS root
-        root = os.path.join(tempfile.gettempdir(), name)
+        root = os.path.join(tempfile.gettempdir(), "hermes-pytest")
     else:
-        root = f"/var/tmp/{name}"  # no-tmp: ok — /var/tmp is disk-backed by FHS, never tmpfs
+        root = "/var/tmp/hermes-pytest"  # no-tmp: ok — /var/tmp is disk-backed by FHS, never tmpfs
     os.makedirs(root, exist_ok=True)
     return root
 
@@ -213,42 +201,42 @@ def _read_files_from(spec: str) -> List[str]:
         text = sys.stdin.read()
     else:
         try:
-            text = Path(spec).read_text(encoding="utf-8-sig")
+            text = Path(spec).read_text(encoding="utf-8")
         except OSError as exc:
             print(f"error: --files-from: cannot read {spec!r}: {exc}", file=sys.stderr)
             sys.exit(2)
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-# Lane names keyed the way platforms() specs resolve (scripts/ci/list_os_marked_tests.py
-# shares the resolver with the CI selector so the note and the lanes never disagree).
-_HOST_LANE = {"linux": "linux", "darwin": "macos", "win32": "windows"}
-_LANES = {
-    "linux": "the main Linux CI lane",
-    "macos": "the macOS Python-tests lane",
-    "windows": "the Windows Python-tests lane",
+_OS_MARKERS = {
+    "linux_only": ("linux", "the main Linux CI lane"),
+    "macos_only": ("darwin", "the tests-os CI lane (macos-latest)"),
+    "windows_only": ("win32", "the tests-os CI lane (windows-latest)"),
 }
 
 
 def _off_host_marker_files(files: List[Path]) -> dict[str, int]:
-    """Count discovered files carrying a platforms() spec that excludes this host.
+    """Count discovered files referencing each marker for an OS we are not on.
 
-    Text-level scan, same resolver as scripts/ci/list_os_marked_tests.py:
+    Whole-word text match, same approach as scripts/ci/list_os_marked_tests.py:
     over-counting a prose mention is harmless here (the note is informational);
     what matters is never reporting 0 while gated tests exist.
     """
-    host = _HOST_LANE.get(sys.platform, sys.platform)
-    counts: dict[str, int] = {}
+    off_host = {
+        marker: re.compile(rf"\b{marker}\b")
+        for marker, (host_prefix, _) in _OS_MARKERS.items()
+        if not sys.platform.startswith(host_prefix)
+    }
+    counts = {marker: 0 for marker in off_host}
     for path in files:
         try:
-            text = path.read_text(encoding="utf-8-sig", errors="replace")
+            text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for spec in gated_specs(text):
-            hosts = spec_hosts(spec)
-            if hosts and host not in hosts:
-                counts[spec] = counts.get(spec, 0) + 1
-    return counts
+        for marker, pattern in off_host.items():
+            if pattern.search(text):
+                counts[marker] += 1
+    return {marker: n for marker, n in counts.items() if n}
 
 
 def _approximately_count_tests(
@@ -267,7 +255,7 @@ def _approximately_count_tests(
     results = {}
 
     for path in files:
-        with open(path, "r", encoding="utf-8-sig") as f:
+        with open(path, "r", encoding="utf-8") as f:
             contents = f.read()
         results[path] = contents.count("def test_")
 
@@ -594,9 +582,6 @@ def _run_one_file_once(
         # behind; make them writable and retry instead of skipping them.
         _rmtree_force(temproot)
 
-    if rc not in (0, 5) and not output.strip():
-        output = f"pytest child exited {rc} (0x{rc & 0xffffffff:08x}) with no output: {file}\n"
-
     if rc == 5:
         # No tests collected in THIS file — legitimate per-file: a
         # platform-gated or fully-marker-filtered file (e.g. a win32-only
@@ -808,7 +793,7 @@ def _load_durations(repo_root: Path) -> dict[str, float]:
     if not path.is_file():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8-sig"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
         print("[ERROR] Failed to load json durations file! {e}")
         return {}
@@ -886,10 +871,7 @@ def _slice_files(
 ) -> List[Path]:
     """Return the subset of *files* belonging to slice *slice_index*.
 
-    Every slice job computes the partition on its own, so it must come only from
-    the checkout: a duration cache restored separately per job can differ (a main
-    push saves a newer one in between) and silently drop or double-run files.
-    Sorted round-robin balances within seconds of timed LPT at this suite size.
+    Uses :func:`_compute_lpt_slices` for LPT distribution.
 
     ``slice_index`` is 1-indexed (1..slice_count) for ergonomics —
     ``--slice 1/4`` reads more naturally than ``--slice 0/4``.
@@ -903,7 +885,7 @@ def _slice_files(
         )
         sys.exit(2)
 
-    bucket_files = _compute_lpt_slices(sorted(files), slice_count, {}, repo_root)
+    bucket_files = _compute_lpt_slices(files, slice_count, durations, repo_root)
 
     target = bucket_files[slice_index - 1]
     target_dur = sum(
@@ -990,8 +972,8 @@ def main() -> int:
         "-j",
         "--jobs",
         type=int,
-        default=int(os.environ.get("HERMES_TEST_WORKERS") or (os.cpu_count() or 4)),
-        help="Parallel worker count (default: $HERMES_TEST_WORKERS or cpu_count)",
+        default=int(os.environ.get("HERMES_TEST_WORKERS") or (os.cpu_count() or 4) * 2),
+        help="Parallel worker count (default: $HERMES_TEST_WORKERS or cpu_count*2)",
     )
     parser.add_argument(
         "--paths",
@@ -1211,9 +1193,6 @@ def main() -> int:
     # Parse --slice (or HERMES_TEST_SLICE) early so we can exit on bad input
     # before doing any expensive discovery.
     slice_raw = args.slice or os.environ.get("HERMES_TEST_SLICE")
-    # Read once, here: test processes inherit this env, and a runner they start (the
-    # runner's own probe tests) must run its whole file set, not "its" slice of it.
-    os.environ.pop("HERMES_TEST_SLICE", None)
     slice_index: int | None = None
     slice_count: int = 1
     if slice_raw:
@@ -1282,7 +1261,8 @@ def main() -> int:
     test_counts = _approximately_count_tests(files, repo_root)
     approx_total_tests = sum(test_counts.values())
 
-    # Apply slicing if requested (partition from the checkout alone; see _slice_files).
+    # Apply slicing if requested — distribute files across CI jobs by
+    # estimated duration so no one job gets all the slow files.
     if slice_index is not None:
         durations = _load_durations(repo_root)
         files = _slice_files(files, slice_index, slice_count, durations, repo_root)
@@ -1414,16 +1394,16 @@ def main() -> int:
 
     # Host-OS gating note: tests marked for another OS were skipped by the
     # conftest hook, not run. Say so explicitly — a green local run on Linux
-    # proves nothing about the platforms("windows") tests, and the reader
+    # proves nothing about the macos_only/windows_only tests, and the reader
     # should know where they DO run rather than misreading skips as coverage.
     off_host = _off_host_marker_files(files)
     if off_host:
         print()
-        for spec, n in sorted(off_host.items()):
-            lanes = ", ".join(_LANES[lane] for lane in sorted(spec_hosts(spec)))
+        for marker, n in sorted(off_host.items()):
+            _, lane = _OS_MARKERS[marker]
             print(
-                f"  note: platforms({spec!r}) tests (in {n} file{'s' if n != 1 else ''}) were "
-                f"SKIPPED on this host ({sys.platform}); they run on {lanes}."
+                f"  note: {marker} tests (in {n} file{'s' if n != 1 else ''}) were "
+                f"SKIPPED on this host ({sys.platform}); they run on {lane}."
             )
 
     # Zero tests collected across the WHOLE run is NOT a pass. Per-file rc=5

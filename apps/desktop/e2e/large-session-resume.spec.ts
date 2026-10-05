@@ -2,8 +2,7 @@ import * as path from 'node:path'
 
 import { type TestInfo } from '@playwright/test'
 
-import { writeEnvFile, writeMockProviderConfig } from '../../../tests-js/scripts/mock-provider-config'
-import { MOCK_REPLY, type MockServer, type MockServerOptions, startMockServer } from '../../../tests-js/scripts/mock-server'
+import { expect, test, type ElectronApplication, type Page } from './test'
 
 import {
   buildAppEnv,
@@ -11,9 +10,11 @@ import {
   launchDesktop,
   type Sandbox,
   waitForAppReady,
+  writeEnvFile,
+  writeMockProviderConfig,
 } from './fixtures'
+import { MOCK_REPLY, startMockServer, type MockServer, type MockServerOptions } from '../../../tests-js/scripts/mock-server'
 import { RealSessionBuilder } from './real-session-builder'
-import { type ElectronApplication, expect, type Page, test } from './test'
 
 const DESKTOP_ROOT = path.resolve(import.meta.dirname, '..')
 const SESSION_TITLE = 'E2E large persisted session'

@@ -9,6 +9,7 @@ import importlib.util
 import json
 from pathlib import Path
 
+
 SKILL_DIR = (
     Path(__file__).resolve().parents[2]
     / "optional-skills"
@@ -17,6 +18,7 @@ SKILL_DIR = (
 )
 DERIVE = SKILL_DIR / "scripts" / "har_to_client.py"
 
+
 def _load_module(path: Path, name: str):
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
@@ -24,7 +26,17 @@ def _load_module(path: Path, name: str):
     spec.loader.exec_module(mod)
     return mod
 
+
+
+
+
+
+
+
+
+
 # --- behavioral: derivation logic -----------------------------------------
+
 
 def _make_har() -> dict:
     return {
@@ -64,6 +76,7 @@ def _make_har() -> dict:
         }
     }
 
+
 def test_derives_endpoint_and_filters_static(tmp_path, capsys):
     mod = _load_module(DERIVE, "har_to_client_undertest")
     har = tmp_path / "t.har"
@@ -91,7 +104,14 @@ def test_derives_endpoint_and_filters_static(tmp_path, capsys):
     # replay hint carries the browser UA
     assert "User-Agent (send this): Mozilla/5.0 TestBrowser/1.0" in out
 
+
 def test_path_template_collapses_ids():
     mod = _load_module(DERIVE, "har_to_client_undertest2")
     assert mod.path_template("/v1/items/12345/x") == "/v1/items/{id}/x"
     assert mod.path_template("/v1/items/abc/x") == "/v1/items/abc/x"
+
+
+
+
+
+

@@ -2,12 +2,7 @@
 from unittest.mock import MagicMock
 
 import pytest
-import hermes_yaml as yaml
-
-from tests.hermes_cli.plugin_worker_support import (
-    isolated_python as isolated_python,
-    plugin_world as plugin_world,
-)
+import yaml
 
 
 @pytest.mark.parametrize(
@@ -21,9 +16,9 @@ from tests.hermes_cli.plugin_worker_support import (
         (["tools.override"], None, None, "y", True, 1),
     ],
 )
-def test_enable_consent(plugin_world, monkeypatch, caps, flag, existing, answer, expected, prompts):
-    home = plugin_world.home
-    plugin = home / "plugins" / "hook-only-probe"
+def test_enable_consent(tmp_path, monkeypatch, caps, flag, existing, answer, expected, prompts):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    plugin = tmp_path / "plugins" / "hook-only-probe"
     plugin.mkdir(parents=True)
     manifest = {"name": "hook-only-probe", "version": "0.1.0", "hooks": ["transform_llm_output"]}
     if caps is not None:
@@ -33,7 +28,7 @@ def test_enable_consent(plugin_world, monkeypatch, caps, flag, existing, answer,
     initial = {} if existing is None else {
         "plugins": {"entries": {"hook-only-probe": {"allow_tool_override": existing}}}
     }
-    (home / "config.yaml").write_text(yaml.safe_dump(initial), encoding="utf-8")
+    (tmp_path / "config.yaml").write_text(yaml.safe_dump(initial), encoding="utf-8")
     from hermes_cli import plugins_cmd
 
     console = MagicMock()
@@ -43,7 +38,7 @@ def test_enable_consent(plugin_world, monkeypatch, caps, flag, existing, answer,
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     plugins_cmd.cmd_enable("hook-only-probe", allow_tool_override=flag)
     assert console.input.call_count == prompts
-    config = yaml.safe_load((home / "config.yaml").read_text(encoding="utf-8"))
+    config = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
     assert "hook-only-probe" in config["plugins"]["enabled"]
     entry = config["plugins"].get("entries", {}).get("hook-only-probe", {})
     assert entry.get("allow_tool_override") is expected

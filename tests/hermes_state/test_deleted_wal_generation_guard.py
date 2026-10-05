@@ -85,7 +85,10 @@ def test_delete_journal_two_writers_still_work(tmp_path, monkeypatch):
         a.close()
 
 
-@pytest.mark.platforms("linux")  # deleted-WAL /proc scan is Linux-only
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="deleted-WAL /proc scan is Linux-only",
+)
 def test_iter_finds_self_after_wal_unlink(tmp_path, force_wal):
     path = tmp_path / "state.db"
     db = make_db(path, "s", "held")
@@ -105,7 +108,7 @@ def test_iter_finds_self_after_wal_unlink(tmp_path, force_wal):
         db.close()
 
 
-@pytest.mark.platforms("linux")
+@pytest.mark.linux_only
 def test_second_sessiondb_open_refuses_through_symlinked_home(tmp_path, force_wal):
     """Regression for #116450. End to end through the real open path: SessionDB stores the
     alias verbatim and calls the guard with it before connect, so the refusal must fire via the
@@ -127,7 +130,7 @@ def test_second_sessiondb_open_refuses_through_symlinked_home(tmp_path, force_wa
         writer.close()
 
 
-@pytest.mark.platforms("linux")
+@pytest.mark.linux_only
 def test_iter_finds_holder_when_db_file_itself_is_symlink(tmp_path):
     """SQLite canonicalizes the db filename before naming sidecars, so a symlinked
     state.db puts the WAL under the target's name. The scan must still match."""
@@ -155,7 +158,10 @@ def test_iter_finds_holder_when_db_file_itself_is_symlink(tmp_path):
         conn.close()
 
 
-@pytest.mark.platforms("linux")  # deleted-WAL /proc scan is Linux-only
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="deleted-WAL /proc scan is Linux-only",
+)
 def test_second_sessiondb_open_refuses_and_does_not_mint_wal(tmp_path, force_wal):
     path = tmp_path / "state.db"
     writer = make_db(path, "s", "before-unlink")
@@ -174,7 +180,10 @@ def test_second_sessiondb_open_refuses_and_does_not_mint_wal(tmp_path, force_wal
     writer.close()
 
 
-@pytest.mark.platforms("linux")  # deleted-WAL /proc scan is Linux-only
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="deleted-WAL /proc scan is Linux-only",
+)
 def test_iter_holders_ignores_live_unhashed_dentry(tmp_path, force_wal, monkeypatch):
     """OpenZFS can report a live, still-linked file's /proc fd target with the
     `` (deleted)`` suffix (dentry unhashed, nlink still 1) even though nothing
@@ -224,7 +233,10 @@ def test_iter_holders_ignores_descriptor_closed_during_scan(tmp_path, monkeypatc
     assert iter_deleted_sqlite_sidecar_holders(path) == []
 
 
-@pytest.mark.platforms("linux")  # deleted-WAL write halt uses Linux unlink semantics
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="deleted-WAL write halt uses Linux unlink semantics",
+)
 def test_write_path_ignores_live_unhashed_dentry(tmp_path, force_wal, monkeypatch):
     """Same OpenZFS artifact as above, but on the sticky in-process write-path
     probe (_wal_generation_was_lost), which the open-path fix alone does not cover."""
@@ -251,7 +263,10 @@ def test_write_path_ignores_live_unhashed_dentry(tmp_path, force_wal, monkeypatc
         db.close()
 
 
-@pytest.mark.platforms("linux")  # deleted-WAL /proc scan is Linux-only
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="deleted-WAL /proc scan is Linux-only",
+)
 def test_iter_holders_flags_orphan_kept_alive_by_hardlink(tmp_path, force_wal):
     """`st_nlink == 0` is not proof of an orphan either: a stale generation can keep a
     surviving hard link (a backup, an operator copy) after the watched path itself is
@@ -275,7 +290,10 @@ def test_iter_holders_flags_orphan_kept_alive_by_hardlink(tmp_path, force_wal):
         db.close()
 
 
-@pytest.mark.platforms("linux")  # deleted-WAL write halt uses Linux unlink semantics
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="deleted-WAL write halt uses Linux unlink semantics",
+)
 def test_writer_halts_after_own_wal_unlinked(tmp_path, force_wal):
     path = tmp_path / "state.db"
     db = make_db(path, "s", "before")
@@ -437,7 +455,7 @@ def _assert_retirement_preserves_recoverable_wal(tmp_path, *, fd_directory, also
         other.close()
 
 
-@pytest.mark.platforms("linux")
+@pytest.mark.linux_only
 @pytest.mark.parametrize("also_corrupt", [False, True])
 def test_retirement_preserves_recoverable_wal_and_other_deleted_generation(tmp_path, force_wal, also_corrupt):
     _assert_retirement_preserves_recoverable_wal(
@@ -445,7 +463,7 @@ def test_retirement_preserves_recoverable_wal_and_other_deleted_generation(tmp_p
     )
 
 
-@pytest.mark.platforms("macos")
+@pytest.mark.macos_only
 @pytest.mark.parametrize("also_corrupt", [False, True])
 def test_retirement_preserves_unlinked_wal_on_macos(tmp_path, force_wal, also_corrupt):
     _assert_retirement_preserves_recoverable_wal(
@@ -477,17 +495,20 @@ def _assert_new_generation_survives_retirement_and_exit(tmp_path, *, rename_side
         assert message_count(path) == expected, "normal exit rolled back the newer rows"
 
 
-@pytest.mark.platforms("linux")
+@pytest.mark.linux_only
 def test_deleted_wal_generation_survives_close_and_clean_process_exit(tmp_path):
     _assert_new_generation_survives_retirement_and_exit(tmp_path, rename_sidecars=False)
 
 
-@pytest.mark.platforms("macos")
+@pytest.mark.macos_only
 def test_renamed_wal_generation_survives_close_and_clean_process_exit(tmp_path):
     _assert_new_generation_survives_retirement_and_exit(tmp_path, rename_sidecars=True)
 
 
-@pytest.mark.platforms("linux")  # deleted-WAL /proc scan is Linux-only
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="deleted-WAL /proc scan is Linux-only",
+)
 def test_refuse_helper_raises_while_deleted_wal_held(tmp_path, force_wal):
     path = tmp_path / "state.db"
     raw = sqlite3.connect(str(path))
@@ -515,7 +536,7 @@ def test_refuse_helper_raises_while_deleted_wal_held(tmp_path, force_wal):
 # (``proc_pidinfo(PROC_PIDLISTFDS)`` + ``proc_pidfdinfo(PROC_PIDFDVNODEPATHINFO)``) that supplies
 # each descriptor's ``(st_dev, st_ino)``. The judgement is unchanged: identity, never path text.
 
-@pytest.mark.platforms("macos")
+@pytest.mark.macos_only
 def test_iter_finds_self_after_wal_unlink_on_darwin(tmp_path, force_wal):
     path = tmp_path / "state.db"
     db = make_db(path, "s", "held")
@@ -532,7 +553,7 @@ def test_iter_finds_self_after_wal_unlink_on_darwin(tmp_path, force_wal):
         db.close()
 
 
-@pytest.mark.platforms("macos")
+@pytest.mark.macos_only
 def test_iter_finds_no_holder_while_sidecars_stay_linked_on_darwin(tmp_path, force_wal):
     """The scan must not report the CURRENT generation: a linked sidecar is not a retired one."""
     path = tmp_path / "state.db"
@@ -544,7 +565,7 @@ def test_iter_finds_no_holder_while_sidecars_stay_linked_on_darwin(tmp_path, for
         db.close()
 
 
-@pytest.mark.platforms("macos")
+@pytest.mark.macos_only
 def test_iter_darwin_judges_by_identity_not_by_pathname(tmp_path):
     """A retired generation stays a holder after the path names a DIFFERENT inode: libproc reports
     the vnode's last pathname with no `` (deleted)`` marker, so only ``(st_dev, st_ino)`` can tell

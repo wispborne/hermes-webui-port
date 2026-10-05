@@ -10,6 +10,7 @@ import os
 
 import pytest
 
+
 @pytest.fixture(autouse=True)
 def _isolated_config_env(monkeypatch, tmp_path):
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
@@ -17,10 +18,12 @@ def _isolated_config_env(monkeypatch, tmp_path):
     yield
     os.environ.pop("HERMES_IGNORE_USER_CONFIG", None)
 
+
 def _write_corrupt_config(tmp_path):
     path = tmp_path / "config.yaml"
     path.write_text("model: [unterminated\n", encoding="utf-8")
     return path
+
 
 class TestGatewayGuard:
     def test_gateway_refuses_corrupt_config(self, tmp_path, capsys):
@@ -52,6 +55,7 @@ class TestGatewayGuard:
         monkeypatch.setenv("HERMES_IGNORE_USER_CONFIG", "1")
         _guard_corrupt_user_config()  # must not raise
 
+
 class TestCronRunJobGuard:
     def _job(self, **overrides):
         job = {"id": "job-test-1", "name": "guard test", "prompt": "hi"}
@@ -71,6 +75,7 @@ class TestCronRunJobGuard:
         assert "config.yaml" in error
         assert final_response == ""
 
+
     def test_run_job_no_agent_exempt(self, tmp_path):
         from cron.scheduler import run_job
 
@@ -80,6 +85,7 @@ class TestCronRunJobGuard:
             self._job(no_agent=True, script="true", deliver="none")
         )
         assert "Hermes stopped because your settings file" not in (error or "")
+
 
 class TestServeGuard:
     def test_serve_headless_refuses_corrupt_config(self, tmp_path, capsys):
@@ -103,3 +109,4 @@ class TestServeGuard:
 
         assert exc_info.value.code == 2
         assert "Hermes stopped because your settings file" in capsys.readouterr().err
+

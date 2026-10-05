@@ -68,7 +68,7 @@ def _proc_summary(pid: int) -> Dict[str, Any]:
 def _read_marker(path: Path) -> Optional[str]:
     """Return the marker file's text, or None if absent/unreadable."""
     try:
-        return path.read_text(encoding="utf-8-sig")
+        return path.read_text(encoding="utf-8")
     except OSError:
         return None
 

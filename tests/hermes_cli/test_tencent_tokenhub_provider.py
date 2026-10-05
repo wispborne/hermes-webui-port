@@ -1,5 +1,6 @@
 """Tests for Tencent TokenHub provider support (Hy4 preview)."""
 
+
 import pytest
 
 from hermes_cli.auth import (
@@ -8,6 +9,7 @@ from hermes_cli.auth import (
     get_api_key_provider_status,
     resolve_api_key_provider_credentials,
 )
+
 
 # Other provider env vars to clear during auto-detection tests
 _OTHER_PROVIDER_KEYS = (
@@ -20,13 +22,18 @@ _OTHER_PROVIDER_KEYS = (
     "GH_TOKEN", "GITHUB_TOKEN", "ARCEEAI_API_KEY",
 )
 
+
 # =============================================================================
 # Provider Registry
 # =============================================================================
 
+
+
+
 # =============================================================================
 # Aliases
 # =============================================================================
+
 
 class TestTencentTokenhubAliases:
     """All aliases should resolve to 'tencent-tokenhub'."""
@@ -54,16 +61,23 @@ class TestTencentTokenhubAliases:
         assert normalize_provider("tencent-cloud") == "tencent-tokenhub"
         assert normalize_provider("tencentmaas") == "tencent-tokenhub"
 
+
 # =============================================================================
 # Auto-detection
 # =============================================================================
+
+
+
 
 # =============================================================================
 # Credentials
 # =============================================================================
 
+
 class TestTencentTokenhubCredentials:
     """Test credential resolution for the tencent-tokenhub provider."""
+
+
 
     def test_resolve_credentials(self, monkeypatch):
         monkeypatch.setenv("TOKENHUB_API_KEY", "sk-test-12345678")
@@ -79,26 +93,41 @@ class TestTencentTokenhubCredentials:
         status = get_api_key_provider_status("tencent-tokenhub")
         assert not status["configured"]
 
+
+
 # =============================================================================
 # Model catalog
 # =============================================================================
+
+
+
 
 # =============================================================================
 # CANONICAL_PROVIDERS (hermes model picker)
 # =============================================================================
 
+
+
+
 # =============================================================================
 # OpenRouter / Nous Portal curated lists
 # =============================================================================
+
+
+
 
 # =============================================================================
 # Model normalization
 # =============================================================================
 
+
 class TestTencentTokenhubNormalization:
     """Model name normalization — Tencent TokenHub is a direct provider
     not in _MATCHING_PREFIX_STRIP_PROVIDERS, so names pass through as-is.
     """
+
+
+
 
     @pytest.mark.parametrize("empty_input", ["", None, "   "])
     def test_normalize_empty_and_none(self, empty_input):
@@ -107,17 +136,25 @@ class TestTencentTokenhubNormalization:
         result = normalize_model_for_provider(empty_input, "tencent-tokenhub")
         assert result == "" or result.strip() == ""
 
+
 # =============================================================================
 # Provider label
 # =============================================================================
+
+
+
 
 # =============================================================================
 # URL mapping
 # =============================================================================
 
+
+
+
 # =============================================================================
 # Context length
 # =============================================================================
+
 
 class TestTencentTokenhubContextLength:
     """hy3-preview has a context-length entry registered.
@@ -135,42 +172,67 @@ class TestTencentTokenhubContextLength:
         assert isinstance(ctx, int)
         assert ctx >= 4096, f"hy3-preview context length looks unset/wrong: {ctx}"
 
+
 # =============================================================================
 # providers.py (unified provider module)
 # =============================================================================
+
+
+
 
 # =============================================================================
 # Auxiliary client
 # =============================================================================
 
+
+
+
 # =============================================================================
 # Doctor
 # =============================================================================
+
+
+
 
 # =============================================================================
 # Agent init (no SyntaxError, correct api_mode)
 # =============================================================================
 
+
+
+
 # =============================================================================
 # CLI model flow dispatch (main.py)
 # =============================================================================
+
+
+
 
 # =============================================================================
 # Remote model catalog (model-catalog.json)
 # =============================================================================
 
+
+
+
 # =============================================================================
 # determine_api_mode (providers.py)
 # =============================================================================
 
+
 class TestTencentTokenhubApiMode:
     """Verify determine_api_mode routes tencent-tokenhub correctly."""
+
 
     def test_determine_api_mode_via_alias(self):
         from hermes_cli.providers import determine_api_mode
         mode = determine_api_mode("tencent")
         assert mode == "chat_completions"
 
+
 # =============================================================================
 # _KNOWN_PROVIDER_NAMES (models.py)
 # =============================================================================
+
+
+

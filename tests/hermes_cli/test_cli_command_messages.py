@@ -10,7 +10,13 @@ from __future__ import annotations
 import re
 from types import SimpleNamespace
 
+
+
 # ── skills hub ────────────────────────────────────────────────────────────────────────────────
+
+
+
+
 
 # ── plugins ───────────────────────────────────────────────────────────────────────────────────
 
@@ -19,9 +25,20 @@ def test_plugin_clone_failure_leads_with_next_steps_and_escapes_git_output():
     msg = _clone_failure_message("https://github.com/acme/nope", "fatal: repository '[x]' not found")
     assert "\\[x]" in msg  # Rich markup escaped so the raw git text renders verbatim
 
+
+
+
 # ── MCP ───────────────────────────────────────────────────────────────────────────────────────
 
+
+
+
+
 # ── cron ──────────────────────────────────────────────────────────────────────────────────────
+
+
+
+
 
 # ── doctor / advisories / paths ───────────────────────────────────────────────────────────────
 
@@ -33,3 +50,7 @@ def test_advisory_remediation_uses_active_hermes_home(monkeypatch, tmp_path):
     assert "~/.hermes/profiles/work/.env" in text
     assert "{hermes_home}" not in text
     assert not re.search(r"~/\.hermes/\.env", text)
+
+
+
+

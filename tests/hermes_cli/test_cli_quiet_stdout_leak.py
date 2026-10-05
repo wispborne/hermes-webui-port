@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+
 def test_suppress_status_output_gates_quiet_tool_messages():
     """The executor's [tool]/[done] fallback must stay silent under -Q.
 
@@ -22,3 +23,5 @@ def test_suppress_status_output_gates_quiet_tool_messages():
 
     agent.suppress_status_output = True
     assert agent._should_emit_quiet_tool_messages() is False
+
+

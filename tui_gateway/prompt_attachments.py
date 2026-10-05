@@ -83,51 +83,9 @@ def _session_home_dir(session: dict, name: str) -> Path:
     """``<session home>/<name>``, anchored on the session's stored ``profile_home``: attach
     RPCs run BEFORE ``prompt.submit`` installs the profile HERMES_HOME override, while
     the sandbox mounts and the vision host-read allowlist resolve the *session profile's*
-    dirs at run time — writing anywhere else means the agent can never see the file.
-
-    ``attachments`` instead follows the session workspace when the profile's config opts
-    in via ``attachments.storage: workspace`` (#110662): staging then lands inside the
-    allowed ref root, so the ``@file:`` ref stays workspace-relative."""
+    dirs at run time — writing anywhere else means the agent can never see the file."""
     profile_home = session.get("profile_home")
-    if name == "attachments" and _profile_attachments_storage(profile_home) == "workspace":
-        if workspace := _session_attachments_workspace(session):
-            return workspace / ".hermes" / "attachments"
     return (Path(profile_home) if profile_home else _hermes_home) / name
-
-
-def _profile_attachments_storage(profile_home) -> str:
-    """The session profile's ``attachments.storage`` ("" unless it opts into "workspace").
-
-    Read from THAT profile's config.yaml — ``file.attach`` runs before ``prompt.submit``
-    installs the profile scope, so the process config still belongs to the launch profile
-    (same reason as ``_profile_configured_cwd``)."""
-    import contextlib as _contextlib
-    home = Path(profile_home) if profile_home else _hermes_home
-    with _contextlib.suppress(Exception):
-        from hermes_cli.config_effective import load_user_config_effective
-        cfg_path = home / "config.yaml"
-        if cfg_path.exists():
-            attachments_cfg = load_user_config_effective(cfg_path).get("attachments")
-            if isinstance(attachments_cfg, dict):
-                return str(attachments_cfg.get("storage") or "").strip().lower()
-    return ""
-
-
-def _session_attachments_workspace(session: dict) -> Path | None:
-    """The session workspace when ``attachments.storage: workspace`` can actually write to it.
-
-    Only a workspace on THIS host can hold gateway-staged files: an ssh-profile cwd lives
-    on the remote execution host and a cwd that doesn't exist locally can't be vouched
-    for, so both keep the bind-mounted ``<profile home>/attachments`` that container and
-    remote backends receive (#76577)."""
-    import contextlib as _contextlib
-    if _cwd_is_remote(session.get("profile_home")):
-        return None
-    with _contextlib.suppress(Exception):
-        workspace = Path(_session_cwd(session)).resolve()
-        if workspace.is_dir():
-            return workspace
-    return None
 
 
 def _session_images_dir(session: dict) -> Path:
@@ -136,27 +94,18 @@ def _session_images_dir(session: dict) -> Path:
 
 def _queue_attached_image(session: dict, img_bytes: bytes, ext: str, *, prefix: str) -> Path:
     """Write image bytes into the session images dir and queue them for the next submit."""
+    session["image_counter"] = session.get("image_counter", 0) + 1
     img_dir = _session_images_dir(session)
     img_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    counter = session.get("image_counter", 0) + 1
-    while True:
-        candidate = img_dir / f"{prefix}_{ts}_{counter}{ext}"
-        try:
-            upload = candidate.open("xb")
-        except FileExistsError:
-            counter += 1
-        else:
-            break
-    session["image_counter"] = counter
+    img_path = img_dir / f"{prefix}_{ts}_{session['image_counter']}{ext}"
     try:
-        with upload:
-            upload.write(img_bytes)
+        img_path.write_bytes(img_bytes)
     except Exception:
-        candidate.unlink(missing_ok=True)
+        session["image_counter"] = max(0, session["image_counter"] - 1)
         raise
-    session.setdefault("attached_images", []).append(str(candidate))
-    return candidate
+    session.setdefault("attached_images", []).append(str(img_path))
+    return img_path
 
 
 def _format_ref_value(value: str) -> str:
@@ -228,23 +177,13 @@ def _stage_session_file_attachment(
     root.mkdir(parents=True, exist_ok=True)
     filename = _sanitize_attachment_name(filename)
     target = root / filename
-    stem = Path(filename).stem or "attachment"
-    suffix = Path(filename).suffix
-    counter = 2
-    while True:
-        try:
-            upload = target.open("xb")
-        except FileExistsError:
-            target = root / f"{stem}-{counter}{suffix}"
+    if target.exists():
+        stem = Path(filename).stem or "attachment"
+        suffix = Path(filename).suffix
+        counter = 2
+        while (target := root / f"{stem}-{counter}{suffix}").exists():
             counter += 1
-        else:
-            break
-    try:
-        with upload:
-            upload.write(payload)
-    except Exception:
-        target.unlink(missing_ok=True)
-        raise
+    target.write_bytes(payload)
     return target.resolve(), True
 
 

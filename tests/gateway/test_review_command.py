@@ -14,6 +14,7 @@ import pytest
 from tools import async_delegation as ad
 from tools.process_registry import process_registry
 
+
 @pytest.fixture(autouse=True)
 def _clean_state():
     ad._reset_for_tests()
@@ -27,7 +28,9 @@ def _clean_state():
     while not process_registry.completion_queue.empty():
         process_registry.completion_queue.get_nowait()
 
+
 SESSION_KEY = "agent:main:test:dm:1"
+
 
 def _make_agent():
     agent = MagicMock()
@@ -42,6 +45,7 @@ def _make_agent():
     ]
     return agent
 
+
 def _make_runner(agent):
     import threading
 
@@ -54,6 +58,7 @@ def _make_runner(agent):
     runner._session_key_for_source = lambda source: SESSION_KEY
     return runner
 
+
 class _Event:
     source = object()  # any non-None sentinel
 
@@ -62,6 +67,7 @@ class _Event:
 
     def get_command_args(self):
         return self._args
+
 
 @pytest.mark.asyncio
 async def test_review_command_dispatches_background_subagent(monkeypatch):
@@ -115,6 +121,7 @@ async def test_review_command_dispatches_background_subagent(monkeypatch):
     assert evt["session_key"] == SESSION_KEY
     assert evt["results"][0]["summary"] == "review done"
 
+
 @pytest.mark.asyncio
 async def test_review_command_rejects_while_agent_running():
     agent = _make_agent()
@@ -122,3 +129,7 @@ async def test_review_command_rejects_while_agent_running():
     runner._running_agents = {SESSION_KEY: object()}
     out = await runner._handle_review_command(_Event())
     assert "Agent is running" in out
+
+
+
+

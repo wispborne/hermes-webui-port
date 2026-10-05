@@ -2,6 +2,9 @@ import re
 
 from hermes_cli.session_export_html import _generate_messages_html
 
+
+
+
 def test_role_is_escaped_in_html_export():
     messages = [
         {
@@ -21,3 +24,5 @@ def test_role_is_escaped_in_html_export():
     assert class_value is not None
     assert " message-" in class_value.group(1)  # exactly one message-<role> class
     assert class_value.group(1).count("message-") == 1
+
+

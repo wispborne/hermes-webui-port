@@ -25,9 +25,13 @@ from agent.gemini_schema import prepare_gemini_tool_parameters, sanitize_gemini_
 
 logger = logging.getLogger(__name__)
 
-from hermes_cli.version_info import get_version_info
+try:
+    import hermes_cli as _hermes_cli
 
-_API_CLIENT = f"hermes-agent/{get_version_info().base_version}"  # client context per Gemini's partner-integration guidance
+    _HERMES_VERSION = str(_hermes_cli.__version__)
+except Exception:
+    _HERMES_VERSION = "0.0.0"
+_API_CLIENT = f"hermes-agent/{_HERMES_VERSION}"  # client context per Gemini's partner-integration guidance
 
 DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 # A Vertex AI express-mode base, when the user configures one explicitly: aiplatform serves the

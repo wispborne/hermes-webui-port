@@ -127,7 +127,6 @@ const config: Config = {
       logo: {
         alt: 'Hermes Agent',
         src: 'img/logo.png',
-        srcDark: 'img/logo-dark.png',
       },
       items: [
         {

@@ -1,5 +1,4 @@
 import { createBackendShutdownCoordinator } from './backend-ownership'
-import { markExpectedTransition } from './crash-forensics'
 
 /** Observe every branch, but never leave quit parked on a lost exit/SSH callback. */
 export async function waitForTeardown(tasks: readonly Promise<unknown>[], timeoutMs: number): Promise<void> {
@@ -8,7 +7,7 @@ export async function waitForTeardown(tasks: readonly Promise<unknown>[], timeou
   try {
     await Promise.race([
       Promise.allSettled(tasks),
-      new Promise<void>((resolve: () => void): void => {
+      new Promise<void>(resolve => {
         timer = setTimeout(resolve, timeoutMs)
       })
     ])
@@ -30,20 +29,7 @@ interface LocalBackendLifecycleDeps<Child> {
  * shutdown signal and synchronous spawn fence make bounded waiting safe: a late
  * resolver can finish, but can never create another owned backend.
  */
-export interface LocalBackendLifecycle<Child> {
-  signal: AbortSignal
-  assertCanStart: () => void
-  hasPending: () => boolean
-  start: <T>(run: () => Promise<T>) => Promise<T>
-  spawn: (create: () => Child) => Child
-  release: (child: Child) => boolean
-  stop: (child: Child | null | undefined) => Promise<void>
-  shutdown: () => Promise<void>
-}
-
-export function createLocalBackendLifecycle<Child>(
-  deps: LocalBackendLifecycleDeps<Child>
-): LocalBackendLifecycle<Child> {
+export function createLocalBackendLifecycle<Child>(deps: LocalBackendLifecycleDeps<Child>) {
   const controller = new AbortController()
   const starts = new Set<Promise<unknown>>()
   const children = new Set<Child>()
@@ -60,22 +46,22 @@ export function createLocalBackendLifecycle<Child>(
       return existing
     }
 
-    const stopping = (async (): Promise<void> => {
+    const stopping = (async () => {
       deps.stopChild(child)
       await deps.waitForExit(child)
     })()
 
     stops.set(child, stopping)
     void stopping.then(
-      (): boolean => stops.delete(child),
-      (): boolean => stops.delete(child)
+      () => stops.delete(child),
+      () => stops.delete(child)
     )
 
     return stopping
   }
 
-  const shutdown = createBackendShutdownCoordinator((): Promise<void> => {
-    controller.abort(markExpectedTransition(new Error('Hermes Desktop is quitting.')))
+  const shutdown = createBackendShutdownCoordinator(() => {
+    controller.abort(new Error('Hermes Desktop is quitting.'))
     deps.cancelSetup()
 
     return waitForTeardown([...starts, ...[...children].map(stop), ...stops.values()], deps.timeoutMs ?? 7_000)
@@ -83,15 +69,15 @@ export function createLocalBackendLifecycle<Child>(
 
   return {
     signal: controller.signal,
-    assertCanStart: (): void => controller.signal.throwIfAborted(),
-    hasPending: (): boolean => starts.size > 0 || children.size > 0 || stops.size > 0 || shutdown.isPending(),
+    assertCanStart: () => controller.signal.throwIfAborted(),
+    hasPending: () => starts.size > 0 || children.size > 0 || stops.size > 0 || shutdown.isPending(),
     start<T>(run: () => Promise<T>): Promise<T> {
       if (controller.signal.aborted) {
         return Promise.reject(controller.signal.reason)
       }
 
       // Defer invocation one microtask so the inventory precedes all work.
-      const promise = Promise.resolve().then((): Promise<T> => {
+      const promise = Promise.resolve().then(() => {
         controller.signal.throwIfAborted()
 
         return run()
@@ -99,8 +85,8 @@ export function createLocalBackendLifecycle<Child>(
 
       starts.add(promise)
       void promise.then(
-        (): boolean => starts.delete(promise),
-        (): boolean => starts.delete(promise)
+        () => starts.delete(promise),
+        () => starts.delete(promise)
       )
 
       return promise
@@ -112,7 +98,7 @@ export function createLocalBackendLifecycle<Child>(
 
       return child
     },
-    release: (child: Child): boolean => children.delete(child),
+    release: (child: Child) => children.delete(child),
     stop,
     shutdown: shutdown.run
   }

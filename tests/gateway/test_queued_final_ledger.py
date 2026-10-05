@@ -60,10 +60,8 @@ def _rows():
 
 
 def _source(*, chat_id=CHAT, thread_id=None, chat_type="dm"):
-    # parent_chat_id is a real SessionSource field; the queued-followup path reads it to pin the
-    # channel inputs, so the stub carries it like every real source does.
     return SimpleNamespace(platform=Platform.TELEGRAM, chat_id=chat_id, thread_id=thread_id,
-                           chat_type=chat_type, parent_chat_id=None)
+                           chat_type=chat_type)
 
 
 def _telegram_adapter(send_result=None):
@@ -213,7 +211,7 @@ def _chain_runner_and_ctx(followup_return):
         context_prompt=None, result_holder=[None])
     pending_event = SimpleNamespace(
         source=topic, message_id="6002", channel_prompt=None, message_type=None,
-        internal=False, metadata={}, reply_expected=None)
+        internal=False, metadata={})
     return GatewayRunner, runner, turn_ctx, pending_event
 
 
@@ -241,7 +239,7 @@ async def test_a_chained_queued_turn_carries_its_own_inbound_id():
         context_prompt=None, result_holder=[None])
     pending_event = SimpleNamespace(
         source=topic, message_id="6002", channel_prompt=None, message_type=None,
-        internal=False, metadata={}, reply_expected=None)
+        internal=False, metadata={})
 
     await GatewayRunner._run_agent_queued_followup(
         runner, turn_ctx, adapter=None, pending="hi again", pending_event=pending_event,

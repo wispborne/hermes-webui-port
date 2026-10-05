@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import hermes_yaml as yaml
+import yaml
 
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.base import (
@@ -119,9 +119,7 @@ async def test_plugin_context_routes_through_live_gateway_to_existing_session(
         manager,
     )
 
-    # The runner publishes process-wide; expose this standalone manager through the legacy slot so
-    # the real publisher stamps it while this integration test still exercises the scheduler.
-    with patch("hermes_cli.plugins._plugin_manager", manager):
+    with patch("hermes_cli.plugins.get_plugin_manager", return_value=manager):
         runner._install_plugin_message_injector()
         assert (
             context.inject_message(
@@ -437,8 +435,7 @@ def test_install_and_clear_gateway_injector_preserves_newer_owner():
     runner = _runner(_entry())
     manager = PluginManager()
 
-    # The runner publishes process-wide; expose this standalone manager through the legacy slot.
-    with patch("hermes_cli.plugins._plugin_manager", manager):
+    with patch("hermes_cli.plugins.get_plugin_manager", return_value=manager):
         runner._install_plugin_message_injector()
         assert manager.has_gateway_message_injector is True
 

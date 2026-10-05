@@ -167,7 +167,6 @@ class TestMissedSteerRetention:
 
         parent = MagicMock()
         parent._delegate_depth = 0
-        parent._session_db = None
         parent.model = "test-model"
         parent.interactive_mode = False
 
@@ -205,7 +204,6 @@ class TestMissedSteerRetention:
 
         parent = MagicMock()
         parent._delegate_depth = 0
-        parent._session_db = None
         parent.model = "test-model"
         parent.interactive_mode = False
 
@@ -274,7 +272,6 @@ class TestMissedSteerRetention:
         child.steer.side_effect = steer
         child._drain_pending_steer.side_effect = drain
         parent = MagicMock()
-        parent._session_db = None
 
         result_box: dict = {}
         runner = threading.Thread(
@@ -333,12 +330,7 @@ class TestMissedSteerRetention:
         }
 
         runner = threading.Thread(
-            target=lambda: _run_single_child(
-                0,
-                "late",
-                child=child,
-                parent_agent=MagicMock(_session_db=None),
-            )
+            target=lambda: _run_single_child(0, "late", child=child, parent_agent=MagicMock())
         )
         runner.start()
         assert callback_entered.wait(5)
@@ -477,7 +469,7 @@ class TestSubagentSteerRPC:
                 0,
                 "owner binding",
                 child=child,
-                parent_agent=MagicMock(_session_db=None),
+                parent_agent=MagicMock(),
                 owner_transport=owner_transport,
                 owner_session_record=owner_session_record,
             )

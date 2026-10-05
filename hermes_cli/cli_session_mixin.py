@@ -12,7 +12,6 @@ import os
 import shutil
 import sys
 
-from agent.i18n import t
 from hermes_constants import get_hermes_home
 from hermes_state_ids import new_session_id
 from pathlib import Path
@@ -104,7 +103,7 @@ def _reset_model_to_config_default(cli, silent: bool) -> None:
         if r.api_mode:
             cli.api_mode = r.api_mode
         if not silent:
-            _cprint(f"  {t('cli.session.model_reset_default', model=r.new_model)}")
+            _cprint(f"  (model reset to config default: {r.new_model})")
     except Exception:
         logger.debug("/new model reset to config default failed", exc_info=True)
 
@@ -116,15 +115,15 @@ def _apply_new_session_title(cli, title: str) -> Optional[str]:
     try:
         sanitized = SessionDB.sanitize_title(title)
     except ValueError as e:
-        _cprint(f"  {t('cli.session.title_rejected', error=e)}")
+        _cprint(f"  Title rejected: {e}")
         return None
     if not sanitized:
-        _cprint(f"  {t('cli.session.title_empty_untitled')}")
+        _cprint("  Title is empty after cleanup — session started untitled.")
         return None
     try:
         cli._session_db.set_session_title(cli.session_id, sanitized)
     except ValueError as e:
-        _cprint(f"  {t('cli.session.title_error_untitled', error=e)}")
+        _cprint(f"  {e} — session started untitled.")
         return None
     except Exception:
         return None
@@ -156,14 +155,14 @@ class CLISessionMixin:
         if current and os.path.realpath(recorded) == os.path.realpath(current):
             return
         if not os.path.isdir(recorded):
-            msg = t("cli.session.cwd_gone", recorded=recorded, current=current or ".")
+            msg = f"⚠ Session's working directory is gone: {recorded} — staying in {current or '.'}"
         else:
             try:
                 os.chdir(recorded)
                 os.environ["TERMINAL_CWD"] = recorded
-                msg = t("cli.session.cwd_restored", path=recorded)
+                msg = f"↻ Working directory: {recorded}"
             except OSError as e:
-                msg = t("cli.session.cwd_enter_failed", path=recorded, error=e)
+                msg = f"⚠ Could not enter session's working directory {recorded}: {e}"
         _dim_notice(self, msg, quiet)
 
     def _restore_session_yolo(self, session_meta: dict, *, quiet: bool = False) -> None:
@@ -182,7 +181,9 @@ class CLISessionMixin:
         if is_session_yolo_enabled(session_key):
             return
         enable_session_yolo(session_key)
-        _dim_notice(self, t("cli.session.yolo_restored"), quiet)
+        _dim_notice(self,
+            "⚡ YOLO mode restored from session — all commands auto-approved. /yolo to turn off.",
+            quiet)
 
     def _render_resume_history_panel_lines(self, panel) -> list[str]:
         """Render the resume panel at the current terminal width for resize replay."""
@@ -205,7 +206,7 @@ class CLISessionMixin:
             return ref
         if 0 <= idx < len(checkpoints):
             return checkpoints[idx]["hash"]
-        print(f"  {t('cli.session.invalid_checkpoint', count=len(checkpoints))}")
+        print(f"  Invalid checkpoint number. Use 1-{len(checkpoints)}.")
         return None
 
     def _show_status(self):
@@ -213,11 +214,11 @@ class CLISessionMixin:
         from cli import get_tool_definitions
         # Avoid pulling the full tool registry into the bare Termux prompt path.
         if os.environ.get("HERMES_DEFER_AGENT_STARTUP") == "1":
-            tool_status = t("cli.session.status_tools_deferred")
+            tool_status = "tools deferred"
         else:
             tools = get_tool_definitions(enabled_toolsets=self.enabled_toolsets,
                                          disabled_toolsets=self.disabled_toolsets, quiet_mode=True)
-            tool_status = t("cli.session.status_tools_count", count=len(tools) if tools else 0)
+            tool_status = f"{len(tools) if tools else 0} tools"
 
         model_short = self.model.split("/")[-1] if "/" in self.model else self.model
         if len(model_short) > 30:
@@ -234,10 +235,10 @@ class CLISessionMixin:
         sep = f" [dim {separator_color}]·[/] "
         toolsets_info = ""
         if self.enabled_toolsets and "all" not in self.enabled_toolsets:
-            toolsets_info = f"{sep}[{label_color}]{_escape(t('cli.session.status_toolsets', toolsets=', '.join(self.enabled_toolsets)))}[/]"
-        provider_info = f"{sep}[dim]{_escape(t('cli.session.status_provider', provider=self.provider))}[/]"
+            toolsets_info = f"{sep}[{label_color}]toolsets: {', '.join(self.enabled_toolsets)}[/]"
+        provider_info = f"{sep}[dim]provider: {self.provider}[/]"
         if self._provider_source:
-            provider_info += f"{sep}[dim]{_escape(t('cli.session.status_auth', source=self._provider_source))}[/]"
+            provider_info += f"{sep}[dim]auth: {self._provider_source}[/]"
         self._console_print(
             f"  {api_indicator} [{accent_color}]{model_short}[/]{sep}"
             f"[bold {label_color}]{tool_status}[/]{toolsets_info}{provider_info}")
@@ -261,13 +262,12 @@ class CLISessionMixin:
         rc = getattr(agent, "reasoning_config", None) or getattr(self, "reasoning_config", None)
         if isinstance(rc, dict):
             if rc.get("enabled") is False:
-                reasoning_label = t("cli.shared.label_off")
+                reasoning_label = "off"
             elif rc.get("effort"):
                 reasoning_label = str(rc.get("effort"))
         show_r = getattr(self, "show_reasoning", None)
         if reasoning_label and show_r is not None:
-            state = t("cli.shared.label_on") if show_r else t("cli.shared.label_off")
-            reasoning_label += t("cli.session.reasoning_display_suffix", state=state)
+            reasoning_label += f" (display: {'on' if show_r else 'off'})"
 
         approval_label = None
         try:
@@ -275,7 +275,7 @@ class CLISessionMixin:
             from tools.approval_context import _get_approval_mode
             approval_label = _get_approval_mode()
             if is_approval_bypass_active_for_session(getattr(self, "session_key", "") or ""):
-                approval_label += t("cli.session.yolo_bypass_suffix")
+                approval_label += " (YOLO bypass active)"
         except Exception:
             pass
 
@@ -288,26 +288,25 @@ class CLISessionMixin:
             if ctx_max:
                 left = ""
                 if isinstance(ctx_pct, (int, float)):
-                    left = t("cli.session.ctx_left_prefix", percent=max(0, 100 - int(ctx_pct)))
-                ctx_label = t("cli.session.ctx_tokens_used", left=left, used=f"{snap.get('context_tokens') or 0:,}",
-                              max=f"{ctx_max:,}")
+                    left = f"{max(0, 100 - int(ctx_pct))}% left · "
+                ctx_label = f"{left}{snap.get('context_tokens') or 0:,} / {ctx_max:,} tokens used"
         except Exception:
             ctx_label = None
 
-        lines = [t("cli.session.status_title"), "", *status_lines(fields, "session_id", "path", "title", "model")]
+        lines = ["Hermes CLI Status", "", *status_lines(fields, "session_id", "path", "title", "model")]
         try:
-            from hermes_cli.anon_auth import free_tier_route
+            from agent.i18n import t
+            from hermes_cli.auth import resolve_provider
+            from hermes_cli.anon_auth import guest_carries_inference
 
-            if free_tier_route():
+            if resolve_provider("auto") == "nous" and guest_carries_inference():
                 lines.append(t("gateway.status.free_tier"))
         except Exception:
             pass
-        optional = ((t("cli.session.label_reasoning"), reasoning_label),
-                    (t("cli.session.label_approvals"), approval_label),
-                    (t("cli.session.label_context"), ctx_label))
+        optional = (("Reasoning", reasoning_label), ("Approvals", approval_label), ("Context", ctx_label))
         for label, value in optional:
             if value:
-                lines.append(t("cli.shared.label_value", label=label, value=value))
+                lines.append(f"{label}: {value}")
         lines.extend(status_lines(fields, "created", "last_activity", "tokens", "agent_running"))
         self._console_print("\n".join(lines), highlight=False, markup=False)
 
@@ -340,13 +339,11 @@ class CLISessionMixin:
 
         _cli_visible_print()
         if reason == "history":
-            _cli_visible_print(t("cli.session.recent_intro"))
+            _cli_visible_print("(._.) No messages in the current chat yet — here are recent sessions you can resume:")
         else:
-            _cli_visible_print(f"  {t('cli.session.recent_header')}")
+            _cli_visible_print("  Recent sessions:")
         _cli_visible_print()
-        _cli_visible_print(
-            f"  {'#':<3} {t('cli.session.column_title'):<32} {t('cli.session.column_preview'):<40} "
-            f"{t('cli.session.column_last_active'):<13} {t('cli.session.column_id')}")
+        _cli_visible_print(f"  {'#':<3} {'Title':<32} {'Preview':<40} {'Last Active':<13} {'ID'}")
         _cli_visible_print(f"  {'─' * 3} {'─' * 32} {'─' * 40} {'─' * 13} {'─' * 24}")
         for idx, session in enumerate(sessions, start=1):
             title = session.get("title") or "—"
@@ -354,8 +351,8 @@ class CLISessionMixin:
             last_active = _relative_time(session.get("last_active"), session_id=session.get("id"))
             _cli_visible_print(f"  {idx:<3} {title:<32} {preview:<40} {last_active:<13} {session['id']}")
         _cli_visible_print()
-        _cli_visible_print(f"  {t('cli.session.resume_usage')}")
-        _cli_visible_print(f"  {t('cli.session.resume_example')}")
+        _cli_visible_print("  Use /resume <number>, /resume <session id>, or /resume <session title> to continue.")
+        _cli_visible_print("  Example: /resume 2")
         _cli_visible_print()
         return True
 
@@ -364,7 +361,7 @@ class CLISessionMixin:
         from cli import _cli_visible_print
         if not self.conversation_history:
             if not self._show_recent_sessions(reason="history"):
-                _cli_visible_print(t("cli.session.history_empty"))
+                _cli_visible_print("(._.) No conversation history yet.")
             return
 
         preview_limit = 400
@@ -388,13 +385,13 @@ class CLISessionMixin:
             nonlocal hidden_tool_messages
             if not hidden_tool_messages:
                 return
-            key = "cli.session.history_tools_hidden_one" if hidden_tool_messages == 1 else "cli.session.history_tools_hidden_other"
-            _cli_visible_print(f"\n  {t('cli.session.history_tools_header')}")
-            _cli_visible_print(f"    {t(key, count=hidden_tool_messages)}")
+            noun = "message" if hidden_tool_messages == 1 else "messages"
+            _cli_visible_print("\n  [Tools]")
+            _cli_visible_print(f"    ({hidden_tool_messages} tool {noun} hidden)")
             hidden_tool_messages = 0
 
         rule = "+" + "-" * 50 + "+"
-        for line in ("", rule, "|" + t("cli.session.history_title").center(50) + "|", rule):
+        for line in ("", rule, "|" + " " * 12 + "(^_^) Conversation History" + " " * 11 + "|", rule):
             _cli_visible_print(line)
 
         for msg in self.conversation_history:
@@ -412,19 +409,17 @@ class CLISessionMixin:
             preview = content_text[:preview_limit]
             suffix = "..." if len(content_text) > preview_limit else ""
             if role == "user":
-                _cli_visible_print(f"\n  {t('cli.session.history_you_header', index=visible_index)}{_ts_suffix(msg)}")
+                _cli_visible_print(f"\n  [You #{visible_index}]{_ts_suffix(msg)}")
                 _cli_visible_print(f"    {preview}{suffix}")
                 continue
 
-            _cli_visible_print(
-                f"\n  {t('cli.session.history_assistant_header', agent_name='Hermes', index=visible_index)}{_ts_suffix(msg)}")
+            _cli_visible_print(f"\n  [Hermes #{visible_index}]{_ts_suffix(msg)}")
             n_calls = len(msg.get("tool_calls") or [])
             if not content_text:
                 suffix = ""
-                preview = t("cli.session.history_no_text")
+                preview = "(no text response)"
                 if n_calls:
-                    key = "cli.session.history_tool_calls_one" if n_calls == 1 else "cli.session.history_tool_calls_other"
-                    preview = t(key, count=n_calls)
+                    preview = f"(requested {n_calls} tool {'call' if n_calls == 1 else 'calls'})"
             _cli_visible_print(f"    {preview}{suffix}")
 
         flush_tool_summary()
@@ -590,9 +585,9 @@ class CLISessionMixin:
 
         if not silent:
             if title:
-                print(t("cli.session.new_session_titled", title=title))
+                print(f"(^_^)v New session started: {title}")
             else:
-                print(t("cli.session.new_session"))
+                print("(^_^)v New session started!")
 
     def _consume_pending_resume_selection(self, text: str) -> bool:
         """Resolve a bare numeric reply following a bare ``/resume`` prompt.
@@ -616,8 +611,8 @@ class CLISessionMixin:
             return False
         index = int(text.strip())
         if not 1 <= index <= len(pending):
-            _cprint(f"  {t('cli.session.resume_index_out_of_range', index=index)}")
-            _cprint(f"  {t('cli.session.resume_no_args_hint')}")
+            _cprint(f"  Resume index {index} is out of range.")
+            _cprint("  Use /resume with no arguments to see available sessions.")
             return True
         self._handle_resume_command(f"/resume {index}")
         return True
@@ -631,7 +626,7 @@ class CLISessionMixin:
         """
         from cli import datetime
         from hermes_cli.session_export import (
-            SAVE_USAGE, load_save_snapshot, normalize_save_format, render_session_for_save)
+            SAVE_TRANSCRIPT_FORMATS, SAVE_USAGE, normalize_save_format, render_session_for_save)
 
         parts = cmd.split()[1:]
         redact = bool(parts) and parts[-1].lower() in ("redact", "--redact")
@@ -654,17 +649,13 @@ class CLISessionMixin:
         _db = getattr(self, "_session_db", None)
         _sid = getattr(self, "session_id", None)
         if _db and _sid:
-            from hermes_state import SessionExportTooLargeError
             try:
-                session_data = load_save_snapshot(_db, _sid, fmt)
-            except SessionExportTooLargeError as e:
-                print(f"(._.) {e}")
-                return
+                session_data = _db.export_session(_sid, include_compacted=fmt in SAVE_TRANSCRIPT_FORMATS)
             except Exception:
                 session_data = None
         if not session_data:
             if not self.conversation_history:
-                print(t("cli.session.save_nothing"))
+                print("(;_;) No conversation to save.")
                 return
             session_data = {
                 "id": self.session_id, "model": self.model,
@@ -678,7 +669,7 @@ class CLISessionMixin:
         try:
             saved_dir.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            print(t("cli.session.save_dir_failed", path=saved_dir, error=e))
+            print(f"(x_x) Failed to create save directory {saved_dir}: {e}")
             return
         if filename:
             path = Path(filename).expanduser()
@@ -692,17 +683,17 @@ class CLISessionMixin:
             content = render_session_for_save(session_data, fmt)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
-            label = {"json": "JSON", "md": t("cli.session.format_markdown"), "html": "HTML"}[fmt]
-            print(t("cli.session.save_ok", path=path, label=label))
+            label = {"json": "JSON", "md": "Markdown", "html": "HTML"}[fmt]
+            print(f"(^_^)v Conversation saved to: {path} ({label})")
             # #76354 review F5: the worker thread also rebound the session ContextVar inside its own
             # (copied) context, which the caller never sees — and get_session_env() prefers an already-bound
             # ContextVar over os.environ. Rebind in the CALLER's context so post-compression
             # tools/subprocesses on this thread resolve HERMES_SESSION_ID to the child id after an
             # out-of-place rotation (idempotent when no rotation happened).
             if self.session_id:
-                print(f"       {t('cli.session.save_resume_hint', session_id=self.session_id)}")
+                print(f"       Resume the live session with: hermes --resume {self.session_id}")
         except Exception as e:
-            print(t("cli.session.save_failed", error=e))
+            print(f"(x_x) Failed to save: {e}")
 
     def _publish_truncated_history(self, truncated: list, *, invalidate_prompt: bool) -> None:
         """Install a rewound history and mirror it onto the agent (flush index reset so the
@@ -726,7 +717,7 @@ class CLISessionMixin:
         """Retry the last user message: drop the last exchange and return the text to re-send
         (None when there is nothing to retry)."""
         if not self.conversation_history:
-            print(t("cli.session.retry_no_messages"))
+            print("(._.) No messages to retry.")
             return None
 
         from agent.context_compressor import (
@@ -736,7 +727,7 @@ class CLISessionMixin:
         warm_history = list(self.conversation_history)
         user_indices = _user_turn_indices(warm_history)
         if not user_indices:
-            print(t("cli.session.retry_no_user_message"))
+            print("(._.) No user message found to retry.")
             return None
 
         # Resolve a lossless live payload before touching persistence or memory. A
@@ -751,7 +742,7 @@ class CLISessionMixin:
                 live_content = sanitize_context(live_content).strip()
             last_message = retryable_user_text(live_content)
         except ValueError as exc:
-            print(t("cli.session.retry_unsafe", error=exc))
+            print(f"(._.) Cannot retry that message safely: {exc}")
             return None
 
         # Persist the rewind before publishing the shorter in-memory view: the DB owns the
@@ -761,11 +752,11 @@ class CLISessionMixin:
                 truncated = self._session_db.rewind_user_turn(
                     self.session_id, -1, warm_history=warm_history, require_retryable=True).prefix
             except Exception as exc:
-                print(t("cli.session.retry_rewind_failed", error=exc))
+                print(f"(x_x) Retry rewind failed; history was not changed: {exc}")
                 return None
 
         self._publish_truncated_history(truncated, invalidate_prompt=False)
-        print(t("cli.session.retrying", preview=f"{last_message[:60]}{'...' if len(last_message) > 60 else ''}"))
+        print(f"(^_^)b Retrying: \"{last_message[:60]}{'...' if len(last_message) > 60 else ''}\"")
         return last_message
 
     def undo_last(self, n: int = 1, prefill: bool = True):
@@ -775,12 +766,11 @@ class CLISessionMixin:
         turn). Rows are soft-deleted in SessionDB (``active=0``, kept for audit), memory
         providers get ``on_session_switch(rewound=True)``, and the agent is patched like
         /branch does. ``prefill=False`` is for programmatic callers (checkpoint rollback)
-        that must not touch the input buffer. Returns the number of user turns undone (None when
-        nothing changed).
+        that must not touch the input buffer.
         """
         from cli import logger
         if not self.conversation_history:
-            print(t("cli.session.undo_no_messages"))
+            print("(._.) No messages to undo.")
             return
         n = max(n, 1)
 
@@ -789,7 +779,7 @@ class CLISessionMixin:
         warm_history = list(self.conversation_history)
         user_indices = _user_turn_indices(warm_history)
         if not user_indices:
-            print(t("cli.session.undo_no_user_message"))
+            print("(._.) No user message found to undo.")
             return
 
         turns_undone = min(n, len(user_indices))
@@ -810,7 +800,7 @@ class CLISessionMixin:
                 rewound_rows = outcome.rewound_count
             except Exception as e:
                 logger.debug("undo: durable rewind failed: %s", e)
-                print(t("cli.session.undo_failed", error=e))
+                print(f"(x_x) Undo failed; history was not changed: {e}")
                 return
 
         # Publish only after the durable rewind succeeds (or no store exists).
@@ -822,14 +812,14 @@ class CLISessionMixin:
             with contextlib.suppress(Exception):
                 _mm.on_session_switch(self.session_id, parent_session_id="", reset=False, rewound=True)
 
-        key = "cli.session.undo_ok_one" if turns_undone == 1 else "cli.session.undo_ok_other"
-        print(t(key, count=turns_undone, messages=rewound_rows or removed_count,
-                backup=f"{removed_text[:60]}{'...' if len(removed_text) > 60 else ''}"))
-        print(f"  {t('cli.session.undo_remaining', count=len(self.conversation_history))}")
+        turn_word = "turn" if turns_undone == 1 else "turns"
+        print(
+            f"(^_^)b Undid {turns_undone} {turn_word} ({rewound_rows or removed_count} message(s)). "
+            f"Backed up to: \"{removed_text[:60]}{'...' if len(removed_text) > 60 else ''}\"")
+        print(f"  {len(self.conversation_history)} message(s) remaining in history.")
         # Editable, not auto-sent (Claude-Code-style).
         if prefill and removed_text:
             self._prefill_input_buffer(removed_text)
-        return turns_undone
 
     @staticmethod
     def _undo_content_to_text(content) -> str:
@@ -902,8 +892,11 @@ class CLISessionMixin:
         # A frozen process-level bypass short-circuits the approval gate ahead of the session
         # check — toggling "OFF" would be a false safety claim. Say so instead.
         if _YOLO_MODE_FROZEN:
-            state = f"{_Colors.BOLD}{_Colors.RED}{t('cli.session.yolo_state_locked_on')}{_Colors.RESET}"
-            _cprint(f"  {t('cli.session.yolo_locked', state=state)}")
+            _cprint(
+                f"  ⚡ YOLO is {_Colors.BOLD}{_Colors.RED}locked ON{_Colors.RESET}"
+                " for this process (started with --yolo / HERMES_YOLO_MODE)."
+                " /yolo cannot disable it — restart without the flag to"
+                " re-enable approvals.")
             return
 
         session_key = self.session_id or "default"
@@ -913,14 +906,16 @@ class CLISessionMixin:
             disable_session_yolo(session_key)
             if _persist:
                 _persist(session_key, False)
-            state = f"{_Colors.BOLD}{_Colors.RED}{t('cli.shared.label_off_upper')}{_Colors.RESET}"
-            _cprint(f"  {t('cli.session.yolo_off', state=state)}")
+            _cprint(
+                f"  ⚠ YOLO mode {_Colors.BOLD}{_Colors.RED}OFF{_Colors.RESET}"
+                " — dangerous commands will require approval.")
         else:
             enable_session_yolo(session_key)
             if _persist:
                 _persist(session_key, True)
-            state = f"{_Colors.BOLD}{_Colors.GREEN}{t('cli.shared.label_on_upper')}{_Colors.RESET}"
-            _cprint(f"  {t('cli.session.yolo_on', state=state)}")
+            _cprint(
+                f"  ⚡ YOLO mode {_Colors.BOLD}{_Colors.GREEN}ON{_Colors.RESET}"
+                " — all commands auto-approved. Use with caution.")
 
     def _persist_session_yolo(self, session_key: str, enabled: bool) -> None:
         """Persist the YOLO flag to the session row so --resume restores it. Best-effort; the
@@ -948,10 +943,10 @@ class CLISessionMixin:
             AGGRESSIVE_UNSUPPORTED, MIN_MESSAGES, compress_now, parse_compress_args, render_compress_result)
 
         if len(self.conversation_history or ()) < MIN_MESSAGES:
-            print(t("cli.session.compress_too_short", min=MIN_MESSAGES))
+            print(f"(._.) Not enough conversation to compress (need at least {MIN_MESSAGES} messages).")
             return
         if not self.agent:
-            print(t("cli.session.compress_no_agent"))
+            print("(._.) No active agent -- send a message first.")
             return
         _parts = (cmd_original or "").strip().split(None, 1)
         request = parse_compress_args(_parts[1] if len(_parts) > 1 else "")
@@ -965,14 +960,15 @@ class CLISessionMixin:
             return
 
         original_count = len(self.conversation_history)
-        with self._busy_command(t("cli.session.compress_busy"), blocks_input=False):
+        with self._busy_command("Compressing context...", blocks_input=False):
             try:
                 if request.partial:
-                    print(t("cli.session.compress_summarizing", count=original_count, keep_last=request.keep_last))
+                    print(f"🗜️  Summarizing up to here: {original_count} messages, "
+                          f"keeping last {request.keep_last} exchange(s) verbatim...")
                 elif request.focus_topic:
-                    print(t("cli.session.compress_focus", count=original_count, focus=request.focus_topic))
+                    print(f"🗜️  Compressing {original_count} messages, focus: \"{request.focus_topic}\"...")
                 else:
-                    print(t("cli.session.compress_plain", count=original_count))
+                    print(f"🗜️  Compressing {original_count} messages...")
                 result = compress_now(self.agent, self.conversation_history, request,
                                       task_id=self.session_id or "default")
                 if result.status != "compressed":
@@ -1002,7 +998,7 @@ class CLISessionMixin:
                     print(f"     {summary['note']}")
             except Exception as e:
                 finalize_context_engine_compression_notification(self.agent, committed=False)
-                print(f"  {t('cli.session.compress_failed', error=e)}")
+                print(f"  ❌ Compression failed: {e}")
 
     def _persist_prompt_summary(self, icon: str, label: str, detail: str, outcome: str) -> None:
         """Print a one-line scrollback summary of a resolved modal prompt (approval/clarify
@@ -1011,7 +1007,7 @@ class CLISessionMixin:
         if not CLI_CONFIG.get("display", {}).get("persist_prompts", True):
             return
         detail, outcome = (_squash(s) for s in (detail, outcome))
-        _cprint(f"\n{_DIM}{t('cli.session.persist_prompt_summary', icon=icon, label=label, detail=detail, outcome=outcome)}{_RST}")
+        _cprint(f"\n{_DIM}{icon} {label}: {detail} → {outcome}{_RST}")
 
     def _clear_terminal_on_exit(self):
         """Clear screen + scrollback (``ESC[3J ESC[2J ESC[H``) so nothing is stranded above
@@ -1151,9 +1147,9 @@ class CLISessionMixin:
         if not msg_count:
             try:
                 from hermes_cli.skin_engine import get_active_goodbye
-                goodbye = get_active_goodbye(t("cli.session.goodbye"))
+                goodbye = get_active_goodbye("Goodbye! ☤")
             except Exception:
-                goodbye = t("cli.session.goodbye")
+                goodbye = "Goodbye! ☤"
             print(goodbye)
             return
 
@@ -1163,18 +1159,18 @@ class CLISessionMixin:
         elapsed = datetime.now() - self.session_start
         hours, remainder = divmod(int(elapsed.total_seconds()), 3600)
         minutes, seconds = divmod(remainder, 60)
-        duration_str = t("cli.shared.duration_s", seconds=seconds)
+        duration_str = f"{seconds}s"
         if hours > 0:
-            duration_str = t("cli.shared.duration_hm_rest", hours=hours, minutes=minutes, rest=duration_str)
+            duration_str = f"{hours}h {minutes}m {duration_str}"
         elif minutes > 0:
-            duration_str = t("cli.shared.duration_m_rest", minutes=minutes, rest=duration_str)
+            duration_str = f"{minutes}m {duration_str}"
 
         session_title = None
         if self._session_db:
             with contextlib.suppress(Exception):
                 session_title = self._session_db.get_session_title(self.session_id)
 
-        print(t("cli.session.exit_resume_hint"))
+        print("Resume this session with:")
         # Session IDs are profile-constrained: non-default profiles need `-p <profile>` in
         # the hint ("default"/"custom" use the standard HERMES_HOME).
         try:
@@ -1187,8 +1183,8 @@ class CLISessionMixin:
         if session_title:
             print(f"  hermes -c \"{session_title}\"{profile_flag}")
         print()
-        print(t("cli.session.exit_label_session", session_id=self.session_id))
+        print(f"Session:        {self.session_id}")
         if session_title:
-            print(t("cli.session.exit_label_title", title=session_title))
-        print(t("cli.session.exit_label_duration", duration=duration_str))
-        print(t("cli.session.exit_label_messages", count=msg_count, user=user_msgs, tool_calls=tool_calls))
+            print(f"Title:          {session_title}")
+        print(f"Duration:       {duration_str}")
+        print(f"Messages:       {msg_count} ({user_msgs} user, {tool_calls} tool calls)")

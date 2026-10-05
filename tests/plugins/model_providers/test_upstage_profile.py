@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 
+
 @pytest.fixture
 def upstage_profile():
     """Resolve the registered Upstage profile via the provider registry.
@@ -25,7 +26,10 @@ def upstage_profile():
     assert profile is not None, "upstage provider profile must be registered"
     return profile
 
+
 class TestUpstageProfile:
+
+
 
     def test_fallback_models_are_agentic_pro_only(self, upstage_profile):
         # Only the agentic, tool-calling Solar Pro models belong in the offline
@@ -37,6 +41,9 @@ class TestUpstageProfile:
             assert not any(
                 denied in m for m in upstage_profile.fallback_models
             ), f"non-agentic family {denied!r} must not be a fallback default"
+
+
+
 
 class TestUpstageReasoning:
     """``build_api_kwargs_extras`` wires Solar's top-level ``reasoning_effort``.
@@ -54,6 +61,7 @@ class TestUpstageReasoning:
         assert extra_body == {}
         assert top_level == {"reasoning_effort": effort}
 
+
     def test_unknown_future_effort_collapses_to_high(self, upstage_profile):
         # Guard against the #62650 recurrence: a future effort level Hermes
         # adds above "high" must collapse to Solar's strongest, not silently
@@ -63,6 +71,7 @@ class TestUpstageReasoning:
             model="solar-pro3",
         )
         assert top_level == {"reasoning_effort": "high"}
+
 
     def test_disabled_omits_field(self, upstage_profile):
         # `/reasoning none` → enabled False → explicitly off.
@@ -80,6 +89,7 @@ class TestUpstageReasoning:
         _, top_level = upstage_profile.build_api_kwargs_extras(model=model)
         assert top_level == {"reasoning_effort": "medium"}
 
+
     @pytest.mark.parametrize(
         "model", ["solar-mini", "solar-mini-250422", "solar-mini-202610", "solar-mini@q4", "syn-pro"]
     )
@@ -93,8 +103,10 @@ class TestUpstageReasoning:
         assert extra_body == {}
         assert top_level == {}
 
+
     def test_none_model_defaults_to_reasoning(self, upstage_profile):
         # No model in context → treated as reasoning-capable, consistent with
         # the provider default (fallback_models[0] == "solar-pro3").
         _, top_level = upstage_profile.build_api_kwargs_extras(model=None)
         assert top_level == {"reasoning_effort": "medium"}
+

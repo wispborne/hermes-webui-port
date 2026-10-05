@@ -6,6 +6,7 @@ If any of these fail, an adapter's downloaded-media filenames changed —
 that's a behavioral regression, not a test to update casually.
 """
 
+
 import pytest
 
 from gateway.platforms.media_cache import (
@@ -14,11 +15,13 @@ from gateway.platforms.media_cache import (
     mime_for_ext,
 )
 
+
 # ---------------------------------------------------------------------------
 # Shared table contract
 # ---------------------------------------------------------------------------
 
 class TestSharedTable:
+
 
     def test_stage_gating(self):
         # use_defaults=False skips the shared table.
@@ -28,11 +31,13 @@ class TestSharedTable:
         # use_mimetypes=False skips the mimetypes fallback.
         assert ext_for_mime("image/bmp", use_mimetypes=False) is None
 
+
     def test_mime_for_ext_fallback_and_case(self):
         assert mime_for_ext(".JPG") == "image/jpeg"
         assert mime_for_ext(".unknown") == "application/octet-stream"
         assert mime_for_ext(".unknown", fallback="x/y") == "x/y"
         assert mime_for_ext(".pdf", overrides={".pdf": "custom/pdf"}) == "custom/pdf"
+
 
 # ---------------------------------------------------------------------------
 # cache_media_bytes dispatch
@@ -48,6 +53,7 @@ class TestCacheMediaBytes:
         path = cache_media_bytes(self.PNG, "image/png")
         assert path.endswith(".png")
 
+
     def test_document_dispatch_uses_filename_hint(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             "gateway.platforms.base.get_document_cache_dir", lambda: tmp_path
@@ -56,9 +62,12 @@ class TestCacheMediaBytes:
                                  filename_hint="report.pdf")
         assert path.endswith("_report.pdf")
 
+
 # ---------------------------------------------------------------------------
 # Per-adapter parity: HISTORICAL mappings hardcoded as the contract
 # ---------------------------------------------------------------------------
+
+
 
 class TestWhatsAppCloudParity:
     """Historical _ext_for_mime: overrides → mimetypes → None."""
@@ -77,3 +86,8 @@ class TestWhatsAppCloudParity:
     def test_pinned_overrides(self, mime, expected):
         from gateway.platforms.whatsapp_cloud import _ext_for_mime
         assert _ext_for_mime(mime) == expected
+
+
+
+
+

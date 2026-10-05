@@ -93,20 +93,15 @@ def state_db_write_lock_holders(db_path) -> List[str]:
         except OSError:
             continue
         inodes[(st.st_dev, st.st_ino)] = sidecar
-    # /proc/locks is host-wide and served over several read()s: lock churn in other processes
-    # shifts it mid-read and can skip the holder. A skip rarely repeats, so union three passes.
-    held: List[Tuple[int, str, str]] = []
-    for _ in range(3):
-        try:
-            with open("/proc/locks", encoding="ascii", errors="replace") as handle:
-                text = handle.read()
-        except OSError:
-            return []
-        held.extend(entry for entry in parse_proc_locks(text, inodes) if entry not in held)
+    try:
+        with open("/proc/locks", encoding="ascii", errors="replace") as handle:
+            text = handle.read()
+    except OSError:
+        return []
     from hermes_state_holders import describe_holder_pid
 
     lines = []
-    for pid, kind, sidecar in held:
+    for pid, kind, sidecar in parse_proc_locks(text, inodes):
         who = describe_holder_pid(pid) if pid > 0 else "OFD lock, owner pid not exported by the kernel"
         lines.append(f"{who} holds {kind} lock on {Path(base + sidecar).name}")
     return lines

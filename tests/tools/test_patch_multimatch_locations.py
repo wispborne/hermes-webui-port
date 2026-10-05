@@ -1,6 +1,8 @@
 """Tests for multi-match location listing in patch ambiguity errors."""
 
+
 from tools.fuzzy_match import fuzzy_find_and_replace, _format_match_locations
+
 
 class TestFormatMatchLocations:
 
@@ -22,6 +24,7 @@ class TestFormatMatchLocations:
         assert "..." in out
         assert len(out.splitlines()[0]) < 100
 
+
 class TestMultiMatchErrorIncludesLocations:
     def test_ambiguous_replace_lists_locations(self):
         content = (
@@ -35,3 +38,5 @@ class TestMultiMatchErrorIncludesLocations:
         assert "Found 2 matches" in error
         assert "L2:" in error
         assert "L6:" in error
+
+

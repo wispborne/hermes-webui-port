@@ -163,7 +163,6 @@ class TestQuarantineScope:
         finally:
             db.close()
 
-    @pytest.mark.platforms("posix")
     def test_replaced_file_takes_precedence_over_corrupt(self, tmp_path):
         import os
 

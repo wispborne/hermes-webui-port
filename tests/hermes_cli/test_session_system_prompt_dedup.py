@@ -59,7 +59,7 @@ def test_prompt_snapshots_are_deduplicated_and_hydrated_for_readers(db):
     assert db.list_pending_handoffs()[0]["system_prompt"] == prompt
 
 
-def test_route_changes_keep_the_prompt_and_replacement_collects_orphans(db):
+def test_prompt_replacement_and_route_changes_collect_only_orphans(db):
     shared_prompt = "Model: x-ai/grok-4.5\nProvider: nous"
     db.create_session(
         "s1",
@@ -70,8 +70,6 @@ def test_route_changes_keep_the_prompt_and_replacement_collects_orphans(db):
     )
     db.create_session("s2", "cli", system_prompt=shared_prompt)
 
-    # A route change keeps the stored snapshot: it is the session's cache prefix, and the next
-    # turn's runtime-identity check rebuilds only when the footer it embeds is actually stale.
     db.update_session_runtime_lock(
         "s1",
         model="anthropic/claude-opus-4.8",
@@ -79,7 +77,7 @@ def test_route_changes_keep_the_prompt_and_replacement_collects_orphans(db):
         confirmed=True,
     )
     s1 = db.get_session("s1")
-    assert s1["system_prompt"] == shared_prompt
+    assert s1["system_prompt"] is None
     assert json.loads(s1["model_config"])["_branched_from"] == "parent"
     assert db.get_session("s2")["system_prompt"] == shared_prompt
     assert _prompt_count(db) == 1
@@ -89,16 +87,13 @@ def test_route_changes_keep_the_prompt_and_replacement_collects_orphans(db):
         provider="openrouter",
         base_url="https://example.test/v1",
     )
-    assert db.get_session("s2")["system_prompt"] == shared_prompt
-    assert _prompt_count(db) == 1
-
-    # Replacing the snapshot (a rebuild) is what orphans the previous bytes.
-    db.update_system_prompt("s1", "replacement")
-    assert db.get_session("s1")["system_prompt"] == "replacement"
-    assert _prompt_count(db) == 2  # "replacement" + the still-referenced shared prompt
-    db.update_system_prompt("s2", None)
     assert db.get_session("s2")["system_prompt"] is None
-    assert _prompt_count(db) == 1
+    assert _prompt_count(db) == 0
+
+    db.update_system_prompt("s2", "replacement")
+    assert db.get_session("s2")["system_prompt"] == "replacement"
+    db.update_system_prompt("s2", None)
+    assert _prompt_count(db) == 0
 
 
 def test_existing_session_enrichment_does_not_leak_unused_prompt(db):

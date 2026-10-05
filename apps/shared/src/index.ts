@@ -27,7 +27,6 @@ export type {
   UsageBarData,
   UsageModelData
 } from './billing-types'
-export { skillCatalogInstallIdentifier, skillCatalogInstallUrl } from './catalog-install'
 export {
   driveChargeSettlement,
   SETTLEMENT_MAX_RETRY_AFTER_MS,
@@ -90,7 +89,6 @@ export {
   wireFrameText
 } from './json-rpc-channel'
 export {
-  APPROVAL_RESPOND_TIMEOUT_MS,
   type ConnectionState,
   type GatewayClientOptions,
   GatewayEventHub,

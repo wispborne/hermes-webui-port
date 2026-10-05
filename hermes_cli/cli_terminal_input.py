@@ -17,8 +17,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Mapping
 from urllib.parse import unquote, urlparse
 
-from agent.i18n import t
-
 # Log-record parity with the origin module.
 logger = logging.getLogger("cli")
 
@@ -193,7 +191,7 @@ def _format_image_attachment_badges(attached_images: list[Path], image_counter: 
     if width < 52:
         if len(attached_images) == 1:
             return f"[📎 {_trunc(attached_images[0].name, 20)}]"
-        return t("cli.terminal.image_badge_count", count=len(attached_images))
+        return f"[📎 {len(attached_images)} images attached]"
 
     if width < 80:
         if len(attached_images) == 1:
@@ -201,7 +199,7 @@ def _format_image_attachment_badges(attached_images: list[Path], image_counter: 
         return f"[📎 {_trunc(attached_images[0].name, 20)}] [+{len(attached_images) - 1}]"
 
     base = image_counter - len(attached_images) + 1
-    return " ".join(t("cli.terminal.image_badge_numbered", index=base + i) for i in range(len(attached_images)))
+    return " ".join(f"[📎 Image #{base + i}]" for i in range(len(attached_images)))
 
 
 def _should_auto_attach_clipboard_image_on_paste(pasted_text: str) -> bool:
@@ -453,7 +451,7 @@ def _preserve_ctrl_enter_newline() -> bool:
     # WSL env vars can be scrubbed under sudo; also peek /proc.
     for p in ("/proc/version", "/proc/sys/kernel/osrelease"):
         try:
-            with open(p, "r", encoding="utf-8-sig", errors="ignore") as f:
+            with open(p, "r", encoding="utf-8", errors="ignore") as f:
                 if "microsoft" in f.read().lower():
                     return True
         except OSError:

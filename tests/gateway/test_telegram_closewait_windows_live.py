@@ -56,7 +56,10 @@ if sys.platform == "win32":
 
 pytestmark = [
     pytest.mark.asyncio,
-    pytest.mark.platforms("windows"),  # Windows-only live probe: CLOSE-WAIT reconnect behavior (#87057)
+    pytest.mark.skipif(
+        sys.platform != "win32",
+        reason="Windows-only live probe: CLOSE-WAIT reconnect behavior (#87057)",
+    ),
 ]
 
 
@@ -242,12 +245,10 @@ async def test_drain_bounded_and_functional_when_close_wedges_live(monkeypatch):
         old_client = polling_req._client  # noqa: SLF001
         _diag(server, "wedge-probe: after first round-trip")
 
-        async def _wedged_shutdown(_request):
+        async def _wedged_shutdown():
             await asyncio.Event().wait()
 
-        # PTB 22.8 slots HTTPXRequest instances, so the bound method is
-        # read-only. Patch the class seam for this one live request instead.
-        monkeypatch.setattr(HTTPXRequest, "shutdown", _wedged_shutdown)
+        monkeypatch.setattr(polling_req, "shutdown", _wedged_shutdown)
         monkeypatch.setattr(tg_adapter, "_DRAIN_TIMEOUT", 1.0)
 
         adapter = _make_adapter()

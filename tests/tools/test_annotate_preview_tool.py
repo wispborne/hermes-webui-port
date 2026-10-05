@@ -7,6 +7,7 @@ import pytest
 from tools import annotate_preview_tool as an
 from tools.registry import registry
 
+
 def test_lives_in_the_gui_surface_toolset(monkeypatch):
     """Scoped by toolset, not by the backend's env — same as its siblings."""
     monkeypatch.delenv("HERMES_DESKTOP", raising=False)
@@ -16,15 +17,20 @@ def test_lives_in_the_gui_surface_toolset(monkeypatch):
     assert entry.toolset == "desktop_ui"
     assert entry.check_fn is None
 
+
 def test_requires_callback():
     result = json.loads(an.annotate_preview_tool(ref="@e1", callback=None))
     assert "desktop" in result["error"]
+
+
+
 
 @pytest.mark.parametrize("verb", ["add", "remove"])
 def test_marking_one_thing_needs_a_target(verb):
     """A mark with nothing to attach to is a mistake worth naming early."""
     result = json.loads(an.annotate_preview_tool(action=verb, callback=lambda _p: "{}"))
     assert "ref" in result["error"]
+
 
 def test_speaks_the_renderer_s_verbs():
     """The overlay knows pin/unpin; the model gets words it can guess at."""
@@ -40,6 +46,7 @@ def test_speaks_the_renderer_s_verbs():
     assert sent[0] == {"action": "pin", "ref": "@e4", "text": "cheapest"}
     assert sent[1] == {"action": "unpin", "ref": "@e4"}
 
+
 def test_clear_sends_no_target_so_the_overlay_drops_them_all():
     """`clear` IS an untargeted unpin — a ref left on it would take down one."""
     sent = []
@@ -52,6 +59,7 @@ def test_clear_sends_no_target_so_the_overlay_drops_them_all():
 
     assert sent == [{"action": "unpin"}]
 
+
 def test_defaults_to_adding():
     sent = []
 
@@ -62,3 +70,7 @@ def test_defaults_to_adding():
     an.annotate_preview_tool(ref="@e2", callback=cb)
 
     assert sent[0]["action"] == "pin"
+
+
+
+

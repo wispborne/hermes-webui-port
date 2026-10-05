@@ -19,7 +19,6 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
   ContextMenuTrigger,
-  GlyphSpinner,
   haptic,
   host,
   queryClient,
@@ -36,7 +35,6 @@ import { isBackfilledFacePng } from './avatar-image'
 import {
   $botChatFocused,
   $focusedBotOwner,
-  $pendingBotOpen,
   $selectedRosterKey,
   focusedRosterOwner,
   saveSelectedRosterBot
@@ -118,8 +116,6 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
   const b = useBots()
   const focusedOwner = focusedRosterOwner(useValue($focusedBotOwner))
   const selectedRosterKey = useValue($selectedRosterKey)
-  const pendingOpenKey = useValue($pendingBotOpen)?.key
-  const isOpening = pendingOpenKey === botRosterKey(bot)
   const botChatFocused = useValue($botChatFocused)
   const activeGroup = useValue($groupChatWorkspace)
   const allMeta = useValue($botMeta)
@@ -240,7 +236,6 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
 
   const row = (
     <RowButton
-      aria-busy={isOpening || undefined}
       aria-label={rowTooltip}
       className={cn(
         'flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden rounded-md px-2 py-2 text-left transition-colors',
@@ -301,9 +296,6 @@ export function BotRow({ bot, onDelete, onEdit, onGroup, onNewSection, showHandl
                 name="warning"
               />
             </Tip>
-          ) : null}
-          {isOpening ? (
-            <GlyphSpinner ariaLabel={b.bot.openingChat} className="shrink-0 text-xs text-(--ui-text-secondary)" />
           ) : null}
           {rowAgeTs ? (
             <span className="shrink-0 text-[0.6875rem] text-(--ui-text-quaternary)">

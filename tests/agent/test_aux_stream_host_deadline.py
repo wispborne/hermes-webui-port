@@ -88,9 +88,7 @@ class _AsyncStream(_Stream):
 # ── The fence must publish the deadline it already owns ──────────────────
 
 
-def test_commit_fence_publishes_its_shared_deadline(monkeypatch):
-    now = [10.0]
-    monkeypatch.setattr("agent.conversation_compression.time.monotonic", lambda: now[0])
+def test_commit_fence_publishes_its_shared_deadline():
     fence = CompressionCommitFence()
     assert fence.deadline_monotonic is None
 
@@ -101,7 +99,7 @@ def test_commit_fence_publishes_its_shared_deadline(monkeypatch):
     assert not fence.deadline_exceeded
 
     fence.set_total_ceiling_seconds(0.001)
-    now[0] += 1.0
+    time.sleep(0.01)
     assert fence.deadline_exceeded
     assert fence.deadline_monotonic <= time.monotonic()
 

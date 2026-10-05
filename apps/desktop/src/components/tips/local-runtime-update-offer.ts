@@ -1,10 +1,14 @@
 import { getLocalModelsJobs, getLocalModelsStatus } from '@/hermes'
 import type { Translations } from '@/i18n/types'
-import { queryClient } from '@/lib/query-client'
 import { localSetupDue } from '@/lib/tips/local-cta'
 import { $activeGatewayRoute } from '@/store/gateway'
 import { $localModelsEnabled } from '@/store/local-models-flag'
-import { localRuntimeInstallBusy, startLocalRuntimeInstall } from '@/store/local-runtime-jobs'
+import {
+  $localRuntimeInstallStarting,
+  $localRuntimeJobs,
+  localRuntimeInstallBusy,
+  startLocalRuntimeInstall
+} from '@/store/local-runtime-jobs'
 import { $connection } from '@/store/session'
 import { $activeTip, $retiredTips, $tipsEnabled, $tipShownAt, dismissTip, showTip } from '@/store/tips'
 import type { LocalModelsStatus, LocalRuntimeJob } from '@/types/hermes'
@@ -33,15 +37,16 @@ $tipsEnabled.listen(enabled => {
     reset()
   }
 })
-
-const closeWhenBusy = (): void => {
+$localRuntimeJobs.listen(() => {
   if (localRuntimeInstallBusy()) {
     reset()
   }
-}
-
-queryClient.getQueryCache().subscribe(closeWhenBusy)
-queryClient.getMutationCache().subscribe(closeWhenBusy)
+})
+$localRuntimeInstallStarting.listen(starting => {
+  if (starting) {
+    reset()
+  }
+})
 
 export function offerLocalRuntimeUpdateTip(copy: Translations['tips'], openLocalModels: () => void): boolean {
   if (

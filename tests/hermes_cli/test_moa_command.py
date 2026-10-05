@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from cli import HermesCLI
 
+
 def _make_cli():
     cli = HermesCLI.__new__(HermesCLI)
     cli.config = {
@@ -35,6 +36,7 @@ def _make_cli():
     cli.api_mode = "chat_completions"
     return cli
 
+
 def test_moa_bare_shows_usage_no_switch():
     # /moa with no prompt is usage-only now; switching to a preset for the
     # session is done via the model picker, not /moa.
@@ -45,6 +47,7 @@ def test_moa_bare_shows_usage_no_switch():
     assert cli.provider != "moa"
     assert cli._pending_agent_seed is None
     assert cli._pending_moa_disable_after_turn is False
+
 
 def test_moa_arg_is_always_one_shot_prompt():
     # Any argument (even a string that matches a preset name) is treated as a
@@ -57,6 +60,7 @@ def test_moa_arg_is_always_one_shot_prompt():
     assert cli.provider == "moa"
     assert cli.model == "default"
 
+
 def test_moa_non_preset_is_one_shot_prompt():
     cli = _make_cli()
     with patch("cli._cprint"):
@@ -66,6 +70,9 @@ def test_moa_non_preset_is_one_shot_prompt():
     assert cli.provider == "moa"
     assert cli.model == "default"
     assert cli._pending_moa_restore_model["provider"] != "moa"
+
+
+
 
 class TestNormalizeMoaModel:
     """#56828: `-Q -m moa:<preset>` must route through the MoA virtual provider.
@@ -79,6 +86,9 @@ class TestNormalizeMoaModel:
         from cli import _normalize_moa_model
         assert _normalize_moa_model("moa:strategy") == ("moa", "strategy")
 
+
+
+
     def test_none_model_unchanged(self):
         from cli import _normalize_moa_model
         assert _normalize_moa_model(None) == (None, None)
@@ -90,3 +100,5 @@ class TestNormalizeMoaModel:
             None,
             "openrouter:deepseek/deepseek-v4",
         )
+
+

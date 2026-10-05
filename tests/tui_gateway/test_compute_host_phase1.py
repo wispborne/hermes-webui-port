@@ -291,12 +291,11 @@ def test_shutdown_drain_sleep_never_overshoots_the_reserve(monkeypatch):
     _record_finalize(monkeypatch, events, "idle")
 
     slept: list[float] = []
-    clock = [100.0]
-    monkeypatch.setattr(compute_host.time, "monotonic", lambda: clock[0])
+    real_sleep = time.sleep
 
     def _recording_sleep(seconds: float) -> None:
         slept.append(seconds)
-        clock[0] += seconds
+        real_sleep(seconds)
 
     monkeypatch.setattr(compute_host.time, "sleep", _recording_sleep)
 

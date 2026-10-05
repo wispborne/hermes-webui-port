@@ -20,7 +20,7 @@ def load_record(scenario_id: str, mode: str):
     path = OUT / f"{scenario_id}__{mode}.json"
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8-sig"))
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def fmt_tool_seq(calls):
@@ -65,7 +65,7 @@ def main():
         print("No _summary.json yet")
         sys.exit(1)
 
-    summary = json.loads(summary_path.read_text(encoding="utf-8-sig"))
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
     scenarios = sorted({row["scenario"] for row in summary})
 
     print(f"{'='*78}")

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+
 @pytest.fixture
 def fake_hermes(tmp_path, monkeypatch):
     """Build a two-profile Hermes layout and point HERMES_HOME at
@@ -49,9 +50,11 @@ def fake_hermes(tmp_path, monkeypatch):
         "coder_home": coder_home,
     }
 
+
 # ---------------------------------------------------------------------------
 # write_file
 # ---------------------------------------------------------------------------
+
 
 class TestWriteFileCrossProfileGuard:
 
@@ -68,9 +71,13 @@ class TestWriteFileCrossProfileGuard:
         assert not result.get("error"), f"guard retired; write must succeed: {result}"
         assert target.read_text() == "cross-profile write, allowed"
 
+
+
+
 # ---------------------------------------------------------------------------
 # patch
 # ---------------------------------------------------------------------------
+
 
 class TestPatchCrossProfileGuard:
 
@@ -108,9 +115,11 @@ class TestPatchCrossProfileGuard:
         assert not result.get("error"), f"guard retired; V4A must succeed: {result}"
         assert "v4a cross-profile write, allowed." in target.read_text()
 
+
 # ---------------------------------------------------------------------------
 # skill_manage — error message naming other profile (item D)
 # ---------------------------------------------------------------------------
+
 
 class TestSkillManageCrossProfileErrorUX:
     def _make_skill_in_profile(self, profile_dir: Path, name: str):
@@ -138,6 +147,7 @@ class TestSkillManageCrossProfileErrorUX:
         assert "not found in active profile 'hermes-security'" in err
         assert "default" in err
 
+
     def test_genuinely_missing_skill_keeps_helpful_hint(
         self, fake_hermes, monkeypatch
     ):
@@ -151,6 +161,9 @@ class TestSkillManageCrossProfileErrorUX:
         assert "not found in active profile 'hermes-security'" in err
         assert "skills_list" in err
 
+
 # ---------------------------------------------------------------------------
 # System prompt active-profile line (item B)
 # ---------------------------------------------------------------------------
+
+

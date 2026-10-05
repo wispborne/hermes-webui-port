@@ -8,6 +8,7 @@ import pytest
 from agent.error_classifier import FailoverReason
 from run_agent import AIAgent
 
+
 def _agent_with_one_fallback():
     with (
         patch("model_tools.get_tool_definitions", return_value=[]),
@@ -22,10 +23,12 @@ def _agent_with_one_fallback():
     agent.client = None
     return agent
 
+
 def _fallback_client():
     client = SimpleNamespace(base_url="https://chatgpt.com/backend-api/codex", api_key="fb-key")
     client.chat = SimpleNamespace(completions=SimpleNamespace(create=lambda *a, **k: None))
     return client
+
 
 @pytest.mark.parametrize(
     ("reset_at", "expected_seconds"),
@@ -51,6 +54,7 @@ def test_fallback_switch_benches_primary_until_valid_future_provider_reset(reset
     assert agent.model == "gpt-5.5"
     assert agent._rate_limited_until == 500 + expected_seconds
 
+
 @pytest.mark.parametrize(("threshold", "switched"), [(0, True), (120, False)])
 def test_min_switch_reset_seconds_keeps_primary_when_reset_is_imminent(threshold, switched):
     """Opt-in fallback.min_switch_reset_seconds (#117484): a reset 30 s out is below a 120 s
@@ -66,3 +70,5 @@ def test_min_switch_reset_seconds_keeps_primary_when_reset_is_imminent(threshold
     assert activated is switched
     assert (agent.model == "gpt-5.5") is switched
     assert (getattr(agent, "_rate_limited_until", None) is not None) is switched
+
+

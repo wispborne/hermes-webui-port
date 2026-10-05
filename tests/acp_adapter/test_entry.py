@@ -1,5 +1,7 @@
 """Tests for acp_adapter.entry startup wiring."""
 
+import sys
+
 import acp
 import pytest
 
@@ -78,24 +80,11 @@ def test_main_setup_offers_browser_install_when_tty(monkeypatch):
 
 def test_main_setup_browser_propagates_browser_failure(monkeypatch):
     """If browser install fails, exit code is 1."""
-    import pm
+    def fake_ensure(dep, interactive=True):
+        return dep != "browser"  # browser fails
 
-    def refuse(name, **kwargs):
-        raise pm.InstallError(name, "download failed")
-
-    monkeypatch.setattr(pm, "ensure", refuse)
+    monkeypatch.setattr("hermes_cli.dep_ensure.ensure_dependency", fake_ensure)
 
     with pytest.raises(SystemExit) as excinfo:
         entry.main(["--setup-browser"])
     assert excinfo.value.code == 1
-
-
-def test_setup_browser_is_one_explicit_package_request(monkeypatch):
-    import pm
-
-    calls = []
-    monkeypatch.setattr(pm, "ensure", lambda name, **kwargs: calls.append((name, kwargs)))
-
-    entry.main(["--setup-browser", "--yes"])
-
-    assert calls == [("agent-browser", {"explicit": True})]

@@ -16,8 +16,6 @@ import pytest
 
 import hermes_cli.gateway as gateway_cli
 
-pytestmark = pytest.mark.platforms("linux")
-
 
 def _eacces(self):
     raise PermissionError(13, "Permission denied", str(self))

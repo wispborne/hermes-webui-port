@@ -5,8 +5,6 @@ from __future__ import annotations
 import difflib
 from collections.abc import Iterable
 
-from agent.i18n import t
-
 
 def unknown_command_lines(typed: str, known: Iterable[str]) -> tuple[str, str]:
     """(lead line, pointer line) for a slash token with no handler.
@@ -17,5 +15,5 @@ def unknown_command_lines(typed: str, known: Iterable[str]) -> tuple[str, str]:
     """
     base = typed.split()[0] if typed.split() else typed
     close = difflib.get_close_matches(base, list(known), n=1, cutoff=0.6)
-    hint = " " + t("cli.command.did_you_mean_one", suggestion=close[0]) if close else ""
-    return (t("cli.command.unknown_nothing_sent", command=base, hint=hint), t("cli.command.type_help"))
+    hint = f" Did you mean {close[0]}?" if close else ""
+    return (f"Unknown command {base} — nothing was sent.{hint}", "Type /help for the full list.")

@@ -16,10 +16,7 @@ The client entrypoint is `src/entry.tsx`. It exits early if `stdin` is not a TTY
 python -m tui_gateway.entry
 ```
 
-Interpreter resolution uses `HERMES_PYTHON`, supplied by the CLI launcher or
-Nix wrapper. Direct development runs without that value use `python3` on PATH,
-or `python` on Windows. The TUI does not search `PYTHON`, `VIRTUAL_ENV`, or
-checkout venv directories for a different interpreter.
+Interpreter resolution order is: `HERMES_PYTHON` → `PYTHON` → `$VIRTUAL_ENV/bin/python` → `./.venv/bin/python` → `./venv/bin/python` → `python3` (or `python` on Windows).
 
 The transport is newline-delimited JSON-RPC over stdio:
 
@@ -190,12 +187,10 @@ Notes:
 | approval prompt             | `Up/Down`, `Enter`  | Move and confirm the selected approval choice     |
 | approval prompt             | `o`, `s`, `a`, `d`  | Quick-pick `once`, `session`, `always`, `deny`    |
 | approval prompt             | `Esc`, `Ctrl+C`     | Deny                                              |
-| clarify prompt with choices | `Up/Down`, `Enter`  | Move and lock the selected choice                 |
+| clarify prompt with choices | `Up/Down`, `Enter`  | Move and confirm the selected choice              |
 | clarify prompt with choices | single-digit number | Quick-pick the matching numbered choice           |
 | clarify prompt with choices | `Enter` on "Other"  | Switch into free-text entry                       |
-| clarify free-text mode      | `Enter`             | Lock typed answer (empty skips the question)      |
-| clarify prompt              | `Tab`, `Shift+Tab`  | Switch question                                   |
-| clarify prompt              | `Esc`, `Ctrl+C`     | Cancel the remaining questions                    |
+| clarify free-text mode      | `Enter`             | Submit typed answer                               |
 | sudo / secret prompt        | `Enter`             | Submit typed value                                |
 | sudo / secret prompt        | `Ctrl+C`            | Cancel by sending an empty response               |
 | resume picker               | `Up/Down`, `Enter`  | Move and resume the selected session              |
@@ -206,7 +201,7 @@ Notes:
 
 - Clarify free-text mode and masked prompts use `ink-text-input`, so text editing there follows the library's default bindings rather than `components/textInput.tsx`.
 - When a blocking prompt is open, the main chat input hotkeys are suspended.
-- Sudo and secret prompts only expose `Ctrl+C` cancellation from the app-level blocked handler.
+- Clarify mode has no dedicated cancel shortcut in the current client. Sudo and secret prompts only expose `Ctrl+C` cancellation from the app-level blocked handler.
 
 ### Interaction rules
 
@@ -239,7 +234,7 @@ The Python gateway can pause the main loop and ask the client a question. These 
 `createServerRequestHandler.ts`), not events:
 
 - `approval`: allow once, allow for session, allow always, or deny → `{ choice }`
-- `clarify`: one or more questions; each answer is locked with the `clarify.lock` RPC, cancel → `{}`
+- `clarify`: pick from choices or type a custom answer → `{ answer }` (batch: `{ answers }`)
 - `sudo`: masked password entry → `{ value }`
 - `secret`: masked value entry for a named env var → `{ value }`
 - `session.list`: used by `SessionPicker` for `/resume`
@@ -425,7 +420,7 @@ ui-tui/
       todoPanel.tsx              todo list panel
 
     config/
-      env.ts                     environment variable resolution and mouse defaults
+      env.ts                     environment variable resolution and Termux/mouse defaults
       limits.ts                  paste size, live-render and history limits
       timing.ts                  streaming batch and debounce timing constants
 
@@ -480,7 +475,7 @@ ui-tui/
       perfPane.tsx               FPS / render perf overlay pane
       platform.ts                platform-aware keybinding and SSH detection helpers
       precisionWheel.ts          high-precision scroll wheel with sticky-frame budget
-      prompt.ts                  composer prompt text helpers
+      prompt.ts                  composer prompt text helpers (Termux-safe)
       reasoning.ts               reasoning tag detection and split helpers
       rpc.ts                     JSON-RPC result and command dispatch helpers
       subagentTree.ts            subagent tree flattening and aggregate helpers
@@ -488,6 +483,7 @@ ui-tui/
       terminalModes.ts           terminal mode reset sequences (kitty, mouse, etc.)
       terminalParity.ts          VSCode-like terminal detection and hint helpers
       terminalSetup.ts           IDE keybinding config file install helpers
+      termux.ts                  Termux platform detection helpers
       text.ts                    text helpers, ANSI detection, tool trail builders
       todo.ts                    todo item tone and display helpers
       viewportStore.ts           viewport height nanostore via ScrollBoxHandle

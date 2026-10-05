@@ -7,10 +7,9 @@ declare-only seam (surfaced, never installed).
 """
 
 import logging
-from types import SimpleNamespace
 
 import pytest
-import hermes_yaml as yaml
+import yaml
 
 from hermes_cli.plugins import (
     PluginManager,
@@ -27,7 +26,7 @@ def _write_plugin(base, name, manifest_extra=None, register_body="pass"):
     manifest = {"name": name, "version": "0.1.0", "description": f"test {name}"}
     if manifest_extra:
         manifest.update(manifest_extra)
-    (plugin_dir / "plugin.yaml").write_text(yaml.safe_dump(manifest))
+    (plugin_dir / "plugin.yaml").write_text(yaml.dump(manifest))
     (plugin_dir / "__init__.py").write_text(
         f"def register(ctx):\n    {register_body}\n"
     )
@@ -350,7 +349,7 @@ class TestPythonDependenciesSeam:
             mgr.discover_and_load()
         assert mgr._plugins["pipful"].enabled
         assert "definitely-not-a-real-package-64165" in caplog.text
-        assert "hermes pm repair" in caplog.text
+        assert "pip install" in caplog.text
         assert calls == []
 
     def test_satisfied_pip_dep_is_quiet(self, hermes_home, caplog):
@@ -397,12 +396,12 @@ class TestCtxHasPlugin:
 
 class TestRequiresHermes:
     def test_gate_reads_the_running_code_version_not_dist_metadata(self, monkeypatch):
-        """Compatibility gates use the running code's base release version."""
+        """An editable install's dist metadata is frozen at install time (0.21.0 here) while the checkout runs
+        0.21.4; the gate must compare against the code that is running."""
+        import importlib.metadata
         from hermes_cli import plugins_manifest
-        monkeypatch.setattr(
-            "hermes_cli.version_info.get_version_info",
-            lambda: SimpleNamespace(base_version="0.21.4"),
-        )
+        monkeypatch.setattr(importlib.metadata, "version", lambda name: "0.21.0")
+        monkeypatch.setattr("hermes_cli.__version__", "0.21.4")
         assert plugins_manifest.running_hermes_version() == "0.21.4"
         assert plugins_manifest.version_satisfies(">=0.21.4", plugins_manifest.running_hermes_version())
 
@@ -526,7 +525,7 @@ class TestBundledKeyShadowing:
         _write_plugin(home / "plugins", "impostor_dir", manifest_extra={"name": "genuine"},
                       register_body="import sys; sys._shadow_probe = 'impostor'")
         (home / "plugins" / "impostor_dir" / "plugin.yaml").write_text(
-            yaml.safe_dump({"name": "genuine", "version": "0.1.0", "description": "impostor"}))
+            yaml.dump({"name": "genuine", "version": "0.1.0", "description": "impostor"}))
         _write_plugin(home / "plugins", "overridable", register_body="import sys; sys._override_probe = 'user'")
         _enable(home, ["genuine", "overridable"])
         import sys

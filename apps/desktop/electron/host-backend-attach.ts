@@ -33,21 +33,10 @@ export interface HostBackendAttachDeps {
   readLedger: (path: string) => string | null
   /** Resolve the token the backend actually serves at `GET /`. */
   resolveServedToken: (baseUrl: string) => Promise<string | null>
-  /**
-   * Session token the backend published for this record when `GET /` withholds
-   * it. Absent readers keep the dashboard-HTML-only handshake.
-   */
-  publishedTokenFor?: (record: HostBackendRecord) => string | null
   /** Reject unless the backend answers its readiness probe. */
   waitForReady: (baseUrl: string, token: string) => Promise<unknown>
   /** Reject unless `/api/ws` accepts the token — the leg the renderer uses. */
   probeWebSocket: (wsUrl: string) => Promise<{ ok: boolean; reason?: string }>
-  /**
-   * PID liveness probe (real: `isPidAliveWindows`). Records whose backend is
-   * already gone are skipped before any network I/O (#123586). Absent, every
-   * record is probed as before.
-   */
-  isPidAlive?: (pid: number) => boolean
   log: (message: string) => void
 }
 
@@ -59,12 +48,6 @@ function wsUrlFor(baseUrl: string, token: string): string {
   return `${baseUrl.replace(/^http/, 'ws')}/api/ws?token=${encodeURIComponent(token)}`
 }
 
-function nonemptyToken(value: string | null | undefined): string | null {
-  const token = String(value ?? '').trim()
-
-  return token || null
-}
-
 /**
  * Validate one candidate all the way to a usable connection, or return null.
  *
@@ -74,18 +57,8 @@ function nonemptyToken(value: string | null | undefined): string | null {
  */
 async function validate(record: HostBackendRecord, deps: HostBackendAttachDeps): Promise<AttachedBackend | null> {
   const baseUrl = recordBaseUrl(record)
-  const servedToken = nonemptyToken(await deps.resolveServedToken(baseUrl).catch(() => null))
-  let publishedToken: string | null = null
 
-  if (!servedToken && deps.publishedTokenFor) {
-    try {
-      publishedToken = nonemptyToken(deps.publishedTokenFor(record))
-    } catch {
-      publishedToken = null
-    }
-  }
-
-  const token = servedToken || publishedToken
+  const token = await deps.resolveServedToken(baseUrl).catch(() => null)
 
   if (!token) {
     deps.log(`[attach] ${baseUrl} (pid ${record.pid}) did not publish a session token; not attaching`)
@@ -124,7 +97,7 @@ export async function attachToHostBackend(
   deps: HostBackendAttachDeps
 ): Promise<AttachedBackend | null> {
   const records = parseSpawnLedger(deps.readLedger(ledgerPath))
-  const decision = spawnOrAttach({ isolated, records, isPidAlive: deps.isPidAlive })
+  const decision = spawnOrAttach({ isolated, records })
 
   if (decision.action === 'spawn') {
     if (decision.reason === 'isolated') {
@@ -135,14 +108,7 @@ export async function attachToHostBackend(
   }
 
   // Newest first, then the rest: a stale record must not cost us a live one.
-  // Dead PIDs are skipped here too, so the fallback rung never dials a port
-  // whose owner is already gone (#123586).
-  const ordered = [
-    decision.record,
-    ...records.filter(
-      candidate => candidate !== decision.record && (!deps.isPidAlive || deps.isPidAlive(candidate.pid))
-    )
-  ]
+  const ordered = [decision.record, ...records.filter(candidate => candidate !== decision.record)]
 
   for (const record of ordered) {
     const attached = await validate(record, deps)
@@ -164,8 +130,8 @@ export interface HostSpawnGateDeps {
   now: () => number
   /** Read the gate record; null when absent, unreadable, or its owner is gone. */
   read: () => { ownerAlive: boolean; startedAt: number } | null
-  /** Atomically claim the gate; null means another process won the race. */
-  take: () => (() => void) | null
+  /** Claim the gate for this process; returns the release. */
+  take: () => () => void
   sleep: (ms: number) => Promise<void>
 }
 
@@ -197,39 +163,23 @@ export async function attachOrReserveSpawn(
     return { attached }
   }
 
-  if (options.isolated) {
-    return { reservation: { release: () => {} } }
-  }
+  if (!options.isolated) {
+    const deadline = gate.now() + waitBudgetMs
 
-  const deadline = gate.now() + waitBudgetMs
-
-  while (gate.now() < deadline) {
-    const gateState = gate.read()
-
-    if (
-      classifyHostSpawnGate(gateState, {
-        now: gate.now(),
-        staleAfterMs: HOST_SPAWN_GATE_STALE_MS
-      }) === 'take'
+    while (
+      gate.now() < deadline &&
+      classifyHostSpawnGate(gate.read(), { now: gate.now(), staleAfterMs: HOST_SPAWN_GATE_STALE_MS }) === 'wait'
     ) {
-      const release = gate.take()
+      deps.log('[attach] another app is starting the host backend; waiting for it instead of spawning a second one')
+      await gate.sleep(pollMs)
 
-      if (release) {
-        return { reservation: { release } }
+      const late = await attachToHostBackend(options, deps)
+
+      if (late) {
+        return { attached: late }
       }
     }
-
-    deps.log('[attach] another app is starting the host backend; waiting for it instead of spawning a second one')
-    await gate.sleep(pollMs)
-
-    const late = await attachToHostBackend(options, deps)
-
-    if (late) {
-      return { attached: late }
-    }
   }
 
-  // Preserve the bounded startup fallback when a stale/unreadable gate cannot
-  // be claimed. The no-op reservation owns no file and therefore removes none.
-  return { reservation: { release: gate.take() ?? (() => {}) } }
+  return { reservation: { release: gate.take() } }
 }

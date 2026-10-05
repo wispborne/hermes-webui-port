@@ -17,8 +17,8 @@ primary clobbers fallback-owned state:
 Both are now guarded by a monotonic per-compressor attempt generation
 (``_claim_compressor_attempt``): restores and callback set/clear are keyed
 to the claiming generation and no-op when a newer attempt owns the
-compressor. These tests drive both interleavings deterministically; the
-end-to-end checks use event handshakes rather than wall-clock timing.
+compressor. These tests drive both interleavings deterministically —
+no timing, no threads.
 """
 
 from types import SimpleNamespace
@@ -276,17 +276,19 @@ class TestStaleAttemptEndToEnd:
     ``compress()``, and the stale unwind propagating as a cancellation."""
 
     def _compressor(self):
+        from unittest.mock import patch
+
         from agent.context_compressor import ContextCompressor
 
-        compressor = ContextCompressor(
-            model="test/model", quiet_mode=True,
-            protect_first_n=2, protect_last_n=2,
-            abort_on_summary_failure=False,
-        )
-        # Context-length resolution is lazy. Set the property directly so the worker cannot
-        # disappear into unrelated provider discovery before reaching the synchronization point.
-        compressor.context_length = 100000
-        return compressor
+        with patch(
+            "agent.context_compressor.get_model_context_length",
+            return_value=100000,
+        ):
+            return ContextCompressor(
+                model="test/model", quiet_mode=True,
+                protect_first_n=2, protect_last_n=2,
+                abort_on_summary_failure=False,
+            )
 
     def _messages(self, n=12):
         return [
@@ -348,14 +350,13 @@ class TestStaleAttemptEndToEnd:
 
         a_in_llm = threading.Event()
         b_done = threading.Event()
-        a_done = threading.Event()
         outcomes_a = []
         thread_a = [None]
 
         def fake_call_llm(**kw):
             if threading.current_thread() is thread_a[0]:
                 a_in_llm.set()
-                b_done.wait()
+                assert b_done.wait(10), "fallback did not complete in time"
                 return self._llm_response("## Goal\nstale-era summary")
             return self._llm_response("## Goal\nfallback summary")
 
@@ -369,8 +370,6 @@ class TestStaleAttemptEndToEnd:
                 outcomes_a.append("cancelled")
             except BaseException as e:
                 outcomes_a.append(f"{type(e).__name__}: {e}")
-            finally:
-                a_done.set()
 
         gen1 = _claim_compressor_attempt(cc)
         assert gen1 == 1
@@ -378,22 +377,21 @@ class TestStaleAttemptEndToEnd:
             t = threading.Thread(target=attempt_a, daemon=True)
             thread_a[0] = t
             t.start()
-            a_in_llm.wait()
+            assert a_in_llm.wait(10), "primary never reached the provider call"
 
             # Host detaches the stalled primary and runs the fallback inline.
-            try:
-                gen2 = _claim_compressor_attempt(cc)
-                assert gen2 == 2
-                _run_summary_dispatch(
-                    agent, messages, cc.compress, kwargs,
-                    commit_fence=None, attempt_generation=2, hard_cancel_event=None,
-                )
-                assert cc._previous_summary and "fallback summary" in cc._previous_summary
-            finally:
-                # The detached primary's provider call returns only after fallback completion.
-                b_done.set()
-                a_done.wait()
-                t.join()
+            gen2 = _claim_compressor_attempt(cc)
+            assert gen2 == 2
+            _run_summary_dispatch(
+                agent, messages, cc.compress, kwargs,
+                commit_fence=None, attempt_generation=2, hard_cancel_event=None,
+            )
+            assert cc._previous_summary and "fallback summary" in cc._previous_summary
+
+            # The detached primary's provider call finally returns.
+            b_done.set()
+            t.join(10)
+            assert not t.is_alive()
 
         # The stale attempt unwound as a cancellation and wrote nothing.
         assert outcomes_a == ["cancelled"]
@@ -420,14 +418,13 @@ class TestStaleAttemptEndToEnd:
 
         a_in_llm = threading.Event()
         b_done = threading.Event()
-        a_done = threading.Event()
         outcomes_a = []
         thread_a = [None]
 
         def fake_call_llm(**kw):
             if threading.current_thread() is thread_a[0]:
                 a_in_llm.set()
-                b_done.wait()
+                assert b_done.wait(10), "fallback did not complete in time"
                 raise AuxiliaryExplicitCancellation()
             return self._llm_response("## Goal\nfallback summary")
 
@@ -441,28 +438,24 @@ class TestStaleAttemptEndToEnd:
                 outcomes_a.append("cancelled")
             except BaseException as e:
                 outcomes_a.append(f"{type(e).__name__}: {e}")
-            finally:
-                a_done.set()
 
         gen1 = _claim_compressor_attempt(cc)
         with patch("agent.context_compressor.call_llm", side_effect=fake_call_llm):
             t = threading.Thread(target=attempt_a, daemon=True)
             thread_a[0] = t
             t.start()
-            a_in_llm.wait()
+            assert a_in_llm.wait(10)
 
-            try:
-                gen2 = _claim_compressor_attempt(cc)
-                assert gen2 == 2
-                _run_summary_dispatch(
-                    agent, messages, cc.compress, kwargs,
-                    commit_fence=None, attempt_generation=2, hard_cancel_event=None,
-                )
-                assert cc._previous_summary and "fallback summary" in cc._previous_summary
-            finally:
-                b_done.set()
-                a_done.wait()
-                t.join()
+            gen2 = _claim_compressor_attempt(cc)
+            _run_summary_dispatch(
+                agent, messages, cc.compress, kwargs,
+                commit_fence=None, attempt_generation=2, hard_cancel_event=None,
+            )
+            assert cc._previous_summary and "fallback summary" in cc._previous_summary
+
+            b_done.set()
+            t.join(10)
+            assert not t.is_alive()
 
         assert outcomes_a == ["cancelled"]
         # The stale cancel did not roll _previous_summary back to the primary's snapshot.

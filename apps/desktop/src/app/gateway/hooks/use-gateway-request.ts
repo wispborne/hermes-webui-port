@@ -5,15 +5,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { HermesGateway } from '@/hermes'
 import { resolveDesktopGatewayWsUrl } from '@/lib/gateway-ws-url'
 import { RECONNECT_ATTEMPT_TIMEOUT_MS, withTimeout } from '@/lib/with-timeout'
-import {
-  $gateway,
-  activeGateway,
-  activeGatewayConnectionId,
-  activeGatewayProfileKey,
-  ensureActiveGatewayOpen,
-  gatewayActivationEpoch,
-  isActivePrimary
-} from '@/store/gateway'
+import { $gateway, ensureActiveGatewayOpen, isActivePrimary } from '@/store/gateway'
 import { $gatewayState, setConnection } from '@/store/session'
 
 export function useGatewayRequest() {
@@ -55,20 +47,13 @@ export function useGatewayRequest() {
   )
 
   const ensureGatewayOpen = useCallback(async () => {
-    // The ref is populated by the subscription effect after first render; the
-    // registry is the source of truth when it has not caught up yet.
-    const existing = gatewayRef.current ?? activeGateway()
+    const existing = gatewayRef.current
 
     if (!existing) {
       return null
     }
 
-    // gatewayStateRef mirrors $gatewayState through a render + effect, so it
-    // still reads 'open' for a beat after a socket drop rejected the caller's
-    // in-flight request. Trusting it alone skipped the reconnect and re-sent
-    // on the dead socket ("Hermes gateway is not connected", #121680). Ask the
-    // socket itself.
-    if (gatewayStateRef.current === 'open' && existing.connectionState === 'open') {
+    if (gatewayStateRef.current === 'open') {
       return existing
     }
 
@@ -84,14 +69,6 @@ export function useGatewayRequest() {
       }
 
       reauthErrorRef.current = null
-
-      // Main resolves the profile-less lookup through the window's CURRENT
-      // route. If another source took the foreground meanwhile, the answer may
-      // describe that source, and either outcome is no longer ours to publish
-      // over the newer descriptor. The boot hook's own-route reconnect loop
-      // still restores the primary socket.
-      const activationEpoch = gatewayActivationEpoch()
-      const ownsForeground = () => isActivePrimary() && gatewayActivationEpoch() === activationEpoch
 
       try {
         // This path recovers only the window primary (requestGateway routes
@@ -111,10 +88,6 @@ export function useGatewayRequest() {
           'Timed out reconnecting to Hermes backend'
         )
 
-        if (!ownsForeground()) {
-          return null
-        }
-
         connectionRef.current = conn
         setConnection(conn)
 
@@ -130,10 +103,6 @@ export function useGatewayRequest() {
           'Timed out re-minting the gateway WebSocket URL'
         )
 
-        if (!ownsForeground()) {
-          return null
-        }
-
         await existing.connect(wsUrl)
 
         return existing
@@ -142,10 +111,8 @@ export function useGatewayRequest() {
           reauthErrorRef.current = error
         }
 
-        if (ownsForeground()) {
-          connectionRef.current = null
-          setConnection(null)
-        }
+        connectionRef.current = null
+        setConnection(null)
 
         return null
       } finally {
@@ -158,21 +125,11 @@ export function useGatewayRequest() {
 
   const requestGateway = useCallback(
     async <T>(method: string, params: Record<string, unknown> = {}, timeoutMs?: number, signal?: AbortSignal) => {
-      const gateway = gatewayRef.current ?? activeGateway()
+      const gateway = gatewayRef.current
 
       if (!gateway) {
         throw new Error('Hermes gateway unavailable')
       }
-
-      // Bind retries to the dispatch owner, not whichever source is focused
-      // when a delayed transport failure (or its reconnect) finishes.
-      const connectionId = activeGatewayConnectionId()
-      const profile = activeGatewayProfileKey()
-
-      const isDispatchRouteActive = () =>
-        (gatewayRef.current ?? activeGateway()) === gateway &&
-        activeGatewayConnectionId() === connectionId &&
-        activeGatewayProfileKey() === profile
 
       try {
         return await gateway.request<T>(method, params, timeoutMs, signal)
@@ -186,13 +143,6 @@ export function useGatewayRequest() {
         // connection-owned reconnect path, including composite remote/SSH
         // sources.
         const recovered = isActivePrimary() ? await ensureGatewayOpen() : await ensureActiveGatewayOpen()
-
-        // Recovery follows the CURRENT route (ensureGatewayOpen resolves
-        // profile-less through main's foreground route, unlike the boot hook's
-        // own-route reconnect), so replay only on the socket that was dispatched.
-        if (!isDispatchRouteActive() || (recovered && recovered !== gateway)) {
-          throw error
-        }
 
         if (!recovered) {
           // Prefer the reauth error from the failed reconnect (OAuth session

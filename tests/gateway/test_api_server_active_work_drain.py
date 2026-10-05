@@ -620,11 +620,7 @@ class TestShutdownSettleWindow:
 
         settled_at_kill: list = []
 
-        def _spy_kill_all(task_id=None, **kwargs):
-            # kwargs carry kill_all's keyword-only args; the shutdown sweep
-            # passes source="gateway_shutdown" (#41225) so persisted jobs are
-            # still killed on host exit.
-            assert kwargs.get("source") == "gateway_shutdown", kwargs
+        def _spy_kill_all(task_id=None):
             settled_at_kill.append(api.settled)
             return 0
 

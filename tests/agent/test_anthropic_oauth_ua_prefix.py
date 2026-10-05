@@ -17,6 +17,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+
+
 class TestOAuthUserAgentPrefix:
     """Inference uses ``claude-code/``; the OAuth token endpoint must NOT."""
 
@@ -35,3 +37,6 @@ class TestOAuthUserAgentPrefix:
 
         assert "claude-code/" in ua, f"Expected claude-code/ in UA, got: {ua}"
         assert "claude-cli/" not in ua, f"Must not use claude-cli/ prefix: {ua}"
+
+
+

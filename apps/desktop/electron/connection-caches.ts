@@ -24,15 +24,7 @@ export const sshInventoryAttemptedAt = new Map<string, number>()
  */
 export const connectionInstallIds = new Map<string, { id?: string; ts: number }>()
 
-/** Last logged roster failure per connection, so repeat polls do not spam the log. */
-export const rosterSourceErrors = new Map<string, string>()
-
-const CONNECTION_SCOPED_CACHES: Map<string, unknown>[] = [
-  sshRosterCache,
-  sshInventoryAttemptedAt,
-  connectionInstallIds,
-  rosterSourceErrors
-]
+const CONNECTION_SCOPED_CACHES: Map<string, unknown>[] = [sshRosterCache, sshInventoryAttemptedAt, connectionInstallIds]
 
 /**
  * Forget everything cached about a connection id. Call whenever that id stops naming the machine

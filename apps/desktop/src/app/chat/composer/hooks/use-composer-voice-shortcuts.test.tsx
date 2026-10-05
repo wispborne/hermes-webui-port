@@ -73,7 +73,6 @@ vi.mock('@/store/voice-prefs', async () => {
 
   return {
     $autoSpeakReplies: atom(false),
-    $bargeInEnabled: atom(true),
     $voiceStopPhrase: atom(null),
     setAutoSpeakReplies: vi.fn(async () => undefined)
   }

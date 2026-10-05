@@ -21,10 +21,8 @@ sys.path.insert(0, str(WORKTREE))
 
 import pytest
 
-from tests.live_process_fixtures import SLEEPER_MARKER, sleeper_script_path
-
 # The stand-in wears a `gateway run` argv; the test spawns and reaps it itself.
-pytestmark = [pytest.mark.platforms("windows"), pytest.mark.spawns_gateway_lookalike]
+pytestmark = [pytest.mark.windows_only, pytest.mark.spawns_gateway_lookalike]
 
 
 def _wait_until(predicate, timeout: float = 15.0, interval: float = 0.05) -> bool:
@@ -56,16 +54,16 @@ def test_plan_reconciliation_live_windows(tmp_path, monkeypatch):
     # which requires a live `gateway run` command line (#109680), so the
     # stand-in wears one; a bare sleeper is recorded too and must NOT count.
     child = subprocess.Popen(
-        [sys.executable, sleeper_script_path(), "hermes", "gateway", "run"],
+        [sys.executable, "-c", "import time; time.sleep(120)", "hermes", "gateway", "run"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     foreign = subprocess.Popen(
-        [sys.executable, sleeper_script_path()],
+        [sys.executable, "-c", "import time; time.sleep(120)"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     try:
         assert _wait_until(lambda: _argv_visible(child.pid, "gateway")), "stand-in argv never visible"
-        assert _wait_until(lambda: _argv_visible(foreign.pid, SLEEPER_MARKER)), "sleeper never visible"
+        assert _wait_until(lambda: _argv_visible(foreign.pid, "time.sleep(120)")), "sleeper never visible"
 
         import psutil
 

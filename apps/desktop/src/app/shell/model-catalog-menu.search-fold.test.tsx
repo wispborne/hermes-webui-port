@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 
 import { DropdownMenu, DropdownMenuContent } from '@/components/ui/dropdown-menu'
 import { $localModelsEnabled } from '@/store/local-models-flag'
+import { $localRuntimeJobs } from '@/store/local-runtime-jobs'
 import { $visibleModels } from '@/store/model-visibility'
 
 import { ModelCatalogMenu, type ModelMenuController } from './model-catalog-menu'
@@ -26,6 +27,7 @@ vi.mock('@/hermes', () => ({
 
 beforeEach(() => {
   $visibleModels.set(null)
+  $localRuntimeJobs.set([])
   $localModelsEnabled.set(false)
   getGlobalModelOptions.mockResolvedValue({
     providers: [{ models: ['qwen3.8-flash', 'gpt-5.1'], name: 'OpenRouter', slug: 'openrouter' }]
@@ -61,21 +63,16 @@ function renderMenu() {
 
 it('matches and highlights separator-equivalent queries without revealing unrelated models', async () => {
   renderMenu()
-  await screen.findByText('Qwen3.8')
+  await screen.findByText(/Qwen3\.8 Flash/i)
 
-  // The `-flash` suffix renders as the row's variant tag, so an id-style
-  // query still finds the row through the id fold even though the label no
-  // longer spells the word — nothing is marked, the row stays visible.
-  fireEvent.change(screen.getByRole('textbox', { name: 'Search models' }), { target: { value: 'qwen3.8-flash' } })
-  await vi.waitFor(() => {
-    expect(screen.getByText('Qwen3.8')).toBeDefined()
-    expect(screen.queryByText(/GPT-5\.1/i)).toBeNull()
-  })
-
-  // A separator-folded query highlights the name span itself.
-  fireEvent.change(screen.getByRole('textbox', { name: 'Search models' }), { target: { value: 'qwen3 8' } })
-  await vi.waitFor(() => {
-    expect(screen.getByText('Qwen3.8', { selector: 'mark' })).not.toBeNull()
-    expect(screen.queryByText(/GPT-5\.1/i)).toBeNull()
-  })
+  for (const [query, marked] of [
+    ['qwen3.8-flash', 'Qwen3.8 Flash'],
+    ['qwen3 8', 'Qwen3.8']
+  ]) {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search models' }), { target: { value: query } })
+    await vi.waitFor(() => {
+      expect(screen.getByText(marked, { selector: 'mark' })).not.toBeNull()
+      expect(screen.queryByText(/GPT-5\.1/i)).toBeNull()
+    })
+  }
 })

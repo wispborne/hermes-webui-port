@@ -619,11 +619,9 @@ def test_peer_success_and_error_reads_are_bounded(monkeypatch):
 
 
 def test_real_http_drip_cannot_extend_the_whole_response_deadline():
-    stopped = threading.Event()
-
     class DripPeer(BaseHTTPRequestHandler):
         def do_GET(self):
-            body = json.dumps({"pad": "x" * 2000}).encode()
+            body = json.dumps({"pad": "x" * 200}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -634,8 +632,7 @@ def test_real_http_drip_cannot_extend_the_whole_response_deadline():
                     self.wfile.flush()
                 except OSError:
                     break
-                if stopped.wait(0.02):
-                    break
+                time.sleep(0.02)
 
         def log_message(self, *_args):
             return None
@@ -643,25 +640,20 @@ def test_real_http_drip_cannot_extend_the_whole_response_deadline():
     server = ThreadingHTTPServer(("127.0.0.1", 0), DripPeer)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    started = time.monotonic()
     try:
         client = PeerRunsHTTPClient(
             base_url=f"http://127.0.0.1:{server.server_port}",
             api_key="",
-            # Leave time for headers on a loaded runner. The body still
-            # takes much longer, even though each byte arrives promptly.
-            timeout_seconds=2.0,
+            timeout_seconds=0.1,
         )
-        started = time.monotonic()
         with pytest.raises(PeerRunsHTTPError, match="time budget") as caught:
             client._request("/drip")
-        elapsed = time.monotonic() - started
     finally:
-        stopped.set()
         server.shutdown()
-        server.server_close()
         thread.join(timeout=2)
 
-    assert elapsed < 6.0
+    assert time.monotonic() - started < 2.0
     assert caught.value.retryable is True
 
 

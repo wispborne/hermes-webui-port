@@ -15,7 +15,6 @@ from hermes_cli.config import (
     read_raw_config,
 )
 from hermes_cli.web_server_memory import _normalize_memory_provider_name
-from tools.wake_word import _PROVIDER_PREFERENCE
 
 if TYPE_CHECKING:
     from hermes_cli.model_switch import ModelSwitchResult
@@ -32,7 +31,7 @@ def _memory_provider_options() -> List[str]:
     """Discovered memory providers for the ``memory.provider`` select.
 
     Directory-scan only (no provider imports), so safe at module import time. ``""``
-    (built-in only) is always first; a discovery failure leaves only that.
+    (built-in only) is always first; discovery failures degrade to the bundled defaults.
     The literal ``builtin`` alias is deliberately NOT offered — built-in memory is not a
     provider plugin; ``_normalize_memory_provider_name`` maps legacy aliases back to ``""``.
 
@@ -44,7 +43,7 @@ def _memory_provider_options() -> List[str]:
 
         options.extend(list_memory_provider_names())
     except Exception:
-        _log.debug("memory provider discovery failed", exc_info=True)
+        options.extend(["honcho"])
     return list(dict.fromkeys(options))
 
 
@@ -83,13 +82,7 @@ _SCHEMA_OVERRIDES: Dict[str, Dict[str, Any]] = {
         "local", "docker", "ssh", "modal", "daytona", "vercel_sandbox", "singularity",
     ),
     # sync with _SUPPORTED_VERCEL_RUNTIMES in terminal_tool.py
-    "terminal.vercel_image": {
-        "type": "string",
-        "description": "Vercel Sandbox image: a Vercel managed image (vercel/sandbox/universal:latest) or a VCR repository[:tag]",
-    },
-    "terminal.vercel_runtime": _select(
-        "Legacy Vercel Sandbox runtime (deprecated by Vercel; a pinned runtime overrides the image; clear to use the image)",
-        "node24", "node22", "python3.13", clearable=True),
+    "terminal.vercel_runtime": _select("Vercel Sandbox runtime", "node24", "node22", "python3.13"),
     "terminal.modal_mode": _select("Modal sandbox mode", "sandbox", "function"),
     "proxy.enabled": {
         "type": "boolean",
@@ -115,10 +108,6 @@ _SCHEMA_OVERRIDES: Dict[str, Dict[str, Any]] = {
         ),
         "category": "security",
     },
-    "wake_word.provider": _select(
-        "Wake engine. Auto selects a platform-supported engine; Porcupine requires PORCUPINE_ACCESS_KEY.",
-        "auto", *_PROVIDER_PREFERENCE,
-    ),
     "tts.provider": _select(
         "Text-to-speech provider",
         "edge", "elevenlabs", "openai", "xai", "minimax", "mistral", "gemini", "neutts", "kittentts", "piper",

@@ -25,6 +25,7 @@ from unittest.mock import patch
 
 import pytest
 
+
 from hermes_cli.session_lost_and_found import (
     _parse_sqlite3_cli_version,
     _wal_reset_vulnerable,
@@ -33,11 +34,14 @@ from hermes_cli.session_lost_and_found import (
 )
 from hermes_cli.sqlite_runtime import is_sqlite_wal_reset_vulnerable
 
+
 LIVE_DB_SALVAGE_COMMAND = 'sqlite3 ~/.hermes/state.db ".recover"'
+
 
 # ---------------------------------------------------------------------------
 # The version gate itself
 # ---------------------------------------------------------------------------
+
 
 class TestWalResetVersionGate:
     @pytest.mark.parametrize(
@@ -82,9 +86,11 @@ class TestWalResetVersionGate:
                 is_sqlite_wal_reset_vulnerable(version)
             ), f"salvage gate disagrees with the runtime gate at {version}"
 
+
 # ---------------------------------------------------------------------------
 # find_sqlite3_cli refuses unsafe shells and explains why
 # ---------------------------------------------------------------------------
+
 
 class TestFindSqlite3CliRefusal:
     def test_missing_binary_refusal(self, monkeypatch):
@@ -165,6 +171,7 @@ class TestFindSqlite3CliRefusal:
         )
         assert find_sqlite3_cli() == "/usr/bin/sqlite3"
 
+
 class TestParseSqlite3CliVersion:
     def test_parses_modern_output(self):
         class Probe:
@@ -184,9 +191,11 @@ class TestParseSqlite3CliVersion:
         ):
             assert _parse_sqlite3_cli_version("x") is None
 
+
 # ---------------------------------------------------------------------------
 # The operator-facing guidance never names the live DB
 # ---------------------------------------------------------------------------
+
 
 class TestGuidanceNeverNamesLiveDb:
 
@@ -217,6 +226,9 @@ class TestGuidanceNeverNamesLiveDb:
         assert ".recover\"`" not in message
         assert "do NOT" in message
 
+
+
+
 # ---------------------------------------------------------------------------
 # The emitted command satisfies the real CLI contract
 # ---------------------------------------------------------------------------
@@ -227,6 +239,7 @@ class TestGuidanceNeverNamesLiveDb:
 # shapes the banners emit through the real parser + cmd_sessions, so a
 # guidance string can never again pass a source-substring test while the
 # command it prints deterministically fails.
+
 
 class TestEmittedCommandsSatisfyCliContract:
     """Every `sessions recover` argv the guidance prints must be accepted
@@ -309,3 +322,4 @@ class TestEmittedCommandsSatisfyCliContract:
             self._namespace(source, output=tmp_path / "recovered-state.db")
         )
         assert rc != 2, "--output shape must pass the contract gate"
+

@@ -1,7 +1,6 @@
 """Credential-pool auth subcommands."""
 
 from __future__ import annotations
-from pm import install_hint
 from hermes_cli.cli_output import line_input
 
 import math
@@ -752,10 +751,7 @@ def _print_azure_entra_status() -> None:
         print(f"  Endpoint: {base_url or '(not configured)'}")
         print(f"  Scope: {scope}")
         if not has_azure_identity_installed():
-            print("  Status: ⚠ azure-identity not installed")
-            print("  From the Hermes environment, run: "
-                  f"{install_hint('azure-identity')}")
-            print("  Then restart Hermes.")
+            print("  Status: ⚠ azure-identity not installed (pip install azure-identity)")
         else:
             info = describe_active_credential(config=EntraIdentityConfig(scope=scope), timeout_seconds=10.0)
             env_sources = info.get("env_sources") or []

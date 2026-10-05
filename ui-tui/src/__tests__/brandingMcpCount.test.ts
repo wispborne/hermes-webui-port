@@ -5,7 +5,6 @@ import React from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { SessionPanel } from '../components/branding.js'
-import { messages } from '../i18n/runtime.js'
 import { DEFAULT_THEME } from '../theme.js'
 import type { McpServerStatus, SessionInfo } from '../types.js'
 
@@ -83,8 +82,8 @@ describe('branding MCP headline count', () => {
     )
 
     // One connected server → "1 MCP", never "2 MCP".
-    expect(frame).toContain(messages().chatBits.branding.mcpSummary(1))
-    expect(frame).not.toContain(messages().chatBits.branding.mcpSummary(2))
+    expect(frame).toContain('1 MCP')
+    expect(frame).not.toContain('2 MCP')
   })
 
   it('drops the MCP segment entirely when no server is connected', async () => {

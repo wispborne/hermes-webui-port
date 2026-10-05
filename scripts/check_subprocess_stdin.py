@@ -222,9 +222,8 @@ def main() -> int:
         for py_file in dirpath.rglob("*.py"):
             rel = str(py_file.relative_to(repo_root))
 
-            # Skip known-safe files.  ``relative_to`` returns a host-separated
-            # path (backslashes on Windows) while KNOWN_SAFE is forward-slash.
-            if py_file.relative_to(repo_root).as_posix() in KNOWN_SAFE:
+            # Skip known-safe files.
+            if rel in KNOWN_SAFE:
                 continue
 
             # Skip test files inside tools/ etc.
@@ -232,7 +231,7 @@ def main() -> int:
             if any(skip.rstrip("/") in parts for skip in SKIP_DIRS):
                 continue
 
-            content = py_file.read_text(encoding="utf-8-sig")
+            content = py_file.read_text(encoding="utf-8")
             violations = find_subprocess_calls(content, rel)
             all_violations.extend(violations)
 
@@ -256,7 +255,7 @@ def main() -> int:
                 continue
 
             try:
-                content = py_file.read_text(encoding="utf-8-sig")
+                content = py_file.read_text(encoding="utf-8")
             except Exception:
                 continue
             violations = find_subprocess_calls(content, rel)

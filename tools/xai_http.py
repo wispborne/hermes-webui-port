@@ -52,10 +52,10 @@ def has_xai_credentials() -> bool:
 def hermes_xai_user_agent() -> str:
     """Return a stable Hermes-specific User-Agent for xAI HTTP calls."""
     try:
-        from hermes_cli.version_info import get_version_info
-        return f"Hermes-Agent/{get_version_info().base_version}"
+        from hermes_cli import __version__
     except Exception:
-        return "Hermes-Agent/unknown"
+        __version__ = "unknown"
+    return f"Hermes-Agent/{__version__}"
 
 
 def hermes_xai_default_headers() -> Dict[str, str]:

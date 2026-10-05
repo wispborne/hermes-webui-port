@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSlashHandler } from '../app/createSlashHandler.js'
 import { getOverlayState, resetOverlayState } from '../app/overlayStore.js'
+import { DASHBOARD_EXIT_DISABLED_MESSAGE, DASHBOARD_UPDATE_DISABLED_MESSAGE } from '../app/slash/commands/core.js'
 import { getUiState, patchUiState, resetUiState } from '../app/uiStore.js'
 import type * as EnvModule from '../config/env.js'
 import { TUI_SESSION_MODEL_FLAG } from '../domain/slash.js'
-import { applyLocale, resetLocale, t } from '../i18n/runtime.js'
 import * as ClipboardModule from '../lib/clipboard.js'
 import * as Osc52Module from '../lib/osc52.js'
 import * as TerminalSetupModule from '../lib/terminalSetup.js'
@@ -56,7 +56,7 @@ describe('createSlashHandler', () => {
     expect(createSlashHandler(ctx)('/sessions')).toBe(true)
     expect(getOverlayState().sessions).toBe(true)
     expect(ctx.session.guardBusySessionSwitch).not.toHaveBeenCalled()
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('blocks immediate resume-by-id while a turn is busy', () => {
@@ -81,14 +81,14 @@ describe('createSlashHandler', () => {
     expect(createSlashHandler(ctx)('/grid-test 6x4')).toBe(true)
     expect(getOverlayState().widget).toMatchObject({ appId: 'grid-test' })
     expect(getOverlayState().widget?.state).toMatchObject({ cols: 6, nested: false, rows: 4, streams: false })
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('handles /redraw locally without slash worker fallback', () => {
     const ctx = buildCtx()
 
     expect(createSlashHandler(ctx)('/redraw')).toBe(true)
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('opens the editor locally for /prompt without slash worker fallback', () => {
@@ -96,7 +96,7 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/prompt')).toBe(true)
     expect(ctx.composer.openEditor).toHaveBeenCalledTimes(1)
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('routes /compose to the editor and seeds inline text', () => {
@@ -112,7 +112,7 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/quit')).toBe(true)
     expect(ctx.session.die).toHaveBeenCalledTimes(1)
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('keeps hosted dashboard chat alive for /exit', () => {
@@ -121,22 +121,8 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/exit')).toBe(true)
     expect(ctx.session.die).not.toHaveBeenCalled()
-    expect(gatewayWork(ctx)).toEqual([])
-    expect(ctx.transcript.sys).toHaveBeenCalledWith(t('slashCmd.core.quit.dashboardDisabled'))
-  })
-
-  it('resolves the /exit refusal at run time so a locale swap is observed', () => {
-    envState.dashboardTuiMode = true
-    const ctx = buildCtx()
-
-    applyLocale('xx', { lang: 'xx', messages: { 'slashCmd.core.quit.dashboardDisabled': 'ZZ' }, surface: 'tui' })
-
-    try {
-      expect(createSlashHandler(ctx)('/exit')).toBe(true)
-      expect(ctx.transcript.sys).toHaveBeenCalledWith('ZZ')
-    } finally {
-      resetLocale()
-    }
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith(DASHBOARD_EXIT_DISABLED_MESSAGE)
   })
 
   it('handles /update locally and exits with code 42 via dieWithCode', () => {
@@ -144,7 +130,7 @@ describe('createSlashHandler', () => {
     const ctx = buildCtx()
 
     expect(createSlashHandler(ctx)('/update')).toBe(true)
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
 
     // Advance past the 100ms setTimeout
     vi.advanceTimersByTime(150)
@@ -160,8 +146,8 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/update')).toBe(true)
     expect(ctx.session.dieWithCode).not.toHaveBeenCalled()
-    expect(gatewayWork(ctx)).toEqual([])
-    expect(ctx.transcript.sys).toHaveBeenCalledWith(t('slashCmd.core.update.dashboardDisabled'))
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith(DASHBOARD_UPDATE_DISABLED_MESSAGE)
 
     vi.advanceTimersByTime(150)
     expect(ctx.session.dieWithCode).not.toHaveBeenCalled()
@@ -176,9 +162,9 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/status')).toBe(true)
     expect(rpc).toHaveBeenCalledWith('session.status', { session_id: 'sid-abc' })
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      expect(ctx.transcript.page).toHaveBeenCalledWith('Hermes TUI Status', t('slashCmd.core.status.pageTitle'))
+      expect(ctx.transcript.page).toHaveBeenCalledWith('Hermes TUI Status', 'Status')
     })
   })
 
@@ -383,7 +369,7 @@ describe('createSlashHandler', () => {
     expect(createSlashHandler(ctx)('/skills')).toBe(true)
     expect(getOverlayState().skillsHub).toBe(true)
     expect(ctx.gateway.rpc).not.toHaveBeenCalled()
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('routes /skills install <name> to skills.manage without opening overlay', () => {
@@ -402,7 +388,7 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/pet list')).toBe(true)
     expect(getOverlayState().petPicker).toBe(true)
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
 
     resetOverlayState()
     expect(createSlashHandler(ctx)('/pet')).toBe(true)
@@ -445,12 +431,12 @@ describe('createSlashHandler', () => {
     createSlashHandler(ctx)('/new sprint planning')
     getOverlayState().confirm?.onConfirm()
 
-    expect(ctx.session.newSession).toHaveBeenCalledWith(t('slashCmd.core.clear.newSessionStarted'), 'sprint planning')
+    expect(ctx.session.newSession).toHaveBeenCalledWith('new session started', 'sprint planning')
     expect(ctx.gateway.rpc).not.toHaveBeenCalled()
   })
 
   it.each([
-    ['/new sprint planning', t('slashCmd.core.clear.newSessionStarted'), 'sprint planning'],
+    ['/new sprint planning', 'new session started', 'sprint planning'],
     ['/clear', undefined, undefined]
   ])('skips the confirmation for %s when config disables it', (command, message, title) => {
     patchUiState({ destructiveSlashConfirm: false })
@@ -477,8 +463,8 @@ describe('createSlashHandler', () => {
     createSlashHandler(ctx)('/reset')
     getOverlayState().confirm?.onConfirm()
 
-    expect(ctx.session.newSession).toHaveBeenCalledWith(t('slashCmd.core.clear.newSessionStarted'), undefined)
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.session.newSession).toHaveBeenCalledWith('new session started', undefined)
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('keeps visible scrollback when branching a TUI session', async () => {
@@ -520,7 +506,7 @@ describe('createSlashHandler', () => {
         expect.objectContaining({ canon: { '/new-skill': '/new-skill' }, pairs: [['/new-skill', 'demo']] })
       )
     })
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   // Regressions from Copilot review on #19835: /voice output + frontend
@@ -620,8 +606,6 @@ describe('createSlashHandler', () => {
   it.each([
     ['/browser status', 'browser.manage', { action: 'status', session_id: null }],
     ['/browser connect', 'browser.manage', { action: 'connect', session_id: null, url: 'http://127.0.0.1:9222' }],
-    ['/browser use', 'browser.manage', { action: 'use', enabled: true, session_id: null }],
-    ['/browser use off', 'browser.manage', { action: 'use', enabled: false, session_id: null }],
     ['/reload-mcp', 'reload.mcp', { session_id: null }],
     ['/reload', 'reload.env', {}],
     ['/stop', 'process.stop', {}],
@@ -634,7 +618,7 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)(command)).toBe(true)
     expect(rpc).toHaveBeenCalledWith(method, params)
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('renders browser connect progress messages from the gateway', async () => {
@@ -670,7 +654,7 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/rollback')).toBe(true)
     expect(rpc).toHaveBeenCalledWith('rollback.list', { session_id: 'sid-abc' })
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('hot-swaps the live indicator when /indicator <style> succeeds', async () => {
@@ -809,7 +793,7 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/stat')).toBe(true)
     expect(ctx.transcript.sys).toHaveBeenCalledWith(expect.stringMatching(/\/status\b.*\/statusbar/))
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('falls through to command.dispatch for skill commands, sending the body but showing the invocation', async () => {
@@ -964,7 +948,7 @@ describe('createSlashHandler', () => {
     expect(body).toContain('hi there')
     expect(body).toContain('test')
     expect(body).not.toContain('ignore me')
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
   it('/history reports empty state without paging', () => {
@@ -994,7 +978,7 @@ describe('createSlashHandler', () => {
 
     createSlashHandler(ctx)('/save')
 
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
     expect(rpc).toHaveBeenCalledWith('session.save', { session_id: 'sid-abc' })
 
     await vi.waitFor(() => {
@@ -1008,7 +992,7 @@ describe('createSlashHandler', () => {
 
     createSlashHandler(ctx)('/save')
 
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
     expect(rpc).not.toHaveBeenCalled()
     expect(ctx.transcript.sys).toHaveBeenCalled()
   })
@@ -1086,7 +1070,7 @@ describe('createSlashHandler', () => {
     createSlashHandler(ctx)('/title my title')
 
     expect(rpc).toHaveBeenCalledWith('session.title', { session_id: 'sid-abc', title: 'my title' })
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
     await vi.waitFor(() => {
       expect(ctx.transcript.sys).toHaveBeenCalledWith(expect.stringContaining('my title'))
     })
@@ -1100,7 +1084,7 @@ describe('createSlashHandler', () => {
     createSlashHandler(ctx)('/title')
 
     expect(rpc).toHaveBeenCalledWith('session.title', { session_id: 'sid-abc' })
-    expect(gatewayWork(ctx)).toEqual([])
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
     await vi.waitFor(() => {
       expect(ctx.transcript.sys).toHaveBeenCalledWith(expect.stringContaining('demo title'))
     })
@@ -1127,12 +1111,6 @@ const buildComposer = () => ({
   selection: { copySelection: vi.fn(async () => '') },
   setInput: vi.fn()
 })
-
-// Gateway traffic other than the fire-and-forget shared_metrics.slash_command every typed command reports.
-const gatewayWork = (ctx: { gateway: { gw: { request: unknown } } }) =>
-  vi
-    .mocked(ctx.gateway.gw.request as (method: string) => unknown)
-    .mock.calls.filter(([method]) => method !== 'shared_metrics.slash_command')
 
 const buildGateway = () => ({
   gw: {

@@ -19,11 +19,13 @@ import pytest
 import hermes_state_wal
 from hermes_state_wal import apply_wal_with_fallback, is_sqlite_wal_reset_vulnerable
 
+
 @pytest.fixture(autouse=True)
 def _reset_wal_reset_bug_warnings():
     hermes_state_wal._wal_reset_bug_warned_paths.clear()
     yield
     hermes_state_wal._wal_reset_bug_warned_paths.clear()
+
 
 class TestIsSqliteWalResetVulnerable:
     @pytest.mark.parametrize(
@@ -48,6 +50,8 @@ class TestIsSqliteWalResetVulnerable:
     )
     def test_version_matrix(self, version_info, expected):
         assert is_sqlite_wal_reset_vulnerable(version_info) is expected
+
+
 
 class TestApplyWalWalResetGate:
     def test_fresh_db_uses_delete_when_vulnerable(self, tmp_path, monkeypatch, caplog):
@@ -89,6 +93,10 @@ class TestApplyWalWalResetGate:
         finally:
             conn.close()
 
+
+
+
+
 _HOLDER_SCRIPT = """
 import sqlite3, sys, time, os
 db, ready, done = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -102,6 +110,7 @@ while not os.path.exists(done) and time.time() < deadline:
     time.sleep(0.05)
 conn.close()
 """
+
 
 class TestNoDowngradeUnderConcurrentOpeners:
     """The Aug 2026 state.db incident class: a vulnerable-SQLite process must
@@ -357,3 +366,7 @@ class TestNoDowngradeUnderConcurrentOpeners:
             )
         finally:
             conn.close()
+
+
+
+

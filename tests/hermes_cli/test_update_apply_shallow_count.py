@@ -16,8 +16,9 @@ import subprocess
 
 import pytest
 
+import hermes_cli.banner as banner
 import hermes_cli.main as cli_main
-from hermes_cli import source_check, update_cmd
+from hermes_cli import update_cmd
 
 
 def _git(cwd, *args):
@@ -65,7 +66,7 @@ def _count(monkeypatch, *, api):
         consulted.append((head_sha, target_sha))
         return api
 
-    monkeypatch.setattr(source_check, "_github_compare_behind", fake_compare)
+    monkeypatch.setattr(banner, "_github_compare_behind", fake_compare)
     plan = update_cmd._prepare_checkout_for_update(
         ["git"], "main", "main", is_fork=False, assume_yes=True, gateway_mode=False,
         gw_input_fn=input, switch_branch=False, _windows_gateway_resume=None)

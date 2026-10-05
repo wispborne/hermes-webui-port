@@ -9,6 +9,7 @@ import hermes_cli.gateway as gateway
 import hermes_constants
 from hermes_platform.host import runtime as host_runtime
 
+
 # =============================================================================
 # is_wsl() in hermes_constants
 # =============================================================================
@@ -28,9 +29,11 @@ class TestIsWsl:
         with patch("builtins.open", mock_open(read_data=fake_content)):
             assert hermes_constants.is_wsl() is True
 
+
     def test_no_proc_version(self):
         with patch("builtins.open", side_effect=FileNotFoundError):
             assert hermes_constants.is_wsl() is False
+
 
 # =============================================================================
 # supports_systemd_services() WSL integration
@@ -39,7 +42,7 @@ class TestIsWsl:
 class TestSupportsSystemdServicesWSL:
     """Test that supports_systemd_services() handles WSL correctly."""
 
-    @pytest.mark.platforms("linux")
+    @pytest.mark.linux_only
     def test_wsl_with_systemd(self, monkeypatch):
         """WSL + working systemd → True.
 
@@ -54,7 +57,7 @@ class TestSupportsSystemdServicesWSL:
         monkeypatch.setattr(gateway, "_wsl_systemd_operational", lambda: True)
         assert gateway.supports_systemd_services() is True
 
-    @pytest.mark.platforms("linux")
+    @pytest.mark.linux_only
     def test_termux_still_excluded(self, monkeypatch):
         """Termux → False regardless of WSL status.
 
@@ -64,6 +67,7 @@ class TestSupportsSystemdServicesWSL:
         monkeypatch.setattr(gateway, "is_termux", lambda: True)
         assert gateway.supports_systemd_services() is False
 
+
 # =============================================================================
 # WSL messaging in gateway commands
 # =============================================================================
@@ -71,7 +75,7 @@ class TestSupportsSystemdServicesWSL:
 class TestGatewayCommandWSLMessages:
     """Test that WSL users see appropriate guidance."""
 
-    @pytest.mark.platforms("linux")
+    @pytest.mark.linux_only
     def test_install_wsl_no_systemd(self, monkeypatch, capsys):
         """hermes gateway install on WSL without systemd shows guidance.
 
@@ -97,3 +101,6 @@ class TestGatewayCommandWSLMessages:
         out = capsys.readouterr().out
         assert "WSL detected" in out
         assert "hermes gateway run" in out
+
+
+

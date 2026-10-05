@@ -13,7 +13,7 @@ export function preUpdateBackupEnabled(value: unknown): boolean {
 }
 
 export interface HermesConfigRuntime {
-  command?: string | null
+  command?: string
   args?: string[]
   env?: NodeJS.ProcessEnv
   shell?: boolean

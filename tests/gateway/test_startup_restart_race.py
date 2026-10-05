@@ -355,3 +355,4 @@ async def test_failure_exit_still_stops_cron_housekeeping_and_mcp(monkeypatch):
     for thread in threads + [watcher]:
         thread.join(timeout=2)
         assert not thread.is_alive()
+

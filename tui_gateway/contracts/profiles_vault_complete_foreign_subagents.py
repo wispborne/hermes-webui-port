@@ -48,12 +48,10 @@ method("complete.path", params=CompletePathParams, result=CompletionItemsResult,
 
 
 class CompleteSlashParams(Params):
-    """``session_id`` binds skill completions to that session's profile and workspace (project skills);
-    ``profile`` scopes a session-less request (a new-chat draft)."""
+    """``session_id`` binds skill completions to that session's profile and workspace (project skills)."""
 
     text: str | None = None
     session_id: str | None = None
-    profile: str | None = None
 
 
 class CompleteSlashResult(Result):
@@ -122,7 +120,6 @@ class ProfileSessionPreview(Result):
     started_at: float | int = 0
     last_active: float | int = 0
     message_count: int = 0
-    live_message_count: int | None = None
 
 
 class ProfileWorkerSession(Result):
@@ -145,7 +142,6 @@ class ProfileCanonicalSession(Result):
     started_at: float | int = 0
     last_active: float | int = 0
     message_count: int = 0
-    live_message_count: int | None = None
 
 
 class ProfileRow(Result):
@@ -174,12 +170,10 @@ class ProfilesListParams(ProfileParams):
 
 
 class ProfilesListResult(Result):
-    """``bot_mode_protocol`` tells clients this backend injects the teammate protocol itself;
-    ``install_id`` (as on ``/api/status``) names the machine that answered."""
+    """``bot_mode_protocol`` tells clients this backend injects the teammate protocol itself."""
 
     profiles: list[ProfileRow] = Field(default_factory=list)
     bot_mode_protocol: bool = True
-    install_id: str = ""
 
 
 method("profiles.list", params=ProfilesListParams, result=ProfilesListResult,
@@ -620,23 +614,11 @@ class SubagentSnapshot(Result):
     accepting_steer: bool | None = None
 
 
-class FailedDelegation(Result):
-    """``async_delegation.failed_delegations_for_session`` row: one failed task of an async delegation."""
-
-    delegation_id: str
-    task_index: int = 0
-    status: str
-    goal: str = ""
-    error: str | None = None
-    dispatched_at: float | None = None
-    completed_at: float | None = None
-
-
 class SubagentListResult(Result):
-    """``delegations``: recently failed async delegation tasks for the session (durable store), newest first."""
+    """``delegations`` is reserved for async delegation records and is currently always empty."""
 
     subagents: list[SubagentSnapshot] = Field(default_factory=list)
-    delegations: list[FailedDelegation] = Field(default_factory=list)
+    delegations: list[dict[str, JsonValue]] = Field(default_factory=list)
 
 
 method("subagent.list", params=SessionParams, result=SubagentListResult,

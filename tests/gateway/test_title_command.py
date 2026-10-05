@@ -13,6 +13,7 @@ from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource
 
+
 def _make_event(text="/title", platform=Platform.TELEGRAM,
                 user_id="12345", chat_id="67890"):
     """Build a MessageEvent for testing."""
@@ -23,6 +24,7 @@ def _make_event(text="/title", platform=Platform.TELEGRAM,
         user_name="testuser",
     )
     return MessageEvent(text=text, source=source)
+
 
 def _make_runner(session_db=None):
     """Create a bare GatewayRunner with a mock session_store and optional session_db."""
@@ -46,12 +48,15 @@ def _make_runner(session_db=None):
 
     return runner
 
+
 # ---------------------------------------------------------------------------
 # _handle_title_command
 # ---------------------------------------------------------------------------
 
+
 class TestHandleTitleCommand:
     """Tests for GatewayRunner._handle_title_command."""
+
 
     @pytest.mark.asyncio
     async def test_title_conflict(self, tmp_path):
@@ -68,6 +73,7 @@ class TestHandleTitleCommand:
         assert "already in use" in result
         db.close()
 
+
     @pytest.mark.asyncio
     async def test_title_control_chars_sanitized(self, tmp_path):
         """Control characters are stripped and sanitized title is stored."""
@@ -81,6 +87,7 @@ class TestHandleTitleCommand:
         assert "helloworld" in result
         assert db.get_session_title("test_session_123") == "helloworld"
         db.close()
+
 
     @pytest.mark.asyncio
     async def test_set_title_propagates_to_telegram_topic_rename(self, tmp_path):
@@ -118,16 +125,22 @@ class TestHandleTitleCommand:
         runner._schedule_telegram_topic_title_rename.assert_not_called()
         db.close()
 
+
 # ---------------------------------------------------------------------------
 # /title in help and known_commands
 # ---------------------------------------------------------------------------
+
+
+
 
 # ---------------------------------------------------------------------------
 # /new with title
 # ---------------------------------------------------------------------------
 
+
 class TestResetCommandWithTitle:
     """Tests for GatewayRunner._handle_reset_command with a title argument."""
+
 
     @pytest.mark.asyncio
     async def test_reset_command_duplicate_title_surfaces_warning(self):
@@ -192,6 +205,9 @@ class TestResetCommandWithTitle:
         # Header must NOT claim the rejected title as the session name
         assert "New session started: Dup" not in reply
 
+
 # ---------------------------------------------------------------------------
 # /new in help output
 # ---------------------------------------------------------------------------
+
+

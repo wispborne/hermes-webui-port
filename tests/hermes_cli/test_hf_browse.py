@@ -102,9 +102,24 @@ def test_browsed_download_stages_and_bounces(client, tmp_path, monkeypatch):
     bounce the router — the seam that makes it a NORMAL model."""
     body = b"GGUF" + b"\x00" * 60
 
-    from tests.hermes_cli.test_local_models_routes import _FakeRangeOpener
+    class FakeResponse:
+        headers = {"Content-Length": str(len(body))}
 
-    monkeypatch.setattr("pm.downloader._OPENER", _FakeRangeOpener(body))
+        def __init__(self):
+            self._data = body
+
+        def read(self, n=-1):
+            out, self._data = self._data, b""
+            return out
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr("urllib.request.urlopen",
+                        lambda *a, **k: FakeResponse())
     bounced = {}
     monkeypatch.setattr(
         "hermes_cli.local_runtime.bootstrap.refresh_local_runtime",

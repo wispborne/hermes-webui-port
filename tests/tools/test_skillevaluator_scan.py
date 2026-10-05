@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.skillevaluator_scan import (  # noqa: E402
@@ -22,6 +23,7 @@ from tools.skillevaluator_scan import (  # noqa: E402
     tier1_advisory_enabled,
 )
 
+
 def _report_json(findings):
     return {
         "overall_passed": not findings,
@@ -30,6 +32,7 @@ def _report_json(findings):
             {"validator": "Unicode Smuggling Detection", "passed": True, "findings": []},
         ],
     }
+
 
 def _finding(check, severity="high", message="msg", file="SKILL.md", line=3):
     return {
@@ -40,6 +43,7 @@ def _finding(check, severity="high", message="msg", file="SKILL.md", line=3):
         "line_number": line,
         "suggestion": "fix it",
     }
+
 
 class TestParseReport:
     def test_clean_report(self):
@@ -62,6 +66,8 @@ class TestParseReport:
         ]))
         assert len(report.secrets_findings) == 1
         assert report.advisory_findings == []
+
+
 
     def test_malformed_findings_skipped(self):
         raw = _report_json([_finding("emails")])
@@ -101,6 +107,9 @@ class TestParseReport:
         # findings present -> report is not clean, even though the only
         # failing validator was incomplete
         assert not report.passed
+
+
+
 
 class TestRunTier1Scan:
     def test_scanner_missing_degrades(self, tmp_path):
@@ -146,9 +155,11 @@ class TestRunTier1Scan:
         assert len(report.findings) == 1
         assert report.findings[0].check == "emails"
 
+
 class TestFormatReport:
     def test_unavailable_is_empty(self):
         assert format_tier1_report(Tier1Report(available=False)) == ""
+
 
     def test_findings_show_location_and_secrets_tag(self):
         report = _parse_report(_report_json([
@@ -178,6 +189,7 @@ class TestFormatReport:
         text = format_tier1_report(report, limit=5)
         assert "9 more" in text
 
+
 class TestConfigGate:
 
     def test_disabled_via_config(self):
@@ -193,6 +205,7 @@ class TestConfigGate:
     def test_config_error_defaults_enabled(self):
         with mock.patch("hermes_cli.config.load_config", side_effect=RuntimeError):
             assert tier1_advisory_enabled()
+
 
 class TestInstallPathHelper:
     """_print_tier1_advisory must never raise and never block."""
@@ -232,3 +245,4 @@ class TestInstallPathHelper:
                         return_value=report):
             _print_tier1_advisory(tmp_path, console)
         assert console.print.called
+

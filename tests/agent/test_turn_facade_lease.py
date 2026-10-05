@@ -59,17 +59,11 @@ def _admit(agent, history=None):
     )
 
 
-def test_fresh_row_leases_with_seed_kept_and_persist_disabled_skips(monkeypatch):
-    monkeypatch.setattr(
-        "agent.turn_liveness.resolve_turn_liveness_settings", lambda cfg: (None, 1.0)
-    )
+def test_no_lease_without_durable_row_or_when_persist_disabled():
     seed = [{"role": "user", "content": "hi"}]
-    agent = _agent(_Db(exists=False))
-    admission = _admit(agent, seed)
-    assert admission.lease is not None and admission.early_result is None
+    admission = _admit(_agent(_Db(exists=False)), seed)
+    assert admission.lease is None and admission.early_result is None
     assert admission.conversation_history is seed
-    assert getattr(agent, "_session_db_created", False) is False
-    admission.lease.release()
 
     db = _Db()
     admission = _admit(_agent(db, _persist_disabled=True), seed)

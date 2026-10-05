@@ -12,7 +12,6 @@ import sys
 import types
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-from urllib.parse import quote, unquote
 
 import pytest
 
@@ -242,7 +241,7 @@ async def test_queued_followup_delivery_strips_media_tag_from_text_and_sends_ima
     )
     adapter.send_multiple_images.assert_awaited_once_with(
         chat_id="chat-1",
-        images=[(f"file://{quote(str(media_file))}", "")],
+        images=[(f"file://{media_file.as_posix()}", "")],
         metadata={"thread_id": "topic-1"},
     )
 
@@ -292,7 +291,7 @@ async def test_queued_followup_delivery_reuses_routing_metadata_for_media(
     )
     adapter.send_multiple_images.assert_awaited_once_with(
         chat_id="chat-1",
-        images=[(f"file://{quote(str(media_file))}", "")],
+        images=[(f"file://{media_file.as_posix()}", "")],
         metadata=routing_metadata,
     )
 
@@ -580,6 +579,6 @@ async def test_queued_resend_branch_delivers_media_and_preserves_protected_examp
     assert first_texts, f"expected queued resend of first response, got: {adapter.sent!r}"
     assert f"MEDIA:{media_file}" not in first_texts[0]
     assert "`MEDIA:/tmp/example.png`" in first_texts[0]
-    assert any(str(media_file) in unquote(img["image_path"]) for img in adapter.images), (
+    assert any(str(media_file) in img["image_path"] for img in adapter.images), (
         f"expected native image delivery via queued resend, got: {adapter.images!r}"
     )

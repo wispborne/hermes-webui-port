@@ -138,11 +138,7 @@ class TestPhotonSidecarStartupClassification:
     def _make_adapter(self, monkeypatch):
         monkeypatch.setenv("PHOTON_PROJECT_ID", "pid")
         monkeypatch.setenv("PHOTON_PROJECT_SECRET", "psecret")
-        from plugins.platforms.photon import adapter as photon_adapter
         from plugins.platforms.photon.adapter import PhotonAdapter
-
-        # Stand-in for PM's node; the user's PATH node is never picked up.
-        monkeypatch.setattr(photon_adapter, "find_node_executable", lambda _name: "/pm/node")
 
         return PhotonAdapter(PlatformConfig(enabled=True, token="", extra={}))
 
@@ -278,7 +274,7 @@ class TestEmailConnectClassification:
 
 def _set_attention_after(value) -> None:
     """Write ``agent.reconnect_attention_after`` into the test's isolated HERMES_HOME config."""
-    import hermes_yaml as yaml
+    import yaml
     from hermes_constants import get_hermes_home
     (get_hermes_home() / "config.yaml").write_text(
         yaml.safe_dump({"agent": {"reconnect_attention_after": value}}), encoding="utf-8")

@@ -6,10 +6,6 @@ description: "A practical guide to connecting MCP servers to Hermes Agent, filte
 
 # Use MCP with Hermes
 
-Python dependency commands on this page use a
-[PM-prepared source checkout](../reference/package-management.md#developer-workflow).
-After a dependency change, reactivate the checkout and restart Hermes.
-
 This guide shows how to actually use MCP with Hermes Agent in day-to-day workflows.
 
 If the feature page explains what MCP is, this guide is about how to get value from it quickly and safely.
@@ -41,13 +37,13 @@ That last part matters. Good MCP usage is not just “connect everything.” It 
 
 ## Step 1: install MCP support
 
-If you installed Hermes with the standard install script, MCP support is already included. PM selects the declared `all` extra.
+If you installed Hermes with the standard install script, MCP support is already included (the installer runs `uv pip install -e ".[all]"`).
 
 If you installed without extras and need to add MCP separately:
 
 ```bash
 cd ~/.hermes/hermes-agent
-python -c "import pm; pm.sync_venv(['mcp'], explicit=True)"
+uv pip install -e ".[mcp]"
 ```
 
 For npm-based servers, make sure Node.js and `npx` are available.

@@ -30,18 +30,19 @@
  * Prerequisite: `npm run build` must have been run so dist/ exists.
  */
 
-import { writeEnvFile, writeMockProviderConfig } from '../../../tests-js/scripts/mock-provider-config'
-import { startMockServer } from '../../../tests-js/scripts/mock-server'
+import { expect, test } from './test'
 
 import {
-  buildAppEnv,
-  createSandbox,
-  launchDesktop,
   type MockBackendFixture,
   waitForAppReady,
+  createSandbox,
+  writeMockProviderConfig,
+  writeEnvFile,
+  buildAppEnv,
+  launchDesktop,
 } from './fixtures'
+import { startMockServer } from '../../../tests-js/scripts/mock-server'
 import { RealSessionBuilder } from './real-session-builder'
-import { expect, test } from './test'
 
 const SESSION_TITLE = 'E2E Warm Resume Jitter Test'
 

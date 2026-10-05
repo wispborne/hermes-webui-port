@@ -1,7 +1,5 @@
 import crypto from 'node:crypto'
 
-import { markExpectedTransition } from './crash-forensics'
-
 function sshConfigFingerprint(scope, config) {
   const parts = [
     scope,
@@ -32,7 +30,7 @@ function createBootstrapCoordinator() {
       const error: any = new Error('SSH bootstrap was cancelled because Desktop is quitting.')
       error.kind = 'superseded'
 
-      return Promise.reject(markExpectedTransition(error))
+      return Promise.reject(error)
     }
 
     const current = pending.get(scope)

@@ -46,8 +46,8 @@ export interface EnvRowProps {
   revealed: Record<string, string>
   saving: string | null
   setEdits: Dispatch<SetStateAction<Record<string, string>>>
-  onSave: (key: string, editKey?: string) => void
-  onClear: (key: string, editKey?: string) => void
+  onSave: (key: string) => void
+  onClear: (key: string) => void
   onReveal: (key: string) => void
   compact?: boolean
 }

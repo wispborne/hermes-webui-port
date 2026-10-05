@@ -1,3 +1,8 @@
+/**
+ * The parts every in-chat onboarding card shares: the frame it renders in, the props it receives, and the commit
+ * helper that submits the pick as a hidden [setup] message so the model moves on.
+ */
+
 import { useStore } from '@nanostores/react'
 
 import { requestComposerSubmit } from '@/app/chat/composer/focus'
@@ -7,11 +12,17 @@ import { cn } from '@/lib/utils'
 import { $onboardingAnswers, markStepCommitted } from '@/store/onboarding-answers'
 
 export interface CardProps {
+  /** The directive's raw attrs, written by the model. */
   attrs: Record<string, string>
+  /** Stable transcript identity for one-time application of model-supplied choices. */
   messageId?: string
+  /** True while the surrounding turn is still streaming; the card renders but does not accept clicks. */
   locked: boolean
 }
 
+/** `step` names the card so Done survives the card remounting: the hidden
+ *  submit and the turn-end hydrate both rebuild the transcript, and a flag in
+ *  component state came back false each time. */
 export function useCardCommit(step: string) {
   const view = useSessionView()
   const storedId = useStore(view.$storedId)
@@ -31,6 +42,8 @@ export function useCardCommit(step: string) {
   return { commit, done }
 }
 
+/** The frame draws no border or background, so the picker reads as message content in the transcript rather than as
+ *  a form. */
 export function CardFrame({
   children,
   continueLabel = 'Continue',
@@ -40,6 +53,8 @@ export function CardFrame({
   onContinue
 }: {
   children: React.ReactNode
+  /** The action, named for what it does when the default label says nothing specific.
+   *  "Continue with 2" tells them the picks registered. */
   continueLabel?: string
   disabled?: boolean
   done: boolean

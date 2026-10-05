@@ -18,11 +18,6 @@ vi.mock('@/hermes', () => ({
   setEnvVar: vi.fn()
 }))
 
-// Load once at module scope so no test's 15s budget pays the heavy transform
-// + import (the first-test timeout flake under CI load).
-const { KeysSettings } = await import('./keys-settings')
-const { $settingsScopeOverride } = await import('@/store/settings-scope')
-
 beforeEach(() => {
   getEnvVars.mockResolvedValue({})
   Object.defineProperty(Element.prototype, 'scrollIntoView', {
@@ -37,6 +32,8 @@ afterEach(() => {
 })
 
 async function renderKeysSettings(view: 'settings' | 'tools', route = '/settings') {
+  const { KeysSettings } = await import('./keys-settings')
+
   await act(async () => {
     render(
       <MemoryRouter initialEntries={[route]}>
@@ -114,6 +111,8 @@ describe('KeysSettings', () => {
       FIRECRAWL_API_KEY: envVar('tool', { description: 'Crawl and extract websites.' })
     })
 
+    const { KeysSettings } = await import('./keys-settings')
+
     render(
       <MemoryRouter initialEntries={['/settings?tab=keys']}>
         <KeysSettings view="tools" />
@@ -136,12 +135,16 @@ describe('KeysSettings', () => {
     // changes, but the in-flight edit map was not reset with it. A value typed
     // while targeting profile-b survived the switch to profile-c, where the
     // still-live Save would persist it into the WRONG profile.
+    const { $settingsScopeOverride } = await import('@/store/settings-scope')
+
     $settingsScopeOverride.set('profile-b')
     getEnvVars.mockResolvedValue({
       WIDGET_API_KEY: envVar('tool', { description: 'Widget key.', is_set: true, redacted_value: '••••••' })
     })
 
     try {
+      const { KeysSettings } = await import('./keys-settings')
+
       const { container } = render(
         <MemoryRouter initialEntries={['/settings']}>
           <KeysSettings view="tools" />

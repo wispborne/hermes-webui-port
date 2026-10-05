@@ -5,11 +5,13 @@ import { $corruptSessionStores, setCorruptSessionStores } from '@/store/session'
 
 import { SidebarStorageCorruptNotice } from './section-states'
 
-const openRecoveryGuide = vi.fn<(href: string) => void>()
+const openExternalLink = vi.fn()
+
+vi.mock('@/lib/external-link', () => ({ openExternalLink: (href: string) => openExternalLink(href) }))
 
 beforeEach(() => {
   $corruptSessionStores.set([])
-  openRecoveryGuide.mockClear()
+  openExternalLink.mockClear()
 })
 
 afterEach(cleanup)
@@ -26,7 +28,7 @@ describe('SidebarStorageCorruptNotice', () => {
 
   it('names the damaged profile and gives the non-destructive recovery path', () => {
     setCorruptSessionStores({ default: 'corrupt' })
-    render(<SidebarStorageCorruptNotice openRecoveryGuide={openRecoveryGuide} />)
+    render(<SidebarStorageCorruptNotice />)
 
     const notice = screen.getByTestId('storage-corrupt-notice')
 
@@ -39,7 +41,7 @@ describe('SidebarStorageCorruptNotice', () => {
     expect(notice.textContent).not.toContain('sessions repair')
 
     screen.getByRole('button', { name: /recovery guide/i }).click()
-    expect(openRecoveryGuide).toHaveBeenCalledWith(expect.stringContaining('/user-guide/session-storage-recovery'))
+    expect(openExternalLink).toHaveBeenCalledWith(expect.stringContaining('/user-guide/session-storage-recovery'))
   })
 
   it('keeps atom identity when a refresh reports the same stores', () => {

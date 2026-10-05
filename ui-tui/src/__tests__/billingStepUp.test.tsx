@@ -15,7 +15,6 @@ vi.mock('@hermes/ink', async importOriginal => {
 import type { BillingOverlayState } from '../app/interfaces.js'
 import { BillingOverlay } from '../components/billingOverlay.js'
 import type { BillingStateResponse } from '../gatewayTypes.js'
-import { messages } from '../i18n/runtime.js'
 import { DEFAULT_THEME } from '../theme.js'
 
 const t = DEFAULT_THEME
@@ -169,6 +168,6 @@ describe('BillingOverlay — auto-reload card divergence', () => {
     })
 
     expect(out).not.toContain('not your card on file')
-    expect(out).not.toContain(messages().billing.autoReload.manageCardOnPortal)
+    expect(out).not.toContain('Use your card on file — manage on portal')
   })
 })

@@ -23,6 +23,7 @@ pytestmark = pytest.mark.skipif(
     reason="`script` command not available on this host",
 )
 
+
 def test_tty_passthrough_to_container(built_image: str) -> None:
     """``docker run -t`` must deliver a real TTY to the container process."""
     # Emit the probe result behind a unique marker. The container's s6 boot
@@ -52,3 +53,5 @@ def test_tty_passthrough_to_container(built_image: str) -> None:
     assert value != "NO_TTY", f"TTY passthrough failed: {output!r}"
     assert value.isdigit(), f"Non-numeric column width {value!r} in: {output!r}"
     assert int(value) > 0
+
+
