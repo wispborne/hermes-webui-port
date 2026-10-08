@@ -47,6 +47,7 @@ import {
   type StoredGateway,
   tokenWsUrl
 } from './gateway'
+import { blobToDataUrl, browserFile, storeBrowserFile } from './browser-files'
 import { notify, onFocusSession, onNotificationActivate } from './notifications'
 
 type HermesDesktop = Window['hermesDesktop']
@@ -220,17 +221,37 @@ function idleBootstrapState(): DesktopBootstrapState {
   }
 }
 
-function openTab(url: string): boolean {
-  return Boolean(window.open(url, '_blank', 'noopener'))
+const IMAGE_MIME: Record<string, string> = {
+  bmp: 'image/bmp',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  svg: 'image/svg+xml',
+  tiff: 'image/tiff',
+  webp: 'image/webp'
 }
 
-function downloadBlob(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = filename
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+/**
+ * Read a file as a data URL. Files the user gave the page come from browser
+ * memory. Any other path is a file on the gateway, so ask the gateway for it.
+ * The desktop modules are loaded here, not at the top of the file, because
+ * this bridge has to exist before they run.
+ */
+async function readDataUrl(path: string): Promise<string> {
+  const stored = browserFile(path)
+
+  if (stored) {
+    return blobToDataUrl(stored)
+  }
+
+  const { readDesktopFileDataUrl } = await import('@/lib/desktop-fs')
+
+  return readDesktopFileDataUrl(path)
+}
+
+function openTab(url: string): boolean {
+  return Boolean(window.open(url, '_blank', 'noopener'))
 }
 
 /**
@@ -469,18 +490,23 @@ export function createWebBridge(): HermesDesktop {
       }
     },
     saveImageFromUrl: async url => openTab(url),
+    // Callers read the file back by the returned path (the composer, to attach
+    // a pasted image), so keep it in memory instead of downloading it.
     saveImageBuffer: async (data, ext, name) => {
       const bytes = data instanceof Uint8Array ? new Uint8Array(data) : new Uint8Array(data)
-      const filename = name || `hermes-image.${ext}`
-      downloadBlob(new Blob([bytes]), filename)
+      const extension = ext.replace(/^\./, '').toLowerCase()
+      const type = IMAGE_MIME[extension] ?? (extension === 'html' ? 'text/html' : '')
 
-      return filename
+      return storeBrowserFile(new Blob([bytes], { type }), name || `image.${extension}`)
     },
     openExternal: async url => {
       openTab(url)
     },
     openPreviewInBrowser: async url => {
-      openTab(url)
+      // A page saved with saveImageBuffer comes back as a file:// URL, which a
+      // browser tab can't open. Open the stored copy instead.
+      const stored = browserFile(url)
+      openTab(stored ? URL.createObjectURL(stored) : url)
     },
     fetchLinkTitle: async url => url,
 
@@ -528,16 +554,24 @@ export function createWebBridge(): HermesDesktop {
     onFoundInPage: unsubscribe,
     onOpenFindBarRequested: unsubscribe,
 
-    // ── Local machine (not available in a browser) ───────────────────────
-    readFileDataUrl: unavailable('Local file access'),
-    readFileText: unavailable('Local file access'),
+    // ── Local machine (files the user gave the page, else not available) ─
+    readFileDataUrl: readDataUrl,
+    readFileText: async path => {
+      const stored = browserFile(path)
+
+      if (!stored) {
+        throw new Error('Local file access is not available in the web app')
+      }
+
+      return { path, text: await stored.text(), mimeType: stored.type, byteSize: stored.size }
+    },
     readDir: async () => ({ entries: [], error: 'Local file access is not available in the web app' }),
     selectPaths: async () => [],
-    // An empty path tells the composer to put a large paste in the text box
-    // instead of turning it into a file attachment. Throwing showed an error.
-    savePastedText: async () => '',
+    savePastedText: async text => storeBrowserFile(new Blob([text], { type: 'text/plain' }), 'pasted-text.txt'),
     saveClipboardImage: async () => '',
-    getPathForFile: () => '',
+    // Dropped files have no real path in a browser. Keep the file in memory
+    // and hand back a made-up path that reads it.
+    getPathForFile: file => storeBrowserFile(file, file.name),
     normalizePreviewTarget: async () => null,
     watchPreviewFile: async url => ({ id: '', path: url }),
     stopPreviewFileWatch: async () => true,
