@@ -533,7 +533,9 @@ export function createWebBridge(): HermesDesktop {
     readFileText: unavailable('Local file access'),
     readDir: async () => ({ entries: [], error: 'Local file access is not available in the web app' }),
     selectPaths: async () => [],
-    savePastedText: unavailable('Saving pasted text to disk'),
+    // An empty path tells the composer to put a large paste in the text box
+    // instead of turning it into a file attachment. Throwing showed an error.
+    savePastedText: async () => '',
     saveClipboardImage: async () => '',
     getPathForFile: () => '',
     normalizePreviewTarget: async () => null,
