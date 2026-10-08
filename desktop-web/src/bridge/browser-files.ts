@@ -41,6 +41,61 @@ export function browserFile(path: string): Blob | null {
   return files.get(plain) ?? files.get(decodeURIComponent(plain)) ?? null
 }
 
+/**
+ * Show the browser's file picker and keep the chosen files. Resolves with
+ * their paths, or [] when the user cancels.
+ */
+export function pickBrowserFiles(options: {
+  multiple?: boolean
+  filters?: Array<{ extensions: string[] }>
+}): Promise<string[]> {
+  return new Promise(resolve => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = options.multiple ?? true
+
+    const extensions = options.filters?.flatMap(filter => filter.extensions).filter(ext => ext !== '*') ?? []
+
+    if (extensions.length > 0) {
+      input.accept = extensions.map(ext => `.${ext}`).join(',')
+    }
+
+    input.addEventListener('change', () => {
+      resolve(Array.from(input.files ?? [], file => storeBrowserFile(file, file.name)))
+    })
+    input.addEventListener('cancel', () => resolve([]))
+    input.click()
+  })
+}
+
+/** Keep the first image on the clipboard. Resolves with its path, or '' when there is none. */
+export async function storeClipboardImage(): Promise<string> {
+  // Needs an https page (or localhost) and the user's permission.
+  const items = await navigator.clipboard?.read?.().catch(() => [])
+
+  for (const item of items ?? []) {
+    const type = item.types.find(candidate => candidate.startsWith('image/'))
+
+    if (type) {
+      const blob = await item.getType(type)
+
+      return storeBrowserFile(blob, `clipboard.${type.slice('image/'.length).split('+')[0]}`)
+    }
+  }
+
+  return ''
+}
+
+/** Hand `blob` to the browser as a download named `filename`. */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
 export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

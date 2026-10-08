@@ -305,6 +305,31 @@ export async function apiFetch<T>(request: HermesApiRequest): Promise<T> {
 }
 
 /**
+ * Download a file from the gateway's disk. Rejects with `"NNN: message"` on an
+ * HTTP error, like apiFetch. No timeout, because the file may be large.
+ */
+export async function fetchGatewayFile(filePath: string, profile?: null | string): Promise<Blob> {
+  let url = `${baseUrl()}/api/files/download?path=${encodeURIComponent(filePath)}`
+
+  if (profile) {
+    url += `&profile=${encodeURIComponent(profile)}`
+  }
+
+  const token = resolveToken()
+
+  const res = await fetch(url, {
+    headers: token ? { 'X-Hermes-Session-Token': token } : {},
+    credentials: 'same-origin'
+  })
+
+  if (!res.ok) {
+    throw new Error(`${res.status}: ${(await res.text()) || res.statusText}`)
+  }
+
+  return res.blob()
+}
+
+/**
  * Browser version of the desktop's login window: open the gateway's `/login`
  * in a popup and poll our own session until it is live. The app page is never
  * navigated away (unless the popup is blocked, see below). Resolves false if

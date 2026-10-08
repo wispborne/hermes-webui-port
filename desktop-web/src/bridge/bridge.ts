@@ -34,6 +34,7 @@ import {
   activeAuthMode,
   apiFetch,
   baseUrl,
+  fetchGatewayFile,
   fetchStatus,
   freshWsUrl,
   GatewayAuthError,
@@ -47,7 +48,14 @@ import {
   type StoredGateway,
   tokenWsUrl
 } from './gateway'
-import { blobToDataUrl, browserFile, storeBrowserFile } from './browser-files'
+import {
+  blobToDataUrl,
+  browserFile,
+  downloadBlob,
+  pickBrowserFiles,
+  storeBrowserFile,
+  storeClipboardImage
+} from './browser-files'
 import { notify, onFocusSession, onNotificationActivate } from './notifications'
 
 type HermesDesktop = Window['hermesDesktop']
@@ -250,8 +258,34 @@ async function readDataUrl(path: string): Promise<string> {
   return readDesktopFileDataUrl(path)
 }
 
+/**
+ * Open `url` in a new tab. Returns false when the browser blocked it. The
+ * 'noopener' feature would make window.open return null every time, so the
+ * opener link is cut by hand instead.
+ */
 function openTab(url: string): boolean {
-  return Boolean(window.open(url, '_blank', 'noopener'))
+  const tab = window.open(url, '_blank')
+
+  if (tab) {
+    tab.opener = null
+  }
+
+  return Boolean(tab)
+}
+
+/** The last part of a path or URL, for use as a download's file name. */
+function fileName(pathOrUrl: string, fallback: string): string {
+  if (pathOrUrl.startsWith('data:')) {
+    return fallback
+  }
+
+  const last = pathOrUrl.split(/[?#]/)[0].split(/[\\/]/).pop() ?? ''
+
+  try {
+    return decodeURIComponent(last) || fallback
+  } catch {
+    return last || fallback
+  }
 }
 
 /**
@@ -489,7 +523,23 @@ export function createWebBridge(): HermesDesktop {
         return ''
       }
     },
-    saveImageFromUrl: async url => openTab(url),
+    saveImageFromUrl: async url => {
+      const res = await fetch(url, { credentials: 'same-origin' })
+
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${res.statusText}`)
+      }
+
+      downloadBlob(await res.blob(), fileName(url, 'image'))
+
+      return true
+    },
+    saveGatewayFile: async ({ path, profile, suggestedName }) => {
+      const name = suggestedName || fileName(path, 'file')
+      downloadBlob(await fetchGatewayFile(path, profile), name)
+
+      return { saved: true, path: name }
+    },
     // Callers read the file back by the returned path (the composer, to attach
     // a pasted image), so keep it in memory instead of downloading it.
     saveImageBuffer: async (data, ext, name) => {
@@ -566,9 +616,11 @@ export function createWebBridge(): HermesDesktop {
       return { path, text: await stored.text(), mimeType: stored.type, byteSize: stored.size }
     },
     readDir: async () => ({ entries: [], error: 'Local file access is not available in the web app' }),
-    selectPaths: async () => [],
+    // Folders are picked from the gateway's disk by the app itself, so only
+    // file picks reach here.
+    selectPaths: async options => (options?.directories ? [] : pickBrowserFiles(options ?? {})),
     savePastedText: async text => storeBrowserFile(new Blob([text], { type: 'text/plain' }), 'pasted-text.txt'),
-    saveClipboardImage: async () => '',
+    saveClipboardImage: storeClipboardImage,
     // Dropped files have no real path in a browser. Keep the file in memory
     // and hand back a made-up path that reads it.
     getPathForFile: file => storeBrowserFile(file, file.name),
