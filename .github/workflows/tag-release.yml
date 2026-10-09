@@ -1,0 +1,65 @@
+# Tags each change to main that is built for a Hermes release.
+#
+# The first build for a Hermes version gets ui-<version>, e.g. ui-v2026.9.24.
+# Each later one for the same version gets the next number: ui-v2026.9.24.1,
+# ui-v2026.9.24.2, ... Tags never move, so anyone who fetched one has the
+# same code as everyone else.
+#
+# The version comes from desktop-web/UPSTREAM_VERSION. A sync of upstream main
+# writes a date and commit there instead of a release tag, and isn't tagged.
+
+name: Tag release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - README.md
+      - LICENSE
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Two quick merges must not both pick the same number.
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Tag main
+        run: |
+          set -euo pipefail
+          version=$(tr -d '[:space:]' < desktop-web/UPSTREAM_VERSION)
+
+          if ! [[ $version =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "UPSTREAM_VERSION is '$version', not a Hermes release. Not tagging."
+            exit 0
+          fi
+
+          base="ui-$version"
+
+          if existing=$(git tag --points-at HEAD --list "$base" "$base.*" | head -n 1) && [ -n "$existing" ]; then
+            echo "main is already tagged $existing."
+            exit 0
+          fi
+
+          if ! git rev-parse -q --verify "refs/tags/$base" >/dev/null; then
+            tag=$base
+          else
+            last=$(git tag --list "$base.*" | sed -n "s/^${base//./\\.}\.\([0-9][0-9]*\)$/\1/p" | sort -n | tail -n 1)
+            tag="$base.$(( ${last:-0} + 1 ))"
+          fi
+
+          git tag "$tag" HEAD
+          git push origin "refs/tags/$tag"
+          echo "Tagged $(git rev-parse --short HEAD) as $tag." | tee -a "$GITHUB_STEP_SUMMARY"
