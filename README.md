@@ -112,7 +112,7 @@ Serve that folder from a web server that also forwards these paths to the dashbo
 | `/auth/*` | Sign-in, sign-out and session refresh. |
 | `/login` | The dashboard's sign-in page. |
 
-Everything else is a file in `desktop-web/dist/`.
+Everything else is a file in `desktop-web/dist/`, including `mcp-oauth-callback.html` (see [MCP servers that sign in with OAuth](#mcp-servers-that-sign-in-with-oauth)).
 The app uses hash routes (`/#/settings`), so the server only needs to serve `index.html` at `/`.
 The [`Caddyfile`](Caddyfile) in this repo is a working example.
 
@@ -122,6 +122,13 @@ Open the web UI's address.
 You'll see "Remote gateway sign-in required" with a sign-in button, which opens the dashboard's sign-in page.
 After you sign in, you're returned to the app.
 If you're already signed in to the dashboard on that address, the app opens straight away.
+
+## MCP servers that sign in with OAuth
+
+Hermes only lets an MCP server's sign-in return to a `localhost` or `127.0.0.1` address, so how it finishes depends on the address you opened the web UI at:
+
+- **On `http://localhost:<port>` or `http://127.0.0.1:<port>`**: sign in on the tab that opens. It returns to the web UI and closes, and the server connects.
+- **Anywhere else**: sign in on the tab that opens. That tab then ends on a `http://127.0.0.1:<port>/callback?code=...` page that won't load. Copy its address and paste it into the dialog in the web UI.
 
 ## Updating
 
