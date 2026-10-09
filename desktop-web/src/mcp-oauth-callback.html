@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Hermes sign-in</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+      }
+      main {
+        max-width: 28rem;
+        padding: 1.5rem;
+        text-align: center;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        margin: 0;
+        opacity: 0.8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">Finishing sign-in…</h1>
+      <p id="detail"></p>
+    </main>
+    <script>
+      // Where an MCP server's OAuth sign-in lands when the web UI is opened on
+      // localhost (desktop-web/src/bridge/mcp-oauth.ts). Hands the result to the
+      // Hermes tab, which relays it to the gateway, then closes this tab.
+      ;(function () {
+        var params = new URLSearchParams(location.search)
+        var result = {
+          code: params.get('code'),
+          state: params.get('state'),
+          error: params.get('error'),
+          iss: params.get('iss')
+        }
+        var title = document.getElementById('title')
+        var detail = document.getElementById('detail')
+
+        // Keep the code out of the history and the address bar.
+        history.replaceState(null, '', location.pathname)
+
+        function show(heading, text) {
+          title.textContent = heading
+          detail.textContent = text
+        }
+
+        if (!('BroadcastChannel' in window)) {
+          show('Sign-in failed', 'This browser can’t pass the sign-in back to Hermes.')
+          return
+        }
+
+        var channel = new BroadcastChannel('hermes-web:mcp-oauth')
+        var done = false
+
+        channel.onmessage = function (event) {
+          if (done || !event.data || event.data.ack !== result.state) {
+            return
+          }
+
+          done = true
+          channel.close()
+          show(
+            result.error ? 'Sign-in cancelled' : 'Signed in',
+            'You can close this tab and go back to Hermes.'
+          )
+          window.close()
+        }
+
+        channel.postMessage({ callback: result })
+
+        setTimeout(function () {
+          if (!done) {
+            channel.close()
+            show(
+              'Hermes didn’t get this sign-in',
+              'Keep the Hermes tab open while you sign in, then try again from Hermes.'
+            )
+          }
+        }, 3000)
+      })()
+    </script>
+  </body>
+</html>

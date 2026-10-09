@@ -56,6 +56,7 @@ import {
   storeBrowserFile,
   storeClipboardImage
 } from './browser-files'
+import { mcpOauth, noteAuthUrl } from './mcp-oauth'
 import { notify, onFocusSession, onNotificationActivate } from './notifications'
 
 type HermesDesktop = Window['hermesDesktop']
@@ -550,8 +551,12 @@ export function createWebBridge(): HermesDesktop {
       return storeBrowserFile(new Blob([bytes], { type }), name || `image.${extension}`)
     },
     openExternal: async url => {
+      // An MCP sign-in page also gets a dialog, with a link in case this tab
+      // is blocked.
+      noteAuthUrl(url)
       openTab(url)
     },
+    mcpOauth,
     openPreviewInBrowser: async url => {
       // A page saved with saveImageBuffer comes back as a file:// URL, which a
       // browser tab can't open. Open the stored copy instead.

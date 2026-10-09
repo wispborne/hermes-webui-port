@@ -8,7 +8,9 @@
  *    browser bridge before loading the desktop entry;
  *  - writes the build to desktop-web/dist instead of the desktop app's folder;
  *  - in dev, proxies the gateway's routes so the page and the gateway share
- *    one origin (the gateway only accepts same-origin browsers).
+ *    one origin (the gateway only accepts same-origin browsers);
+ *  - adds mcp-oauth-callback.html, where MCP server sign-ins land when the web
+ *    UI is open on localhost (src/bridge/mcp-oauth.ts).
  */
 
 import { execFileSync } from 'node:child_process'
@@ -16,7 +18,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { type ConfigEnv, defineConfig, mergeConfig, type Plugin, type UserConfig } from 'vite'
+import { type ConfigEnv, type Connect, defineConfig, mergeConfig, type Plugin, type UserConfig } from 'vite'
 
 import desktopConfig from '../apps/desktop/vite.config'
 
@@ -78,6 +80,39 @@ function webEntry(): Plugin {
   }
 }
 
+const MCP_OAUTH_CALLBACK = 'mcp-oauth-callback.html'
+
+/**
+ * Serves src/mcp-oauth-callback.html at the site root: written to dist in a
+ * build, answered directly by the dev and preview servers.
+ */
+function mcpOauthCallbackPage(): Plugin {
+  const source = path.resolve(here, 'src', MCP_OAUTH_CALLBACK)
+
+  const serve = (server: { middlewares: { use: (handler: Connect.NextHandleFunction) => void } }) => {
+    server.middlewares.use((req, res, next) => {
+      if (req.url?.split('?')[0] !== `/${MCP_OAUTH_CALLBACK}`) {
+        next()
+
+        return
+      }
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store')
+      res.end(fs.readFileSync(source, 'utf8'))
+    })
+  }
+
+  return {
+    name: 'hermes-web:mcp-oauth-callback',
+    configureServer: serve,
+    configurePreviewServer: serve,
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: MCP_OAUTH_CALLBACK, source: fs.readFileSync(source, 'utf8') })
+    }
+  }
+}
+
 /**
  * Dev only: copy the gateway's bootstrap script (session token, auth mode)
  * into the page. When the gateway serves the app it adds this script itself;
@@ -116,7 +151,7 @@ export default defineConfig(async (env: ConfigEnv) => {
   return mergeConfig(desktop, {
     root: desktopRoot,
     cacheDir: path.resolve(here, 'node_modules/.vite'),
-    plugins: [webEntry(), gatewayBootstrap()],
+    plugins: [webEntry(), gatewayBootstrap(), mcpOauthCallbackPage()],
     define: {
       __HERMES_WEB_VERSION__: JSON.stringify(upstreamVersion()),
       __HERMES_WEB_COMMIT__: JSON.stringify(git('rev-parse', '--short', 'HEAD'))
