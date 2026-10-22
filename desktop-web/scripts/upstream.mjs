@@ -31,9 +31,10 @@ const KEEP_DIRS = ['apps/desktop/src/', 'apps/desktop/public/', 'apps/shared/']
 // aren't kept, and none of them are part of the build.
 const TEST_FILE = /(\.(test|spec)\.[cm]?tsx?$|\/test\/|\/__tests__\/|\/test-utils\.tsx?$)/
 
-// The UI imports a few type files from the Electron folder. These are found by
-// following imports, so a newer upstream that imports more still builds.
-const ELECTRON_DIR = 'apps/desktop/electron/'
+// The UI imports a few files from elsewhere in apps/desktop, mostly types in the
+// Electron folder. These are found by following imports, so a newer upstream
+// that imports more still builds.
+const DESKTOP_DIR = 'apps/desktop/'
 
 const git = (args, options = {}) =>
   execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 30, ...options })
@@ -96,17 +97,21 @@ function keptEntries(commit) {
 
     toScan.forEach((entry, index) => {
       for (const target of relativeImports(entry.file, texts[index])) {
-        if (!target.startsWith(ELECTRON_DIR)) {
+        if (!target.startsWith(DESKTOP_DIR)) {
           continue
         }
 
         const match = [target, `${target}.ts`, `${target}.d.ts`, `${target}/index.ts`]
           .map(candidate => byFile.get(candidate))
           .find(Boolean)
+        // A plain JS file (update-feed.cjs) has its types in a declaration file next to it.
+        const types = byFile.get(target.replace(/.([cm]?)js$/, '.d.$1ts'))
 
-        if (match && !kept.has(match.file)) {
-          kept.set(match.file, match)
-          found.push(match)
+        for (const entry of [match, types]) {
+          if (entry && !kept.has(entry.file)) {
+            kept.set(entry.file, entry)
+            found.push(entry)
+          }
         }
       }
     })
