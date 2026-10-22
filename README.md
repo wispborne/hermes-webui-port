@@ -73,8 +73,9 @@ services:
 ```
 
 Each Hermes release has a matching tag, `ui-<Hermes version>`, for example `ui-v2026.9.24`.
-Replace `#main` with the tag for your Hermes version.
-A fix for the same Hermes version moves its tag, so rebuilding picks the fix up.
+Fixes for the same Hermes version get numbered tags after it: `ui-v2026.9.24.1`, `ui-v2026.9.24.2`, and so on.
+Replace `#main` with the newest tag for your Hermes version, and change it to pick up a fix.
+Tags never move, so a rebuild gives you the same code until you change it.
 
 If the dashboard runs in another container on the same Docker network, drop `network_mode: host`, publish the port (`ports: ["8080:8080"]`), and point `HERMES_DASHBOARD_URL` at that container, for example `http://hermes:9119`.
 
@@ -112,7 +113,7 @@ Serve that folder from a web server that also forwards these paths to the dashbo
 | `/auth/*` | Sign-in, sign-out and session refresh. |
 | `/login` | The dashboard's sign-in page. |
 
-Everything else is a file in `desktop-web/dist/`.
+Everything else is a file in `desktop-web/dist/`, including `mcp-oauth-callback.html` (see [MCP servers that sign in with OAuth](#mcp-servers-that-sign-in-with-oauth)).
 The app uses hash routes (`/#/settings`), so the server only needs to serve `index.html` at `/`.
 The [`Caddyfile`](Caddyfile) in this repo is a working example.
 
@@ -122,6 +123,13 @@ Open the web UI's address.
 You'll see "Remote gateway sign-in required" with a sign-in button, which opens the dashboard's sign-in page.
 After you sign in, you're returned to the app.
 If you're already signed in to the dashboard on that address, the app opens straight away.
+
+## MCP servers that sign in with OAuth
+
+Hermes only lets an MCP server's sign-in return to a `localhost` or `127.0.0.1` address, so how it finishes depends on the address you opened the web UI at:
+
+- **On `http://localhost:<port>` or `http://127.0.0.1:<port>`**: sign in on the tab that opens. It returns to the web UI and closes, and the server connects.
+- **Anywhere else**: sign in on the tab that opens. That tab then ends on a `http://127.0.0.1:<port>/callback?code=...` page that won't load. Copy its address and paste it into the dialog in the web UI.
 
 ## Updating
 
@@ -173,9 +181,13 @@ This type-checks the browser code together with the whole desktop app.
 
 The `hermes-agent` branch holds the hermes-agent files the UI is built from, one commit per version synced.
 `npm run sync-upstream` adds the next one and merges it into `main`, then regenerates `package.json` and `package-lock.json` from upstream's, with the same package versions.
-For a release tag, it also tags the result `ui-<tag>`, moving the tag if it exists.
-Publish with `git push origin hermes-agent main`, then `git push --force origin ui-<tag>`.
-After a fix for the same Hermes version, move its tag the same way: `git tag -f ui-<tag>`, then push it with `--force`.
+Publish with `git push origin hermes-agent main`.
+
+Tags are made by GitHub Actions ([`.github/workflows/tag-release.yml`](.github/workflows/tag-release.yml)), not by hand.
+Each push to `main` built for a Hermes release gets the next tag for that version: `ui-<version>` the first time, then `ui-<version>.1`, `ui-<version>.2`, and so on.
+Pushes that only change `README.md` or `LICENSE` aren't tagged, and neither are syncs of upstream `main`.
+To tag the current `main` by hand, run the workflow from the Actions tab.
+Never move or delete a tag: people build from them.
 
 If the merge stops on a conflict, fix it, commit, then run the sync again with the same version.
 
