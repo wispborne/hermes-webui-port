@@ -225,7 +225,8 @@ function idleBootstrapState(): DesktopBootstrapState {
     startedAt: null,
     completedAt: null,
     setupChoice: null,
-    unsupportedPlatform: null
+    unsupportedPlatform: null,
+    bundled: false
   }
 }
 
@@ -364,9 +365,6 @@ export function createWebBridge(): HermesDesktop {
         targetProfile: profile
       })),
     revalidateConnection: async () => ({ ok: true, rebuilt: false }),
-    touchBackend: async () => ({ ok: true }),
-    getPoolLimits: async () => ({ maxBackends: 1, idleMs: 0 }),
-    setPoolLimits: async () => ({ ok: false, limits: { maxBackends: 1, idleMs: 0 } }),
     getBootProgress: async () => readyBootProgress(),
     onBootProgress: unsubscribe,
     onBackendExit: unsubscribe,
@@ -592,12 +590,14 @@ export function createWebBridge(): HermesDesktop {
     quickEntry: {
       getSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
       setSettings: async () => ({ enabled: false, error: null, registered: false, shortcut: '' }),
-      submit: noop,
+      submit: async () => ({ ok: false, message: 'Quick entry is not available in the web app.' }),
+      ackSubmit: noop,
       dismiss: noop,
       pushState: noop,
       onState: unsubscribe,
       onSubmit: unsubscribe,
-      onShown: unsubscribe
+      onShown: unsubscribe,
+      onLateResult: unsubscribe
     },
     findInPage: async () => ({ count: 0 }),
     stopFindInPage: async () => {},
@@ -651,6 +651,13 @@ export function createWebBridge(): HermesDesktop {
     getBootstrapState: async () => idleBootstrapState(),
     continueBootstrapLocal: async () => ({ ok: false }),
     resetBootstrap: async () => ({ ok: true }),
+    // The web app never installs updates, so nothing holds a boot.
+    updateHold: {
+      recheck: async () => ({ ok: true }),
+      quit: async () => ({ ok: false }),
+      startAnyway: async () => ({ ok: true })
+    },
+    getSyncStatus: async () => null,
     repairBootstrap: async () => ({ ok: true }),
     cancelBootstrap: async () => ({ ok: true, cancelled: true }),
     onBootstrapEvent: unsubscribe,
@@ -666,13 +673,12 @@ export function createWebBridge(): HermesDesktop {
     updates: {
       check: async () => ({ supported: false }),
       apply: async () => ({ ok: false }),
-      getBranch: async () => ({ branch: '' }),
-      setBranch: async () => ({ branch: '' }),
       onProgress: unsubscribe
     },
     uninstall: {
       summary: unavailable('Uninstall'),
-      run: unavailable('Uninstall')
+      run: unavailable('Uninstall'),
+      openAppsSettings: unavailable('Uninstall')
     },
     themes: {
       fetchMarketplace: unavailable('Marketplace themes'),
