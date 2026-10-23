@@ -88,7 +88,8 @@ import { useStatusDrawer } from './hooks/use-status-drawer'
 import { useSessionStatusPresence } from './hooks/use-status-presence'
 import { shouldConvertPasteToAttachment } from './large-paste'
 import { ActionBadges } from './micro-actions'
-import { chipTypedPathOnSpace, pathifyRefs } from './path-refs'
+import { chipTypedPathOnSpace } from './path-refs'
+import { pasteComposerText } from './paste-refs-mode'
 import { PreparedImageRecovery } from './prepared-image-recovery'
 import { renderComposerQueueSlot, useComposerQueueScopeKey } from './queue-slot'
 import { RestoredDraftNotice } from './restored-draft-notice'
@@ -112,7 +113,6 @@ import { isRedoShortcut, isUndoShortcut } from './undo-history'
 import { UrlDialog } from './url-dialog'
 import {
   chipTypedUrlOnSpace,
-  linkifyUrls,
   markdownLinkFor,
   resolveExactLinkPaste,
   selectionLinkLabel
@@ -640,7 +640,7 @@ export function ChatBar({
         }
 
         recordUndoPoint()
-        insertComposerContentsAtCaret(editor, pathifyRefs(linkifyUrls(pastedText)), openDirectiveScope(editor))
+        insertComposerContentsAtCaret(editor, pasteComposerText(pastedText), openDirectiveScope(editor))
         scheduleFlushEditorToDraft(editor)
       })
 
@@ -656,7 +656,7 @@ export function ChatBar({
     const scope = openDirectiveScope(event.currentTarget)
 
     recordUndoPoint()
-    insertComposerContentsAtCaret(event.currentTarget, pathifyRefs(linkifyUrls(pastedText)), scope)
+    insertComposerContentsAtCaret(event.currentTarget, pasteComposerText(pastedText), scope)
     scheduleFlushEditorToDraft(event.currentTarget)
   }
 

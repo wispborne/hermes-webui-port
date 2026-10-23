@@ -17,9 +17,9 @@ import { isEditableTarget } from '@/lib/keybinds/combo'
 import { composerFocusBlockedBySurface } from '@/lib/keybinds/composer-focus-keys'
 
 import { requestComposerAttachImages, requestComposerFocus, requestComposerInsert } from './focus'
-import { pathifyRefs } from './path-refs'
 import { extractClipboardImageBlobs } from './text-utils'
-import { linkifyUrls } from './url-refs'
+import { pasteComposerText } from './paste-refs-mode'
+
 
 /** Route clipboard contents to the active composer. True when it carried
  *  something a composer can take (the caller should swallow the event). */
@@ -35,7 +35,7 @@ export function routeClipboardToComposer(clipboard: DataTransfer): boolean {
   if (text && !DATA_IMAGE_URL_RE.test(text)) {
     // Same chipping the focused paste path applies: links land as `@url:`
     // chips, bare `@path` tokens promote. The insert focuses the composer.
-    requestComposerInsert(pathifyRefs(linkifyUrls(text)), { mode: 'inline' })
+    requestComposerInsert(pasteComposerText(text), { mode: 'inline' })
 
     return true
   }
