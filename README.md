@@ -178,6 +178,7 @@ This type-checks the browser code together with the whole desktop app.
 - `desktop-web/vite.config.ts`: builds the desktop app with its own Vite config and `index.html`, loading the bridge first.
 - `desktop-web/scripts/`: `sync-upstream.sh` and `upstream.mjs`, which bring in a hermes-agent version.
 - `Dockerfile` and `Caddyfile`: the container image.
+- `mobile/`: the Hermes mobile app for Android, which uses the same shared code and strings. See [`mobile/README.md`](mobile/README.md). The sync also type-checks and tests it.
 
 The `hermes-agent` branch holds the hermes-agent files the UI is built from, one commit per version synced.
 `npm run sync-upstream` adds the next one and merges it into `main`, then regenerates `package.json` and `package-lock.json` from upstream's, with the same package versions.
@@ -185,7 +186,7 @@ Publish with `git push origin hermes-agent main`.
 
 Tags are made by GitHub Actions ([`.github/workflows/tag-release.yml`](.github/workflows/tag-release.yml)), not by hand.
 Each push to `main` built for a Hermes release gets the next tag for that version: `ui-<version>` the first time, then `ui-<version>.1`, `ui-<version>.2`, and so on.
-Pushes that only change `README.md` or `LICENSE` aren't tagged, and neither are syncs of upstream `main`.
+Pushes that only change `README.md`, `LICENSE`, `mobile/`, `openspec/`, `docs/`, `CONTEXT.md` or `.github/` aren't tagged, and neither are syncs of upstream `main`.
 To tag the current `main` by hand, run the workflow from the Actions tab.
 Never move or delete a tag: people build from them.
 

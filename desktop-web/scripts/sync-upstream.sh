@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Moves the web UI to a hermes-agent version, then type-checks and builds it.
+# Moves the web UI to a hermes-agent version, then type-checks and builds it,
+# and checks the mobile app against it.
 #
 #   npm run sync-upstream -- v2026.9.24   # a release tag (match your gateway)
 #   npm run sync-upstream                 # upstream main
@@ -88,6 +89,19 @@ fi
 ELECTRON_SKIP_BINARY_DOWNLOAD=1 npx -y npm@11 ci --ignore-scripts --no-audit --no-fund
 npm run typecheck
 npm run build
+
+# The mobile app runs apps/shared and uses the desktop's strings, so an upstream
+# change can break it. Check it here, not on the phone (docs/adr/0001).
+npm --prefix mobile ci --no-audit --no-fund
+npm --prefix mobile run strings
+npm --prefix mobile run built-for-version
+npm --prefix mobile run typecheck
+npm --prefix mobile test
+git add mobile/src/i18n/en.generated.json mobile/src/gateway/built-for-version.ts
+
+if ! git diff --cached --quiet; then
+  git commit -q -m "The mobile app's strings and built-for version match hermes-agent $ref (${upstream:0:10})."
+fi
 
 echo
 

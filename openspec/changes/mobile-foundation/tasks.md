@@ -44,13 +44,13 @@
 ## 8. Test harness
 
 - [x] 8.1 Build the fake gateway (WebSocket server in the test process that plays back fixture frames and records client frames)
-- [ ] 8.2 Write `mobile/scripts/record-gateway.mjs` (signs in, opens a session, sends a message, saves frames, replaces text unless `--keep-text`)
+- [x] 8.2 Write `mobile/scripts/record-gateway.mjs` (signs in, opens a session, sends a message, saves frames, replaces text unless `--keep-text`)
 - [ ] 8.3 The owner runs the recorder against their gateway and checks the recordings before they're committed
 
 ## 9. Sync step and CI
 
-- [ ] 9.1 Add the mobile step to `desktop-web/scripts/sync-upstream.sh` (install, export strings, write the built-for version, type check, test)
-- [ ] 9.2 Add `.github/workflows/mobile.yml` for `mobile/**` and `apps/shared/**`
+- [x] 9.1 Add the mobile step to `desktop-web/scripts/sync-upstream.sh` (install, export strings, write the built-for version, type check, test)
+- [x] 9.2 Add `.github/workflows/mobile.yml` for `mobile/**` and `apps/shared/**`
 
 ## 10. Done
 

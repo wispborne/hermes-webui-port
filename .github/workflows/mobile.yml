@@ -1,0 +1,51 @@
+# Checks the mobile app when it or the shared code changes: the strings and
+# built-for version are up to date, and the type check and tests pass. The
+# upstream sync runs the same checks (desktop-web/scripts/sync-upstream.sh).
+
+name: Mobile
+
+on:
+  push:
+    paths:
+      - mobile/**
+      - apps/shared/**
+      - .github/workflows/mobile.yml
+  pull_request:
+    paths:
+      - mobile/**
+      - apps/shared/**
+      - .github/workflows/mobile.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The strings export loads the desktop's en.ts, which needs the web UI's packages.
+      - name: Install the web UI's packages
+        run: npx -y npm@11 ci --ignore-scripts --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+      - name: Install the mobile app's packages
+        run: npm --prefix mobile ci --no-audit --no-fund
+
+      - name: Check the generated files are up to date
+        run: |
+          npm --prefix mobile run strings
+          npm --prefix mobile run built-for-version
+          if ! git diff --exit-code -- mobile/src/i18n/en.generated.json mobile/src/gateway/built-for-version.ts; then
+            echo "Run 'npm --prefix mobile run strings' and 'npm --prefix mobile run built-for-version', then commit the result." >&2
+            exit 1
+          fi
+
+      - name: Type check
+        run: npm --prefix mobile run typecheck
+
+      - name: Test
+        run: npm --prefix mobile test
