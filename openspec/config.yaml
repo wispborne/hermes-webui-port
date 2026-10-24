@@ -1,0 +1,26 @@
+schema: spec-driven
+
+context: |
+  This repo holds two clients for a Hermes gateway (the Hermes agent's server):
+  the web UI (desktop-web/, built from upstream's desktop app in apps/) and the
+  Hermes mobile app (mobile/). These specs cover the mobile app.
+
+  Mobile app:
+    Platform: Android first. React Native with Expo, using a development build made locally.
+    Stack: expo-router (navigation), nanostores (state), expo-sqlite (saved data),
+      React Native Paper (Material 3 components).
+    Shared code: imports apps/shared as @hermes/shared (the gateway client and contract types)
+      and the desktop app's English strings, through an export script.
+    Behaviour reference: the desktop app in apps/desktop/src. Follow how it behaves, adapted to a phone.
+    Protocol reference: mobile/GATEWAY_PROTOCOL.md.
+    Look: Material 3, compact, colours from the desktop's default theme (nous).
+
+  Domain terms are defined in CONTEXT.md at the repo root. Use them exactly.
+
+rules:
+  all:
+    - Write in plain English. No jargon or metaphorical shorthand. State the point first, then the reason. One idea per sentence. No theatrical framing.
+    - Use the terms in CONTEXT.md (Gateway, Session, Live session, Turn, Stop, Approval, Question, Needs input, Outbox). Don't use the words listed under Avoid.
+    - Use the desktop app's wording for UI text. Take strings from the exported desktop strings rather than writing new ones, when one exists.
+  tasks:
+    - End every change with the done checklist. The type check and tests pass. Emulator screenshots of the new screens exist. The user has installed it on their phone and used it.

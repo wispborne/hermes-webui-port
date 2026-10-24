@@ -37,8 +37,8 @@ Two files are generated from them and checked into this repo:
 - [`apps/shared/src/gateway-contract.openrpc.json`](../apps/shared/src/gateway-contract.openrpc.json): OpenRPC 1.3. The `methods` list is the standard set, `x-server-requests` lists requests the server sends to the client, and `x-notifications` lists events. `x-canonical-methods` is the canonical set, which you can ignore.
 - [`apps/shared/src/gateway-contract.generated.ts`](../apps/shared/src/gateway-contract.generated.ts): the same thing as TypeScript types.
 
-Generate the app's model classes from the OpenRPC file rather than writing them by hand.
-The tables below give the fields that matter for a first version; the OpenRPC file has the rest.
+The mobile app imports the TypeScript types from `@hermes/shared` directly (see `docs/adr/0001-react-native-for-the-mobile-app.md`).
+The tables below give the fields that matter for a first version; the contract files have the rest.
 
 **Parameters are strict.** The server rejects any parameter it doesn't know with error code `4000` (`tui_gateway/contracts/base.py`). Send only the fields listed for a method. Results and event payloads can gain new fields at any time, so ignore fields you don't know.
 
@@ -222,7 +222,7 @@ Error codes you'll see: `-32700` the frame wasn't valid JSON, `-32601` unknown m
 { "jsonrpc": "2.0", "id": "a7f...", "result": { "choice": "once" } }
 ```
 
-Answer every server request, even ones the app can't handle. For those, send `{"error": {"code": -32601, "message": "not supported"}}`. The tool that asked then fails at once instead of waiting out its timeout. See [section 9](#9-approvals-and-questions).
+Answer every server request, even ones the app can't handle. For those, send a "not shown here" decline (error code `4404`), so that another client can still answer. See [section 9](#9-approvals-and-questions).
 
 ### The first frames
 
@@ -506,8 +506,13 @@ After a reconnect, a replayed clarify request may include `answers` for question
 ### Other server requests
 
 The server can also send `sudo` (a sudo password), `secret` (a value for an environment variable), `vault.unlock_prompt`, `vault.code`, `vault.save_login`, and several that only make sense on the desktop (`preview.*`, `terminal.read`, `window.read`, `tour`, `theme.*`, `setup_beat`).
-A first version can answer all of these with error `-32601`. The tool that asked then fails right away.
+Don't answer these with an error. An error response settles the request at once, even when another client (the web UI on a laptop) could have answered it.
+Decline them instead, with error code `4404` ("not shown here"). The shared channel's `request.decline()` sends it.
+A decline only settles the request once every attached client that answers requests has declined (`tui_gateway/server_requests.py`, `_decline`).
+The gateway reports that it counts declines with `declines_not_shown: true` in the `client.capabilities` answer. Without that, answer `-32601`.
 `sudo` and `secret` are answered with `{"value": "<text>"}` if the app supports them later.
+
+The gateway doesn't tell other clients when one client answers a request. A card answered elsewhere stays until the app notices the turn has moved on.
 
 ### After a reconnect
 
