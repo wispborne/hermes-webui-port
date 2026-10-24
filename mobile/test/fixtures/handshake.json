@@ -1,0 +1,25 @@
+{
+  "description": "Written by hand from mobile/GATEWAY_PROTOCOL.md section 5: gateway.ready, then client.capabilities and its answer.",
+  "hermesVersion": "0.22.4",
+  "frames": [
+    {
+      "from": "server",
+      "frame": {
+        "jsonrpc": "2.0",
+        "method": "event",
+        "params": {
+          "type": "gateway.ready",
+          "payload": { "skin": {}, "change_events": true, "heartbeat": true, "replay_epoch": "test-epoch" }
+        }
+      }
+    },
+    {
+      "from": "client",
+      "frame": { "jsonrpc": "2.0", "id": "r1", "method": "client.capabilities", "params": { "server_requests": true } }
+    },
+    {
+      "from": "server",
+      "frame": { "jsonrpc": "2.0", "id": "r1", "result": { "server_requests": true, "declines_not_shown": true } }
+    }
+  ]
+}
