@@ -2,12 +2,25 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "types": ["jest", "node"],
+    "types": [
+      "jest",
+      "node"
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@hermes/shared": ["../apps/shared/src/index.ts"],
-      "@hermes/shared/*": ["../apps/shared/src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@hermes/shared": [
+        "../apps/shared/src/index.ts"
+      ],
+      "@hermes/shared/*": [
+        "../apps/shared/src/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "../apps/shared/src", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../apps/shared/src"
+  ]
 }

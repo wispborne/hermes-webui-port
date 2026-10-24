@@ -7,7 +7,7 @@
 - [x] 2.1 Create the Expo app in `mobile/` with the newest stable SDK, TypeScript, and expo-router (`index` route only)
 - [x] 2.2 Set the app name to "Hermes" and the Android package to `com.wispborne.hermes`
 - [x] 2.3 Add `npm` scripts: `typecheck`, `test`, `android` (`expo run:android`), `strings`
-- [ ] 2.4 Build and launch the development build on the Android emulator
+- [x] 2.4 Build and launch the development build on the Android emulator
 
 ## 3. Shared code
 
@@ -27,7 +27,7 @@
 
 - [x] 5.1 Add React Native Paper with a Material 3 theme built from the `nous` light and dark palettes in `@hermes/shared/theme-presets`
 - [x] 5.2 Define the compact spacing and type scale (4 dp step, 14 sp body, 56 dp rows)
-- [ ] 5.3 Follow the phone's light or dark setting, including changes while the app is open
+- [x] 5.3 Follow the phone's light or dark setting, including changes while the app is open
 
 ## 6. Saved data
 
@@ -54,6 +54,6 @@
 
 ## 10. Done
 
-- [ ] 10.1 Type check and tests pass
-- [ ] 10.2 Emulator screenshots of the start screen in light and dark mode, with and without the version banner
+- [x] 10.1 Type check and tests pass
+- [x] 10.2 Emulator screenshots of the start screen in light and dark mode, with and without the version banner
 - [ ] 10.3 The owner installs the build on their phone and checks their gateway over Tailscale
