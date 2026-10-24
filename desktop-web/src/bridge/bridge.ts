@@ -624,7 +624,9 @@ export function createWebBridge(): HermesDesktop {
     // Folders are picked from the gateway's disk by the app itself, so only
     // file picks reach here.
     selectPaths: async options => (options?.directories ? [] : pickBrowserFiles(options ?? {})),
-    savePastedText: async text => storeBrowserFile(new Blob([text], { type: 'text/plain' }), 'pasted-text.txt'),
+    // An empty path keeps a large paste in the text box. The alternative here is a Blob in a
+// module-level Map, which dies on reload — so the paste is silently lost (reverts a5f54bf2).
+    savePastedText: async () => '',
     saveClipboardImage: storeClipboardImage,
     // Dropped files have no real path in a browser. Keep the file in memory
     // and hand back a made-up path that reads it.

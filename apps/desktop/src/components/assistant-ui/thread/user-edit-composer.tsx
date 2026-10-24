@@ -35,7 +35,7 @@ import {
   type InlineRefInput,
   insertInlineRefsIntoEditor
 } from '@/app/chat/composer/inline-refs'
-import { chipTypedPathOnSpace, pathifyRefs } from '@/app/chat/composer/path-refs'
+import { chipTypedPathOnSpace } from '@/app/chat/composer/path-refs'
 import {
   beginComposerComposition,
   composerPlainText,
@@ -50,7 +50,8 @@ import {
 import { detectTrigger, openDirectiveScope, textBeforeCaret, type TriggerState } from '@/app/chat/composer/text-utils'
 import { ComposerTriggerPopover } from '@/app/chat/composer/trigger-popover'
 import { isRedoShortcut, isUndoShortcut } from '@/app/chat/composer/undo-history'
-import { chipTypedUrlOnSpace, linkifyUrls } from '@/app/chat/composer/url-refs'
+import { chipTypedUrlOnSpace } from '@/app/chat/composer/url-refs'
+import { pasteComposerText } from '@/app/chat/composer/paste-refs-mode'
 import {
   extractDroppedFiles,
   HERMES_PATHS_MIME,
@@ -649,7 +650,7 @@ export const UserEditComposer: FC<UserEditComposerProps> = ({ cwd, gateway, sess
     // in front of the chip.
     insertComposerContentsAtCaret(
       event.currentTarget,
-      pathifyRefs(linkifyUrls(pastedText)),
+      pasteComposerText(pastedText),
       openDirectiveScope(event.currentTarget)
     )
     syncDraftFromEditor(event.currentTarget)
