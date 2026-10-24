@@ -236,6 +236,7 @@ Answer every server request, even ones the app can't handle. For those, send a "
    ```json
    { "jsonrpc": "2.0", "id": "r1", "method": "client.capabilities", "params": { "server_requests": true } }
    ```
+   The answer lists the request kinds the server can send, and `declines_not_shown`: `{"server_requests": ["approval", "clarify", ...], "declines_not_shown": true}`.
    Without this, the server treats the client as an old build that can't answer server requests. **It then fails every approval and question at once** (`apps/shared/src/json-rpc-channel.ts`, `advertiseCapabilities`).
 
 ### Heartbeat
@@ -403,6 +404,7 @@ message.complete                       (always last)
 | `message.interim` | `{text, already_streamed}` | Close the current bubble with `text` as its final text, and start a new bubble for what follows. The text was usually streamed already through `message.delta`. |
 | `reasoning.delta` | `{text}` | Append to a collapsible reasoning section. |
 | `reasoning.available` | `{text}` | A whole reasoning block at once, from models that don't stream it. |
+| `tool.generating` | `{name}` | The model is still writing a tool call. It has no `tool_id`, so don't make a row from it: nothing will match it later. |
 | `tool.start` | `{tool_id, name, args, context, preview}` | Show a tool row as running. |
 | `tool.progress` | `{tool_id, name, progress, total, percent, message}` | Update the row. |
 | `tool.complete` | `{tool_id, name, summary, result_text, duration_s, inline_diff}` | Mark the row done. |
@@ -412,6 +414,9 @@ message.complete                       (always last)
 | `session.title` | `{session_id, title}` | The session was named automatically. `session_id` here is the stored id. |
 | `session.info` | Session settings. | Refresh the model name and similar. |
 | `todo.updated` | The full todo list. | Optional. |
+| `thinking.delta` | `{text}` | A short "thinking" status, often empty. Hermes 0.22.4 sends it next to `reasoning.delta`. Safe to ignore. |
+
+In a saved transcript, a tool row (`role: "tool"`) has only the result and `tool_call_id`. The arguments are on the assistant row before it, in `tool_calls[].function.arguments` (a JSON string).
 | `approval.cancelled` | `{session_id, stored_session_id, reason, request_ids}` | Remove these approval cards. They were dropped and counted as denied. |
 | `request.cancel` | `{id, method, reason}` | The server withdrew a server request. Remove its card. |
 

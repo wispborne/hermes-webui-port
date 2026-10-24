@@ -73,7 +73,7 @@ describe('a streamed turn', () => {
       ['message.start'],
       ['message.delta', { text: 'Let me look.' }],
       ['message.interim', { text: 'Let me look.', already_streamed: true }],
-      ['tool.generating', { tool_id: 't1', name: 'read_file' }],
+      ['tool.generating', { name: 'read_file' }],
       ['tool.start', { tool_id: 't1', name: 'read_file', args: { path: 'a.txt' }, context: 'a.txt' }],
       ['tool.progress', { tool_id: 't1', name: 'read_file', message: 'reading' }],
       ['tool.complete', { tool_id: 't1', name: 'read_file', summary: 'Read 3 lines', result_text: 'one\ntwo\nthree', inline_diff: '-a\n+b' }],
@@ -87,6 +87,23 @@ describe('a streamed turn', () => {
       { reply: 'It has three lines.' }
     ])
     expect(state.items[1]).toMatchObject({ args: { path: 'a.txt' }, context: 'a.txt', result: 'one\ntwo\nthree', diff: '-a\n+b' } satisfies Partial<ToolItem>)
+  })
+
+  it('shows one row per tool when tool.generating has no id, as a real gateway sends it', () => {
+    const state = play([
+      ['message.start'],
+      ['tool.generating', { name: 'terminal' }],
+      ['tool.generating', { name: 'clarify' }],
+      ['tool.start', { tool_id: 't1', name: 'terminal', context: 'echo hello' }],
+      ['tool.complete', { tool_id: 't1', name: 'terminal' }],
+      ['tool.start', { tool_id: 't2', name: 'clarify' }],
+      ['tool.complete', { tool_id: 't2', name: 'clarify' }]
+    ])
+
+    expect(summary(state)).toEqual([
+      { tool: 'terminal', running: false, summary: undefined },
+      { tool: 'clarify', running: false, summary: undefined }
+    ])
   })
 
   it('marks a tool as running until it completes', () => {
@@ -169,6 +186,22 @@ describe('itemsFromRows', () => {
       { kind: 'user', key: 'row-1', text: 'Hi', rowId: 1 },
       { kind: 'assistant', key: 'row-2', text: 'Hello', reasoning: 'Greet back.', rowId: 2 },
       { kind: 'tool', key: 'row-3', toolId: 'c1', name: 'read_file', context: 'a', args: { path: 'a' }, result: 'file text', running: false, rowId: 3 }
+    ])
+  })
+
+  it("takes a saved tool row's arguments from the assistant row's tool_calls", () => {
+    const items = itemsFromRows([
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'c1', type: 'function', function: { name: 'terminal', arguments: '{"command":"echo hello"}' } }],
+        row_id: 1
+      },
+      { role: 'tool', tool_name: 'terminal', content: 'hello', tool_call_id: 'c1', row_id: 2 }
+    ])
+
+    expect(items).toEqual([
+      { kind: 'tool', key: 'row-2', toolId: 'c1', name: 'terminal', context: 'echo hello', args: { command: 'echo hello' }, result: 'hello', running: false, rowId: 2 }
     ])
   })
 })

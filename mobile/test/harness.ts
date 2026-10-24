@@ -41,7 +41,7 @@ export async function signedInHarness(options: FakeGatewayOptions = {}): Promise
   const rest = new FakeRest()
   const methods = new Map<string, (frame: Frame) => unknown>([
     // The app asks a second time to learn whether declines are counted.
-    ['client.capabilities', () => ({ server_requests: true, declines_not_shown: true })]
+    ['client.capabilities', () => ({ server_requests: ['approval', 'clarify'], declines_not_shown: true })]
   ])
   const gateway = await FakeGateway.start(loadRecording('handshake'), {
     ...options,

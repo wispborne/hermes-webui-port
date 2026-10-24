@@ -136,6 +136,10 @@ export function applyEvent(state: StreamState, type: string, payload: Payload): 
       return appendReasoning(state, text(payload?.text), true)
 
     case 'tool.generating':
+      // Sent while the model is still writing the call. It has a name but no
+      // id, so a row made from it would never match the tool.start that follows.
+      return state
+
     case 'tool.start':
     case 'tool.progress':
     case 'tool.complete': {

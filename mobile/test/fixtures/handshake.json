@@ -19,7 +19,7 @@
     },
     {
       "from": "server",
-      "frame": { "jsonrpc": "2.0", "id": "r1", "result": { "server_requests": true, "declines_not_shown": true } }
+      "frame": { "jsonrpc": "2.0", "id": "r1", "result": { "server_requests": ["approval", "clarify"], "declines_not_shown": true } }
     }
   ]
 }

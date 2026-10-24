@@ -88,6 +88,8 @@ export interface TranscriptRow {
   tool_call_id?: string | null
   context?: unknown
   args?: unknown
+  /** On assistant rows: the calls whose results follow as tool rows. */
+  tool_calls?: unknown
   row_id?: number | null
   id?: number | null
   timestamp?: number | null
@@ -99,9 +101,46 @@ function rowKey(row: TranscriptRow, index: number) {
   return rowId == null ? `row-i${index}` : `row-${rowId}`
 }
 
+function parsedArgs(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return undefined
+    }
+  }
+
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
+}
+
+/**
+ * Saved tool rows carry only the result. Their arguments are on the assistant
+ * row before them, in `tool_calls` (OpenAI format, arguments as a JSON string).
+ */
+function storedCallArgs(rows: TranscriptRow[]) {
+  const byId = new Map<string, Record<string, unknown>>()
+
+  for (const row of rows) {
+    if (row.role !== 'assistant' || !Array.isArray(row.tool_calls)) {
+      continue
+    }
+
+    for (const call of row.tool_calls as { id?: unknown; function?: { arguments?: unknown } }[]) {
+      const args = parsedArgs(call?.function?.arguments)
+
+      if (typeof call?.id === 'string' && args) {
+        byId.set(call.id, args)
+      }
+    }
+  }
+
+  return byId
+}
+
 /** Turns gateway transcript rows into items. System rows and hidden rows are left out. */
 export function itemsFromRows(rows: TranscriptRow[]): ChatItem[] {
   const items: ChatItem[] = []
+  const callArgs = storedCallArgs(rows)
 
   rows.forEach((row, index) => {
     const rowId = row.row_id ?? row.id ?? undefined
@@ -131,20 +170,25 @@ export function itemsFromRows(rows: TranscriptRow[]): ChatItem[] {
         return
       }
 
-      case 'tool':
+      case 'tool': {
+        const args = row.args ?? (row.tool_call_id ? callArgs.get(row.tool_call_id) : undefined)
+        // Like the live rows: the first short string argument, such as a command or a path.
+        const firstString = args && typeof args === 'object' ? Object.values(args).find(value => typeof value === 'string') : undefined
+
         items.push({
           kind: 'tool',
           key,
           toolId: row.tool_call_id ?? key,
           name: row.tool_name || row.name || 'tool',
-          context: typeof row.context === 'string' ? row.context : undefined,
-          args: row.args,
+          context: typeof row.context === 'string' ? row.context : (firstString as string | undefined),
+          args,
           result: text,
           running: false,
           rowId
         })
 
         return
+      }
     }
   })
 

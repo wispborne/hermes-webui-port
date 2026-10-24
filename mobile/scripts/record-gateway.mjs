@@ -70,6 +70,10 @@ const TEXT_FIELDS = new Set([
   'preview',
   'question',
   'reasoning',
+  'reasoning_content',
+  'display_reasoning',
+  'display_content',
+  'system_prompt',
   'result_text',
   'summary',
   'text',
@@ -225,9 +229,13 @@ try {
   console.log(`The turn ended with status "${done.payload?.status}".`)
 
   // 4. Open it again, the way the app opens a saved session.
-  await request('session.resume', { session_id: created.stored_session_id })
+  const resumed = await request('session.resume', { session_id: created.stored_session_id })
 
   if (options['delete-session']) {
+    // The gateway won't delete a session while a live copy is loaded (error 4023), so unload them first.
+    for (const runtimeId of new Set([created.session_id, resumed?.session_id].filter(Boolean))) {
+      await request('session.close', { session_id: runtimeId })
+    }
     await request('session.delete', { session_id: created.stored_session_id })
     console.log('Deleted the session.')
   }
@@ -235,14 +243,17 @@ try {
   if (heartbeat) clearInterval(heartbeat)
   socket.close()
   await closed
+  save()
 }
 
-const recording = {
-  description: `Recorded from a Hermes ${status.version} gateway: sign in, session.create, prompt.submit, message.complete, session.resume.${options['keep-text'] ? '' : ' Text replaced with x.'}`,
-  hermesVersion: status.version,
-  recordedAt: new Date().toISOString(),
-  frames
-}
+function save() {
+  const recording = {
+    description: `Recorded from a Hermes ${status.version} gateway: sign in, session.create, prompt.submit, message.complete, session.resume.${options['keep-text'] ? '' : ' Text replaced with x.'}`,
+    hermesVersion: status.version,
+    recordedAt: new Date().toISOString(),
+    frames
+  }
 
-writeFileSync(outFile, `${JSON.stringify(recording, null, 2)}\n`)
-console.log(`Saved ${frames.length} frames to ${path.relative(process.cwd(), outFile)}. Check it before committing it.`)
+  writeFileSync(outFile, `${JSON.stringify(recording, null, 2)}\n`)
+  console.log(`Saved ${frames.length} frames to ${path.relative(process.cwd(), outFile)}. Check it before committing it.`)
+}

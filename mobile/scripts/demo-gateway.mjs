@@ -359,7 +359,8 @@ async function runTurn(entry, text) {
 
 async function runTool(entry, name, args, summary, result, diff) {
   const toolId = id('tool-')
-  emit(entry, 'tool.generating', { tool_id: toolId, name })
+  // A real gateway sends this without an id.
+  emit(entry, 'tool.generating', { name })
   await sleep(200)
   emit(entry, 'tool.start', { tool_id: toolId, name, args, context: Object.values(args)[0], preview: null })
   await sleep(400)
@@ -380,7 +381,7 @@ function handleRpc(client, frame) {
 
   switch (method) {
     case 'client.capabilities':
-      return reply({ server_requests: true, declines_not_shown: true })
+      return reply({ server_requests: ['approval', 'clarify'], declines_not_shown: true })
 
     case 'gateway.ping':
       return reply({ ok: true })
