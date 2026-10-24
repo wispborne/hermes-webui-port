@@ -1,0 +1,7 @@
+{
+  "name": "hermes-background",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Android calls the Hermes app needs: cookie flushing now, the foreground service later.",
+  "main": "index.ts"
+}

@@ -18,7 +18,26 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { tsImport } from 'tsx/esm/api'
 
-const EXPORTED = ['common', 'notifications.native', 'settings.connections']
+const EXPORTED = [
+  'common',
+  'notifications.native',
+  'settings.connections',
+  'settings.gateway',
+  'settings.nav',
+  'settings.vault.identifierTypes',
+  'settings.vault.passwordField',
+  'sidebar.filter',
+  'sidebar.nav',
+  'sidebar.row',
+  'sidebar.searchPlaceholder',
+  'sidebar.searchAria',
+  'sidebar.clearSearch',
+  'sidebar.noMatch',
+  'sidebar.sessions',
+  'sidebar.noSessions',
+  'sidebar.loadMore',
+  'sidebar.dateDivider'
+]
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const source = path.join(repoRoot, 'apps/desktop/src/i18n/en.ts')

@@ -45,6 +45,17 @@ The type check covers `apps/shared` too.
 
 `npm run sync-upstream` at the repo root runs both, then the type check and tests.
 
+## Trying it without a real gateway
+
+`scripts/demo-gateway.mjs` is a pretend gateway with made-up sessions and scripted replies:
+
+```bash
+cd mobile
+node scripts/demo-gateway.mjs
+```
+
+On the emulator, sign in to `http://10.0.2.2:8787` with any username and the password `demo`. The script's header lists the messages that trigger an Approval, a Question, a failed turn or a slow reply, and the keys that drop the connection or restart the gateway.
+
 ## Recorded gateway traffic
 
 Tests play back recorded WebSocket traffic with a fake gateway (`test/fake-gateway.ts`). To record new traffic from your own gateway:
