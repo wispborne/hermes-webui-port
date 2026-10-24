@@ -17,6 +17,10 @@ on:
       - README.md
       - LICENSE
       - mobile/**
+      - openspec/**
+      - docs/**
+      - CONTEXT.md
+      - .github/**
   workflow_dispatch:
 
 permissions:
