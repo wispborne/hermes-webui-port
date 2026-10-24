@@ -75,6 +75,17 @@ A short trial task proves the parts this design assumes, on the emulator and on 
 
 The results are recorded in this file before the rest of the work.
 
+**Trial results (2026-10-24, Pixel 9 Pro emulator, Android 16, debug build, against `mobile/scripts/demo-gateway.mjs`):**
+
+1. **Screen off: works.** With a turn running, the app left the screen and the service started. With the screen off for 60 seconds, the WebSocket stayed open (the gateway saw no new connection), the turn finished, and the app's JavaScript posted "Hermes finished".
+2. **Doze: works with the exemption.** With the app exempted from battery optimisation, the emulator was forced into deep idle (`adb shell dumpsys deviceidle force-idle`) mid-turn. The turn's end arrived and "Hermes finished" was posted 17 seconds into deep idle. Not tried without the exemption.
+3. **Starting the service: works, with no fallback needed.** `remoteMessaging` (type `0x200` in `dumpsys`) starts from the `AppState` change as the app leaves the screen, and from the `BOOT_COMPLETED` receiver. After a reboot the service starts the React host, and the JavaScript checks the sign-in and opens the WebSocket with no screen shown. For that, the start check and the background rules now run from `mobile/index.ts` as the JavaScript loads, not from the root layout. Two things to know:
+   - Android doesn't deliver `BOOT_COMPLETED` to an app that was force-stopped, until it's opened again. That is Android's rule for every app.
+   - A debug build loads its JavaScript from Metro at boot, so Metro has to be running and reachable. A release build has the JavaScript inside it.
+4. **Notification buttons: work off screen.** Run on an "Approval needed" notification answered the Approval (`{"choice":"once"}` reached the gateway) without opening the app, the notification went away, and the turn continued to "Hermes finished".
+
+Still to check on the owner's phone: the same with a phone maker's battery manager, and a real Doze period instead of a forced one.
+
 ## Risks / Trade-offs
 
 - [Phone makers' battery managers kill the service anyway] → The ongoing notification shows the service is alive. The app reconnects and catches up whenever it's opened, so nothing is lost, only delayed.

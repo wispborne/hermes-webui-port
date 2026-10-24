@@ -1,4 +1,4 @@
-import { deleteDatabaseAsync, openDatabaseAsync } from 'expo-sqlite'
+import { deleteDatabaseAsync, openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite'
 
 import { type SqlDatabase, migrate } from './migrate'
 import { migrations } from './migrations'
@@ -52,8 +52,34 @@ export async function openGatewayDatabase(gatewayUrl: string): Promise<GatewayDa
   const db = await openDatabaseAsync(gatewayDatabaseName(gatewayUrl))
 
   await db.execAsync('PRAGMA journal_mode = WAL')
+  await db.execAsync('PRAGMA busy_timeout = 5000')
 
-  return prepareGatewayDatabase(db as unknown as GatewayDatabase, gatewayUrl)
+  return prepareGatewayDatabase(oneConnection(db), gatewayUrl)
+}
+
+/**
+ * Runs transactions one at a time on the main connection. expo-sqlite's own
+ * exclusive transactions open a second connection, and any other statement
+ * that runs meanwhile fails with "database is locked".
+ */
+function oneConnection(db: SQLiteDatabase): GatewayDatabase {
+  let queue: Promise<unknown> = Promise.resolve()
+
+  const wrapped: GatewayDatabase = {
+    execAsync: sql => db.execAsync(sql),
+    runAsync: (sql, ...params) => db.runAsync(sql, ...params),
+    getAllAsync: (sql, ...params) => db.getAllAsync(sql, ...params),
+    getFirstAsync: (sql, ...params) => db.getFirstAsync(sql, ...params),
+    closeAsync: () => db.closeAsync(),
+    withExclusiveTransactionAsync: task => {
+      const run = queue.then(() => db.withTransactionAsync(() => task(wrapped)))
+      queue = run.catch(() => undefined)
+
+      return run
+    }
+  }
+
+  return wrapped
 }
 
 /** Deletes everything saved for a gateway, outbox included. Close the database first. */

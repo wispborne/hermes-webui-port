@@ -133,6 +133,22 @@ export class GatewayConnection {
     this.status.set('stopped')
   }
 
+  /**
+   * Drops the socket and connects again at once, skipping the backoff wait.
+   * For a network change, after which the old socket is usually dead.
+   */
+  reconnectNow() {
+    if (!this.running) {
+      return
+    }
+
+    this.attempt = 0
+    this.clearRetry()
+    this.socketUp = false
+    this.client.close()
+    void this.dial()
+  }
+
   /** Tries again now instead of waiting out the backoff, for example when the app comes back on screen. */
   retryNow() {
     if (!this.running || this.status.get() === 'open' || this.status.get() === 'connecting') {

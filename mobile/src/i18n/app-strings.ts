@@ -63,6 +63,19 @@ export const appStrings = {
     keepAnswering: 'Keep answering',
     cancelQuestions: 'Cancel questions'
   },
+  background: {
+    working: 'Hermes is working',
+    connected: 'Connected to the gateway',
+    keepConnected: 'Keep connected',
+    keepConnectedDescription: 'Stay connected in the background, even when nothing is running. Uses more battery.',
+    notificationsTitle: 'Allow notifications',
+    notificationsWhy: 'Hermes shows a notification when it needs your answer or finishes a reply while the app is closed.',
+    batteryTitle: 'Allow background use',
+    batteryWhy:
+      'To stay connected while the phone is idle, Android has to let Hermes run without battery restrictions. On the next screen, choose Allow.',
+    batteryDeclined: 'Battery restrictions are on, so the connection may drop while the phone is idle.',
+    notNow: 'Not now'
+  },
   connection: {
     connecting: 'Connecting to the gateway…'
   },

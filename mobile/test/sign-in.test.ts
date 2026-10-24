@@ -100,7 +100,7 @@ describe('signing in', () => {
   it('saves the URL and the username, and never the password', async () => {
     await signIn(gateway.httpUrl, 'david', 'right-password')
 
-    expect(loadAppSettings()).toEqual({ gatewayUrl: gateway.httpUrl, username: 'david' })
+    expect(loadAppSettings()).toMatchObject({ gatewayUrl: gateway.httpUrl, username: 'david' })
     expect([...settings.values.values()].join(' ')).not.toContain('right-password')
     expect($auth.get()).toEqual({ phase: 'signed-in', url: gateway.httpUrl, username: 'david' })
     await $gateway.get()?.connection.waitUntilOpen(2000)

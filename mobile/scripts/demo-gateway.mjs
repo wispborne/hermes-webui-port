@@ -343,6 +343,7 @@ async function runTurn(entry, text) {
     }
 
     emit(entry, 'message.complete', { text: finalText, status, error, reasoning: null, usage: null })
+    console.log(`turn ended: ${status}`)
     entry.running = false
     entry.status = 'idle'
     entry.inflight = null
@@ -498,6 +499,8 @@ function handleRpc(client, frame) {
 }
 
 function handleAnswer(frame) {
+  console.log(`answer ${frame.id}: ${JSON.stringify(frame.result ?? frame.error)}`)
+
   for (const entry of live.values()) {
     if (entry.pending.has(frame.id)) {
       // A "not shown here" decline doesn't settle the request.

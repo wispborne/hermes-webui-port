@@ -7,6 +7,8 @@ import { ActivityIndicator, Appbar, Button, IconButton, Text, TextInput } from '
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import type { ChatItem } from '@/chat/items'
+import { askBackgroundPermissions } from '@/background/permission-dialogs'
+import { $onScreen } from '@/background/wiring'
 import { PromptCards } from '@/components/chat/prompt-cards'
 import { type OutboxActions, TranscriptItem } from '@/components/chat/transcript-items'
 import { OfflineBanner } from '@/components/offline-banner'
@@ -24,6 +26,7 @@ import {
   sendMessage,
   stopTurn
 } from '@/store/chat'
+import { loadAppSettings } from '@/storage/app-settings'
 import { $prompts, sendAnswers, setAnswer, showQuestion } from '@/store/prompts'
 import { $sessionRows } from '@/store/sessions'
 import { space } from '@/theme/compact'
@@ -53,8 +56,15 @@ export function SessionScreen({ id }: SessionScreenProps) {
 
   useEffect(() => {
     void openChat(key).catch((error: unknown) => console.warn('Could not open the session', error))
+    $onScreen.set(key)
 
-    return () => closeChat(key)
+    return () => {
+      closeChat(key)
+
+      if ($onScreen.get() === key) {
+        $onScreen.set(null)
+      }
+    }
   }, [key])
 
   // A new session was created on the gateway: move to its own route.
@@ -87,6 +97,11 @@ export function SessionScreen({ id }: SessionScreenProps) {
     if (text) {
       setDraft('')
       void sendMessage(key, text).then(() => list.current?.scrollToEnd({ animated: true }))
+
+      // The first message is when background use starts to matter: explain and ask once.
+      if (!loadAppSettings().backgroundAsked) {
+        void askBackgroundPermissions()
+      }
     }
   }
 

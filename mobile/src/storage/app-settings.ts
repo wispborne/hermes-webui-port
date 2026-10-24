@@ -8,6 +8,10 @@ import { SQLiteStorage } from 'expo-sqlite/kv-store'
 export interface AppSettings {
   gatewayUrl: string | null
   username: string | null
+  /** "Keep connected" is on. */
+  keepConnected?: boolean
+  /** The notification and battery requests were explained and asked once. */
+  backgroundAsked?: boolean
 }
 
 export interface SettingsStore {
@@ -25,17 +29,26 @@ export function setSettingsStoreForTests(replacement: SettingsStore) {
   store = replacement
 }
 
-const KEYS = { gatewayUrl: 'gateway_url', username: 'username' } as const
+const KEYS = {
+  gatewayUrl: 'gateway_url',
+  username: 'username',
+  keepConnected: 'keep_connected',
+  backgroundAsked: 'background_asked'
+} as const
 
 export function loadAppSettings(): AppSettings {
+  const read = (name: keyof typeof KEYS) => settingsStore().getItemSync(KEYS[name])
+
   return {
-    gatewayUrl: settingsStore().getItemSync(KEYS.gatewayUrl),
-    username: settingsStore().getItemSync(KEYS.username)
+    gatewayUrl: read('gatewayUrl'),
+    username: read('username'),
+    keepConnected: read('keepConnected') === 'true',
+    backgroundAsked: read('backgroundAsked') === 'true'
   }
 }
 
 export function saveAppSettings(settings: Partial<AppSettings>) {
-  for (const [name, value] of Object.entries(settings) as [keyof AppSettings, string | null | undefined][]) {
+  for (const [name, value] of Object.entries(settings) as [keyof AppSettings, string | boolean | null | undefined][]) {
     if (value === undefined) {
       continue
     }
@@ -43,7 +56,7 @@ export function saveAppSettings(settings: Partial<AppSettings>) {
     if (value === null) {
       settingsStore().removeItemSync(KEYS[name])
     } else {
-      settingsStore().setItemSync(KEYS[name], value)
+      settingsStore().setItemSync(KEYS[name], String(value))
     }
   }
 }
