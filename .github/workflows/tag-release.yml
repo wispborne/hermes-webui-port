@@ -7,6 +7,9 @@
 #
 # The version comes from desktop-web/UPSTREAM_VERSION. A sync of upstream main
 # writes a date and commit there instead of a release tag, and isn't tagged.
+#
+# Releases are tagged on Gitea (git.wispborne.com) only. GitHub is a mirror of
+# main, so the job skips there; otherwise each server would number its own tags.
 
 name: Tag release
 
@@ -33,6 +36,7 @@ concurrency:
 
 jobs:
   tag:
+    if: github.server_url != 'https://github.com'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
