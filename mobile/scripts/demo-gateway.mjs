@@ -10,6 +10,7 @@
 //
 // What a message does depends on its text:
 //   - contains "approve": Hermes asks for an Approval before running a command
+//     ("approve three" asks for three at once)
 //   - contains "ask": Hermes asks a Question with three choices
 //   - contains "fail": the turn fails
 //   - contains "slow": a long reply, streamed slowly, so Stop can be tried
@@ -20,6 +21,7 @@
 //   r  restart: a new replay epoch, so the app must reload what it shows
 //   l  start a turn on the "laptop" session, as if another device did
 //   a  start a turn on the "Weekly report" session that waits on an Approval
+//   t  time out every waiting Approval
 //   q  quit
 
 import { randomBytes } from 'node:crypto'
@@ -267,6 +269,16 @@ async function runTurn(entry, text) {
       emit(entry, 'message.interim', { text: entry.inflight.assistant, already_streamed: true })
       entry.inflight.assistant = ''
       entry.status = 'waiting'
+
+      if (lower.includes('three')) {
+        const commands = ['git clean -fdx', 'docker system prune -f', 'rm -rf node_modules/']
+        await Promise.all(
+          commands.map(command =>
+            serverRequest(entry, 'approval', { request_id: id('ap-'), command, description: 'clean up before the build', choices: ['once', 'session', 'always', 'deny'], allow_permanent: true })
+          )
+        )
+      }
+
       const answer = await serverRequest(entry, 'approval', {
         request_id: id('ap-'),
         command: 'rm -rf build/ && npm run build',
@@ -546,7 +558,7 @@ const server = http.createServer(async (req, res) => {
   console.log(route)
 
   // For scripted runs without a terminal: POST /demo/<key> does the same as the key.
-  const demoKey = /^\/demo\/([dlra])$/.exec(url.pathname)
+  const demoKey = /^\/demo\/([dlrat])$/.exec(url.pathname)
 
   if (req.method === 'POST' && demoKey) {
     process.stdin.emit('data', demoKey[1])
@@ -709,6 +721,15 @@ process.stdin.on('data', key => {
       void runTurn(entry, 'Make it slow, please: list the parts I need.')
       break
     }
+    case 't':
+      console.log('Timing out every waiting Approval.')
+      for (const entry of live.values()) {
+        for (const pending of [...entry.pending.values()].filter(p => p.method === 'approval')) {
+          emit(entry, 'request.cancel', { id: pending.id, method: 'approval', reason: 'timeout' })
+          settleRequest(entry, pending.id, 'timeout')
+        }
+      }
+      break
     case 'a':
       console.log('Starting a turn that waits on an Approval.')
       void runTurn(liveFor(reportSessionId), 'Please approve the cleanup.')

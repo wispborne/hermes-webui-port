@@ -39,7 +39,10 @@ export async function until(test: () => boolean, timeoutMs = 2000): Promise<void
 
 export async function signedInHarness(options: FakeGatewayOptions = {}): Promise<Harness> {
   const rest = new FakeRest()
-  const methods = new Map<string, (frame: Frame) => unknown>()
+  const methods = new Map<string, (frame: Frame) => unknown>([
+    // The app asks a second time to learn whether declines are counted.
+    ['client.capabilities', () => ({ server_requests: true, declines_not_shown: true })]
+  ])
   const gateway = await FakeGateway.start(loadRecording('handshake'), {
     ...options,
     handle: (frame, reply) => {

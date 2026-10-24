@@ -9,6 +9,9 @@ import { useColorScheme } from 'react-native'
 import { PaperProvider } from 'react-native-paper'
 
 import { $auth, startApp } from '@/store/gateway'
+// These stores wire themselves to the gateway when it opens, so they load first.
+import '@/store/chat'
+import '@/store/prompts'
 import { hermesTheme } from '@/theme/theme'
 
 /** Runs the start check once, and sends the person to Sign in whenever the sign-in ends. */

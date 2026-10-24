@@ -19,6 +19,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tsImport } from 'tsx/esm/api'
 
 const EXPORTED = [
+  'assistant.approval',
+  'assistant.clarify',
   'assistant.thread.copy',
   'assistant.thread.loadingSession',
   'assistant.thread.responseStopped',

@@ -7,6 +7,7 @@ import { ActivityIndicator, Appbar, Button, IconButton, Text, TextInput } from '
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import type { ChatItem } from '@/chat/items'
+import { PromptCards } from '@/components/chat/prompt-cards'
 import { type OutboxActions, TranscriptItem } from '@/components/chat/transcript-items'
 import { OfflineBanner } from '@/components/offline-banner'
 import { sessionHeading } from '@/components/session-list-row'
@@ -23,6 +24,7 @@ import {
   sendMessage,
   stopTurn
 } from '@/store/chat'
+import { $prompts, sendAnswers, setAnswer, showQuestion } from '@/store/prompts'
 import { $sessionRows } from '@/store/sessions'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
@@ -30,18 +32,23 @@ import { useHermesTheme } from '@/theme/use-hermes-theme'
 export interface SessionScreenProps {
   /** A stored session id, or "new" for a session that starts with its first message. */
   id: string
-  /** Shown between the transcript and the message box. The approvals change puts its cards here. */
-  aboveComposer?: (key: string) => React.ReactNode
 }
 
 /** A session: its transcript, and the message box with Send, or Stop while a turn runs. */
-export function SessionScreen({ aboveComposer, id }: SessionScreenProps) {
+export function SessionScreen({ id }: SessionScreenProps) {
   const { colors } = useHermesTheme()
   const [key] = useState(() => (id === 'new' ? newLocalKey() : id))
   const chat = useStore(chatStore(key))
   const rows = useStore($sessionRows)
   const status = useConnectionStatus()
   const [draft, setDraft] = useState('')
+  const question = useStore($prompts)[key]?.question ?? null
+  const asked = question?.questions[question.index]
+  // While a Question is open, the message box types its free-text answer.
+  const answering = Boolean(asked && !asked.multi_select)
+  const answerText = asked && typeof question?.answers[asked.qid] === 'string' && !(asked.choices ?? []).includes(question.answers[asked.qid] as string)
+    ? (question.answers[asked.qid] as string)
+    : ''
   const list = useRef<FlashListRef<ChatItem>>(null)
 
   useEffect(() => {
@@ -68,9 +75,13 @@ export function SessionScreen({ aboveComposer, id }: SessionScreenProps) {
 
   const row = rows.find(found => found.id === chat.storedId)
   const title = chat.title ?? (row ? sessionHeading(row) : id === 'new' ? t('sidebar.nav.new-session') : '')
-  const canSend = draft.trim() !== ''
+  const canSend = answering ? answerText.trim() !== '' : draft.trim() !== ''
 
   const send = () => {
+    if (answering && question) {
+      return question.index === question.questions.length - 1 ? sendAnswers(key) : showQuestion(key, question.index + 1)
+    }
+
     const text = draft.trim()
 
     if (text) {
@@ -128,19 +139,21 @@ export function SessionScreen({ aboveComposer, id }: SessionScreenProps) {
             />
           )}
         </View>
-        {aboveComposer?.(key)}
+        <PromptCards sessionKey={key} />
         <View style={[styles.composer, { borderColor: colors.outline }]}>
           <TextInput
             dense
             mode="outlined"
             multiline
-            onChangeText={setDraft}
-            placeholder={chat.items.length ? t('composer.placeholderFollowUp') : t('composer.message')}
+            onChangeText={answering ? text => setAnswer(key, text) : setDraft}
+            placeholder={
+              answering ? t('assistant.clarify.placeholder') : chat.items.length ? t('composer.placeholderFollowUp') : t('composer.message')
+            }
             style={styles.input}
             testID="message-box"
-            value={draft}
+            value={answering ? answerText : draft}
           />
-          {chat.running && !canSend ? (
+          {chat.running && !canSend && !answering ? (
             <IconButton
               accessibilityLabel={t('composer.stop')}
               containerColor={colors.errorContainer}

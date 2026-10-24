@@ -49,6 +49,11 @@ export class GatewayConnection {
   private lastCloseCode: number | null = null
   /** The current socket opened, and its close hasn't been handled yet. */
   private socketUp = false
+  /**
+   * The gateway counts a "not shown here" decline (code 4404) as one client
+   * passing, rather than as the answer (GATEWAY_PROTOCOL.md, section 9).
+   */
+  declinesNotShown = false
   /** Counts dials, so the result of an old one is ignored. */
   private generation = 0
 
@@ -70,7 +75,17 @@ export class GatewayConnection {
     // arrives, before handlers run. So by the time this runs, the gateway knows
     // the app answers Approvals and Questions, and other calls can follow.
     this.client.on('gateway.ready', () => {
+      this.declinesNotShown = false
+
       if (this.running) {
+        // Ask again to learn whether the gateway counts "not shown here"
+        // declines. The shared channel keeps its own answer private.
+        void this.client
+          .request<{ declines_not_shown?: boolean } | null>('client.capabilities', { server_requests: true }, 15_000)
+          .then(answer => {
+            this.declinesNotShown = answer?.declines_not_shown === true
+          })
+          .catch(() => undefined)
         this.status.set('open')
       }
     })

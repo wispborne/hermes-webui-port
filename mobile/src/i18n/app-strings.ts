@@ -46,6 +46,23 @@ export const appStrings = {
     changes: 'Changes',
     running: 'Running…'
   },
+  approval: {
+    // The desktop's line (assistant.approval.timedOutSystemLine) goes on to
+    // point at desktop Settings, which the app doesn't have.
+    timedOut: 'Approval timed out — the command was not run.',
+    stackPosition: '{position} of {total}'
+  },
+  question: {
+    position: 'Question {position} of {total}',
+    recommended: 'recommended',
+    back: 'Back',
+    next: 'Next',
+    close: 'Close',
+    closeTitle: 'Cancel these questions?',
+    closeBody: 'Hermes gets no answers and goes on without them.',
+    keepAnswering: 'Keep answering',
+    cancelQuestions: 'Cancel questions'
+  },
   connection: {
     connecting: 'Connecting to the gateway…'
   },
