@@ -37,8 +37,9 @@ export class FakeRest {
     return this.hasCookie && this.sessionValid
   }
 
+  /** Adds a route. A route added later wins over an earlier one for the same path. */
   route(method: string, pattern: RegExp, handler: Handler) {
-    this.routes.push({ method, pattern, handler })
+    this.routes.unshift({ method, pattern, handler })
   }
 
   readonly fetch = async (input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> => {

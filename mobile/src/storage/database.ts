@@ -14,6 +14,8 @@ export interface GatewayDatabase extends SqlDatabase {
   getAllAsync<T>(sql: string, ...params: SqlValue[]): Promise<T[]>
   getFirstAsync<T>(sql: string, ...params: SqlValue[]): Promise<T | null>
   closeAsync(): Promise<void>
+  /** Runs `task` in one transaction. Inside it, make every call on `txn`, not on the database. */
+  withExclusiveTransactionAsync(task: (txn: GatewayDatabase) => Promise<void>): Promise<void>
 }
 
 /**

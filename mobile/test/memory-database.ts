@@ -5,7 +5,6 @@
 import { DatabaseSync } from 'node:sqlite'
 
 import type { GatewayDatabase, SqlValue } from '@/storage/database'
-import type { SqlDatabase } from '@/storage/migrate'
 
 export type MemoryDatabase = GatewayDatabase & {
   all(sql: string, ...params: SqlValue[]): Record<string, unknown>[]
@@ -31,7 +30,7 @@ export function memoryDatabase(): MemoryDatabase {
       return row === undefined ? null : (plain(row) as T)
     },
     getAllAsync: async <T,>(sql: string, ...params: SqlValue[]) => db.prepare(sql).all(...params).map(plain) as T[],
-    withExclusiveTransactionAsync: async (task: (txn: SqlDatabase) => Promise<void>) => {
+    withExclusiveTransactionAsync: async (task: (txn: GatewayDatabase) => Promise<void>) => {
       db.exec('BEGIN EXCLUSIVE')
 
       try {

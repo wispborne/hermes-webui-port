@@ -19,6 +19,7 @@
 //   d  drop every WebSocket, as a network drop would
 //   r  restart: a new replay epoch, so the app must reload what it shows
 //   l  start a turn on the "laptop" session, as if another device did
+//   a  start a turn on the "Weekly report" session that waits on an Approval
 //   q  quit
 
 import { randomBytes } from 'node:crypto'
@@ -37,7 +38,7 @@ const id = (prefix = '') => `${prefix}${randomBytes(6).toString('hex')}`
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 let replayEpoch = id('epoch-')
-const sessionCookies = new Set()
+const signedOutCookies = new Set()
 
 // ---------------------------------------------------------------- saved data
 
@@ -106,7 +107,7 @@ const laptopSessionId = addSession({
   ageMinutes: 35,
   messages: [['user', 'How many drip lines do I need for six beds?']]
 })
-addSession({
+const reportSessionId = addSession({
   title: 'Weekly report summary',
   preview: 'Summarise the three reports in the inbox folder.',
   ageMinutes: 60 * 5,
@@ -502,7 +503,13 @@ function cookieValue(req) {
   return match?.[1] ?? null
 }
 
-const signedIn = req => sessionCookies.has(cookieValue(req))
+// Any session cookie this script gave out counts, even from before a restart,
+// unless it was signed out. That keeps the app signed in across restarts.
+const signedIn = req => {
+  const token = cookieValue(req)
+
+  return Boolean(token?.startsWith('at-')) && !signedOutCookies.has(token)
+}
 
 function sendJson(res, status, body, headers = {}) {
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers })
@@ -536,7 +543,7 @@ const server = http.createServer(async (req, res) => {
   console.log(route)
 
   // For scripted runs without a terminal: POST /demo/<key> does the same as the key.
-  const demoKey = /^\/demo\/([dlr])$/.exec(url.pathname)
+  const demoKey = /^\/demo\/([dlra])$/.exec(url.pathname)
 
   if (req.method === 'POST' && demoKey) {
     process.stdin.emit('data', demoKey[1])
@@ -560,7 +567,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     const token = id('at-')
-    sessionCookies.add(token)
 
     return sendJson(res, 200, { ok: true, next: '/' }, {
       'Set-Cookie': [
@@ -572,7 +578,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (route === 'POST /auth/logout') {
-    sessionCookies.delete(cookieValue(req))
+    signedOutCookies.add(cookieValue(req))
 
     return sendJson(res, 200, { ok: true }, {
       'Set-Cookie': ['hermes_session_at=; Max-Age=0; Path=/', 'hermes_session_rt=; Max-Age=0; Path=/', 'hermes_session_provider=; Max-Age=0; Path=/']
@@ -700,6 +706,10 @@ process.stdin.on('data', key => {
       void runTurn(entry, 'Make it slow, please: list the parts I need.')
       break
     }
+    case 'a':
+      console.log('Starting a turn that waits on an Approval.')
+      void runTurn(liveFor(reportSessionId), 'Please approve the cleanup.')
+      break
     case 'q':
     case '\u0003':
       process.exit(0)

@@ -13,7 +13,8 @@ import { type GatewayRest, isSignedOutError } from './rest'
  * - `connecting`: getting a ticket or opening the socket.
  * - `open`: the gateway said it is ready, and the app has told it that it can
  *   answer Approvals and Questions. Calls can be made.
- * - `offline`: the gateway can't be reached. The connection tries again by itself.
+ * - `offline`: the gateway can't be reached. The connection tries again by
+ *   itself, and stays `offline` while it does.
  * - `signed-out`: the gateway refused the sign-in. Nothing is retried.
  * - `stopped`: not started, or stopped on purpose.
  */
@@ -156,7 +157,12 @@ export class GatewayConnection {
 
   private async dial() {
     const generation = ++this.generation
-    this.status.set('connecting')
+
+    // Retries stay `offline`, so the banner doesn't flicker on every attempt.
+    if (this.attempt === 0) {
+      this.status.set('connecting')
+    }
+
     this.lastCloseCode = null
 
     let ticket: string
