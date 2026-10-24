@@ -7,7 +7,7 @@ import { signInWithPassword } from '@/gateway/auth'
 import { createRest } from '@/gateway/rest'
 import { loadAppSettings, memorySettingsStore, saveAppSettings, setSettingsStoreForTests } from '@/storage/app-settings'
 import { prepareGatewayDatabase } from '@/storage/database'
-import { $auth, $gateway, setGatewayDepsForTests, signIn, signOut, startApp } from '@/store/gateway'
+import { $auth, $gateway, resetStartForTests, setGatewayDepsForTests, signIn, signOut, startApp } from '@/store/gateway'
 
 import { FakeGateway, loadRecording } from './fake-gateway'
 import { FakeRest } from './fake-rest'
@@ -48,6 +48,7 @@ beforeEach(async () => {
     rest.hasCookie = false
   })
   $auth.set({ phase: 'starting' })
+  resetStartForTests()
 })
 
 afterEach(async () => {

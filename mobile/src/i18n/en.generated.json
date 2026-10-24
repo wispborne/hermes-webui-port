@@ -1,4 +1,14 @@
 {
+  "assistant": {
+    "thread": {
+      "copy": "Copy",
+      "loadingSession": "Loading session",
+      "responseStopped": "Response stopped",
+      "showEarlier": "Show earlier messages",
+      "thinking": "Thinking",
+      "thought": "Thought"
+    }
+  },
   "common": {
     "apply": "Apply",
     "back": "Back",
@@ -40,6 +50,12 @@
     "tryHint": "Try “{term}”",
     "on": "On",
     "off": "Off"
+  },
+  "composer": {
+    "message": "Message",
+    "placeholderFollowUp": "Send follow-up",
+    "send": "Send",
+    "stop": "Stop"
   },
   "notifications": {
     "native": {

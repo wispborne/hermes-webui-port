@@ -113,11 +113,25 @@ async function sessionEnded() {
   $auth.set({ phase: 'signed-out', url: gatewayUrl, username })
 }
 
+let starting: Promise<AuthState> | null = null
+
 /**
  * The start check. With a saved gateway, `GET /api/auth/me` decides:
  * signed in, signed out, or unreachable (treated as signed in, offline).
+ * Runs once; later calls get the same answer.
  */
-export async function startApp(): Promise<AuthState> {
+export function startApp(): Promise<AuthState> {
+  starting ??= runStartCheck()
+
+  return starting
+}
+
+/** Tests run the start check more than once. */
+export function resetStartForTests() {
+  starting = null
+}
+
+async function runStartCheck(): Promise<AuthState> {
   const { gatewayUrl, username } = loadAppSettings()
 
   if (!gatewayUrl) {

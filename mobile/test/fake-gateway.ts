@@ -43,6 +43,8 @@ export interface FakeGatewayOptions {
   /** False closes the socket with 4401, as the gateway does for a bad ticket. */
   acceptTicket?: (ticket: string | null) => boolean
   handle?: FrameHandler
+  /** The `replay_epoch` to put in each new connection's `gateway.ready`. */
+  replayEpoch?: () => string
 }
 
 /** A JSON-RPC result for request `frame`. */
@@ -186,6 +188,12 @@ export class FakeGateway {
 
         if (frame.id !== undefined && frame.method === undefined && ids.has(frame.id)) {
           frame.id = ids.get(frame.id)
+        }
+
+        const params = frame.params as { type?: string; payload?: Record<string, unknown> } | undefined
+
+        if (params?.type === 'gateway.ready' && this.options.replayEpoch) {
+          frame.params = { ...params, payload: { ...params.payload, replay_epoch: this.options.replayEpoch() } }
         }
 
         send(frame)

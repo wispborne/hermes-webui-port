@@ -46,8 +46,11 @@ const sessions = new Map()
 const transcripts = new Map()
 let nextRowId = 1
 
+let nextSessionNumber = 1
+
 function addSession({ title, preview, ageMinutes, source = 'gui', hidden = false, messages = [] }) {
-  const sessionId = id('s-')
+  // Numbered, so the made-up sessions keep their ids when the script restarts.
+  const sessionId = `s-${nextSessionNumber++}`
   const startedAt = now() - ageMinutes * 60 - 600
   const lastActive = now() - ageMinutes * 60
 

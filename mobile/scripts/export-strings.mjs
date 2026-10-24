@@ -19,7 +19,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tsImport } from 'tsx/esm/api'
 
 const EXPORTED = [
+  'assistant.thread.copy',
+  'assistant.thread.loadingSession',
+  'assistant.thread.responseStopped',
+  'assistant.thread.showEarlier',
+  'assistant.thread.thinking',
+  'assistant.thread.thought',
   'common',
+  'composer.message',
+  'composer.placeholderFollowUp',
+  'composer.send',
+  'composer.stop',
   'notifications.native',
   'settings.connections',
   'settings.gateway',

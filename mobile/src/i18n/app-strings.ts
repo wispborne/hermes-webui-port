@@ -34,6 +34,18 @@ export const appStrings = {
   sessions: {
     savedOnlySearch: 'Only sessions saved on this phone were searched.'
   },
+  chat: {
+    queued: 'Queued',
+    waitingToSend: 'Waiting to send',
+    oldMessage: 'Waited more than a day.',
+    sendNow: 'Send now',
+    discard: 'Discard',
+    notSaved: "This session isn't saved on this phone. It loads when the gateway can be reached.",
+    arguments: 'Arguments',
+    result: 'Result',
+    changes: 'Changes',
+    running: 'Running…'
+  },
   connection: {
     connecting: 'Connecting to the gateway…'
   },

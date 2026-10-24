@@ -58,6 +58,19 @@ Tool rows show the tool name and `summary`, collapsed. Tapping expands them to `
   - `react-native-enriched-markdown`
 
   The pick and the numbers are recorded in this file before the rest of the rendering work.
+
+  **Trial result (2026-10-24): `react-native-enriched-markdown` 1.1.1, with `flavor="github"`.**
+  The reply in `mobile/test/fixtures/long-reply.json` (5,250 characters, 633 pieces) was streamed one piece per frame on the Pixel 9 Pro emulator, in a development build, re-rendering the whole reply each time. Frame times from `requestAnimationFrame` (the emulator draws at 30 Hz, so 33 ms is its best):
+
+  | Library | Mean frame | 95th percentile | Longest | Frames over 33 ms | Whole reply |
+  | --- | --- | --- | --- | --- | --- |
+  | `react-native-enriched-markdown` 1.1.1 | 33.4 ms | 35.7 ms | 55 ms | 297 of 632 | 21 s |
+  | `react-native-marked` 8.3.2 | 117 ms | 201 ms | 317 ms | 600 of 632 | 74 s |
+  | `@ronradtke/react-native-markdown-display` 9.0.3 | 194 ms | 353 ms | 453 ms | 598 of 632 | 123 s |
+
+  All three drew the headings, lists, table and code blocks correctly. enriched-markdown parses and draws natively, so the JavaScript thread stays free. With the `github` flavour it also highlights code itself (tree-sitter grammars, compiled for the languages listed under `"enriched-markdown"` in `mobile/package.json`), scrolls wide code sideways, and puts a copy button on each code block. So no separate highlighter is needed. The other two libraries were removed after the trial.
+
+  Its install script downloads the grammars. Under Git Bash on Windows that download fails because Git Bash's `tar` reads `C:` as a host name. Run `node node_modules/react-native-enriched-markdown/postinstall.mjs` from PowerShell or cmd if the Android build says the grammars are missing.
 - Code blocks: syntax highlighting with a light highlighter, horizontally scrollable, with a copy button.
 
 ### Sending and Stop
