@@ -297,15 +297,17 @@ describe('catching up after a reconnect', () => {
     await until(() => texts(items('s1')).at(-1) === 'assistant: Working on ')
   })
 
+  // The app reconnects after a random wait, which can be close to 0. Then it is
+  // back before a check for "not open" runs. goOffline keeps it off until
+  // the test has set up what it missed.
   it('replays what happened while disconnected', async () => {
-    h.gateway.dropClients()
-    await until(() => !h.context.connection.isOpen)
+    await goOffline()
 
     g.emit('s1', 'message.delta', { text: 'it. Done.' }, false)
     g.emit('s1', 'tool.complete', { tool_id: 't1', name: 'terminal', summary: 'ok' }, false)
     g.emit('s1', 'message.complete', { text: 'Finished.', status: 'complete' }, false)
 
-    await h.context.connection.waitUntilOpen(3000)
+    await comeBack()
     await until(() => !chatStore('s1').get().running)
 
     expect(items('s1').map(item => item.kind)).toEqual(['user', 'assistant', 'tool', 'assistant'])
@@ -313,12 +315,11 @@ describe('catching up after a reconnect', () => {
   })
 
   it('reloads the session when the gateway restarted', async () => {
-    h.gateway.dropClients()
-    await until(() => !h.context.connection.isOpen)
+    await goOffline()
     g.restart()
     g.addRow('s1', 'assistant', 'Done before the restart.')
 
-    await h.context.connection.waitUntilOpen(3000)
+    await comeBack()
     await until(() => texts(items('s1')).includes('assistant: Done before the restart.'))
 
     expect(chatStore('s1').get().running).toBe(false)
