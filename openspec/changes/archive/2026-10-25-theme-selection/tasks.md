@@ -27,7 +27,7 @@
 
 - [x] 5.1 Type check and tests pass
 - [x] 5.2 Emulator screenshots: Appearance section in light and dark, the theme list, three themes in both modes, a theme with a swatch accent
-- [ ] 5.3 The owner picks a theme, an accent and a fixed mode on their phone, restarts the app, and checks they're kept
+- [x] 5.3 The owner picks a theme, an accent and a fixed mode on their phone, restarts the app, and checks they're kept
 
 ## Notes
 
