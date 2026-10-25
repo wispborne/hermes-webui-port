@@ -15,7 +15,7 @@
 
 - [x] 3.1 Write `.github/workflows/mobile-release.yml`: version and tag check, setup, type check and tests, prebuild, signed `assembleRelease` for `arm64-v8a`, signature check, notes, tag, Gitea release with the APK, tag removal on failure
 - [x] 3.2 Add `themes.generated.json` to the generated-files check in `mobile.yml`
-- [ ] 3.3 Build a release locally with a throwaway key and check its `versionCode`, app ID, signature, and that it reaches an `http://` gateway on the emulator
+- [x] 3.3 Build a release locally with a throwaway key and check its `versionCode`, app ID, signature, and that it reaches an `http://` gateway on the emulator
 
 ## 4. README
 
@@ -34,5 +34,5 @@
 - `npm run android` and `npm start` go through `scripts/expo-dev.mjs`, which sets `APP_VARIANT=development`. An inline `APP_VARIANT=development` doesn't work in npm's shell on Windows, and `cross-env` would be a new dependency for one line.
 - The workflow passes the signing values to Gradle as `ORG_GRADLE_PROJECT_<name>` environment variables, not with `-P`, so the passwords don't show in the runner's process list.
 - The Gitea release is made through the API with the tag, so Gitea creates the tag. If the APK upload fails, the run deletes the release and the tag.
-- 3.3 so far: a release built locally with a throwaway key (for `x86_64`, to run on the emulator) has `versionCode` 100, the ID `com.wispborne.hermes`, the label "Hermes", `usesCleartextTraffic=true`, and the throwaway key's signature. Installing it over the emulator's old development build fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, as expected. Running it against an `http://` gateway needs the old development build uninstalled from the emulator first.
+- 3.3 so far: a release built locally with a throwaway key (for `x86_64`, to run on the emulator) has `versionCode` 100, the ID `com.wispborne.hermes`, the label "Hermes", `usesCleartextTraffic=true`, and the throwaway key's signature. Installing it over the emulator's old development build fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, as expected. With the owner's go-ahead, the old development build was uninstalled from the emulator. The release then signed in to the demo gateway at `http://10.0.2.2:8787`, listed its sessions, sent a message over the WebSocket and showed the streamed reply (`screenshots/release-http-gateway-chat.png`). The emulator still has this test release, signed with the throwaway key.
 - The push that added the workflow ran it with version 0.1.0, which had no tag yet. The run stopped at the secrets check, before making a tag. Once the secrets are added, re-running it makes 0.1.0 the first release.
