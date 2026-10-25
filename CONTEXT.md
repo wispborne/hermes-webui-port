@@ -29,8 +29,20 @@ One message from the person and everything Hermes does in response, until it fin
 _Avoid_: Run, exchange, request
 
 **Outbox**:
-Messages the person wrote while the gateway couldn't be reached, waiting on their device to be sent in order.
+Messages the person wrote while the gateway couldn't be reached, waiting on their device to be sent in order. If a turn is still running when one is sent, it becomes a queued message.
 _Avoid_: Queue, pending messages, drafts
+
+**Queued message**:
+A message the person wrote while a turn was running, waiting on their device until that turn ends. While it waits, the person can edit it, delete it, or steer with it.
+_Avoid_: Outbox, pending message, draft
+
+**Steer**:
+Sending a note into a running turn. Hermes reads it at its next step. It doesn't start a new turn and isn't shown as the person's message.
+_Avoid_: Redirect, interject, nudge
+
+**Retry**:
+Running the person's last message again, replacing Hermes's reply to it.
+_Avoid_: Regenerate, rerun
 
 **Stop**:
 Ending a running turn early, at the person's request.
