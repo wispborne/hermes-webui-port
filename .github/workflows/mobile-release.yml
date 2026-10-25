@@ -1,8 +1,8 @@
-# Makes a mobile app release when the version in mobile/app.json changes.
+# Makes a mobile app release on every push to main that changes the app.
 #
-# If main's version has no mobile-v<version> tag yet, this checks the app,
-# builds a release APK signed with the Hermes release key, and publishes a
-# Gitea release "Hermes mobile <version>" tagged mobile-v<version>, with
+# This works out the next version, checks the app, builds a release APK
+# signed with the Hermes release key, and publishes a Gitea release
+# "Hermes mobile <version>" tagged mobile-v<version>, with
 # hermes-<version>.apk attached. Obtainium installs it from there.
 #
 # The key comes from four Actions secrets, made by
@@ -45,23 +45,51 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Check for a new version
+      # app.json holds the major and minor version, and the lowest patch to use.
+      # Each release takes the next patch after the last mobile-v<major>.<minor>
+      # tag, so every push makes a new version without editing app.json.
+      - name: Work out the version
         id: version
         run: |
           set -euo pipefail
-          version=$(node -p "require('./mobile/app.json').expo.version")
-          tag="mobile-v$version"
+          base=$(node -p "require('./mobile/app.json').expo.version")
+          series=${base%.*}
+          patch=${base##*.}
 
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "$tag already exists. Bump the version in mobile/app.json to make a release."
+          newest=$(git tag --list 'mobile-v*' --sort=-v:refname | head -n 1)
+
+          # A queued run checks out the newest main, which an earlier run may have released already.
+          if [ -n "$newest" ] && [ "$(git rev-list -n 1 "$newest")" = "$(git rev-parse HEAD)" ]; then
+            echo "$newest already releases this commit."
             echo "release=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Releasing $version."
-            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
+          last=$(git tag --list "mobile-v$series.*" --sort=-v:refname | head -n 1)
+
+          if [ -n "$last" ] && [ $(( ${last##*.} + 1 )) -gt "$patch" ]; then
+            patch=$(( ${last##*.} + 1 ))
+          fi
+
+          version="$series.$patch"
+          echo "Releasing $version."
+          echo "release=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "tag=mobile-v$version" >> "$GITHUB_OUTPUT"
+
+      # Only in this checkout. The tag records the version, so app.json isn't committed.
+      - name: Set the version in app.json
+        if: steps.version.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node -e "
+            const fs = require('fs')
+            const file = 'mobile/app.json'
+            const app = JSON.parse(fs.readFileSync(file, 'utf8'))
+            app.expo.version = process.env.VERSION
+            fs.writeFileSync(file, JSON.stringify(app, null, 2) + '\n')
+          "
 
       - name: Check the signing secrets are set
         if: steps.version.outputs.release == 'true'

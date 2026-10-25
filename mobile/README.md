@@ -33,9 +33,9 @@ The development build is called "Hermes Dev" and has the app ID `com.wispborne.h
 
 ## Releases
 
-A push to main that changes the version in `app.json` makes a release. The `Mobile release` workflow on Gitea checks the app, builds an APK signed with the release key, and publishes the release "Hermes mobile <version>", tagged `mobile-v<version>`, with `hermes-<version>.apk` attached. The release notes are the commits that changed `mobile/` since the last release.
+Every push to main that changes the app makes a release. The `Mobile release` workflow on Gitea works out the next version, checks the app, builds an APK signed with the release key, and publishes the release "Hermes mobile <version>", tagged `mobile-v<version>`, with `hermes-<version>.apk` attached. The release notes are the commits that changed `mobile/` since the last release.
 
-The version has three parts, each from 0 to 99. Android's version number is worked out from it: 1.2.3 becomes 10203.
+The version in `app.json` sets the major and minor parts. Each release takes the next patch after the last release with the same major and minor, so `0.2.0` in `app.json` gives 0.2.1, then 0.2.2, and so on. To start a new series, change `app.json` to something like `0.3.0`. Major and minor go from 0 to 99, and patch from 0 to 9999. Android's version number is worked out from the version: 1.2.3 becomes 1020003.
 
 The release key is made once with `bash scripts/release-key-wizard.sh`. It makes the key, walks you through adding it as four Gitea Actions secrets, and has you back it up in your password manager. Every release must be signed with that key. If it's lost, the installed app can't be updated and has to be uninstalled, which deletes what it saved on the phone.
 

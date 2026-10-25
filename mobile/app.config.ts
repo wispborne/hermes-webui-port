@@ -9,9 +9,10 @@ import type { ConfigContext, ExpoConfig } from 'expo/config'
 const DEV_SUFFIX = '.dev'
 
 /**
- * Android's versionCode for a `major.minor.patch` version: 1.2.3 becomes 10203.
- * Each part must be a whole number from 0 to 99, or later versions could get a
- * smaller number than earlier ones.
+ * Android's versionCode for a `major.minor.patch` version: 1.2.3 becomes 1020003.
+ * Major and minor must be whole numbers from 0 to 99, and patch from 0 to 9999,
+ * or later versions could get a smaller number than earlier ones. The release
+ * workflow raises the patch on every release, so it gets the wider range.
  */
 export function versionCodeFor(version: string): number {
   const parts = version.split('.')
@@ -21,18 +22,19 @@ export function versionCodeFor(version: string): number {
   }
 
   const names = ['major', 'minor', 'patch']
+  const largest = [99, 99, 9999]
 
   const numbers = parts.map((part, index) => {
     const value = Number(part)
 
-    if (!/^\d+$/.test(part) || value > 99) {
-      throw new Error(`The ${names[index]} part of the version "${version}" must be a whole number from 0 to 99.`)
+    if (!/^\d+$/.test(part) || value > largest[index]!) {
+      throw new Error(`The ${names[index]} part of the version "${version}" must be a whole number from 0 to ${largest[index]}.`)
     }
 
     return value
   })
 
-  return numbers[0]! * 10000 + numbers[1]! * 100 + numbers[2]!
+  return numbers[0]! * 1000000 + numbers[1]! * 10000 + numbers[2]!
 }
 
 /** app.json's config for the given variant, with the versionCode filled in. */
