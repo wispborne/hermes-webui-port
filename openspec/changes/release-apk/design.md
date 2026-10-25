@@ -62,6 +62,16 @@ Alternative considered: re-signing the APK with `apksigner` after the build. Rej
 
 The release APK is built for `arm64-v8a` only (`-PreactNativeArchitectures=arm64-v8a`). That covers every Android phone from the last several years. It makes the APK about a quarter of the size of an all-architectures build, and the build faster. The emulator keeps using the development build.
 
+### Shrinking
+
+`expo-build-properties` turns on `enableMinifyInReleaseBuilds` and `enableShrinkResourcesInReleaseBuilds`. R8 then removes the Java and Kotlin code the app never reaches. On the emulator build this took the app's code from 15.8 MB to 6.6 MB in the APK, and the whole APK from 59.0 MB to 49.5 MB.
+
+Shrinking can remove a class that a library only reaches by name, which crashes the app when that code runs. The shrunk build was checked on the emulator, across the session list, chat, Approval, Question, Stop, themes, Keep connected, Run from a notification, and sign-out and sign-in. No class went missing.
+
+Native libraries stay uncompressed. Compressing them would shrink the download further, but Android would then have to unpack them on install.
+
+The largest native library is `react-native-enriched-markdown`'s, at about 12 MB. About 10 MB of that is tree-sitter grammars for code highlighting, compiled for the languages in `mobile/package.json` under `"enriched-markdown"`. That list is the place to cut it down.
+
 ### The workflow
 
 `.github/workflows/mobile-release.yml` runs on pushes to main that change `mobile/**`, and on `workflow_dispatch`. It skips on GitHub. A `concurrency` group stops two runs from releasing the same version.

@@ -38,3 +38,4 @@
 - The push that added the workflow ran it with version 0.1.0, which had no tag yet. The run stopped at the secrets check, before making a tag. Once the secrets are added, re-running it makes 0.1.0 the first release.
 - The first Gitea run failed in `android-actions/setup-android`: its default package list asks for `tools`, which SDK command-line tools 16.0 no longer have. The workflow now asks only for `platform-tools`. Gradle downloads the rest.
 - The second run failed when the Gradle wrapper downloaded Gradle: "Network is unreachable". The runner's containers have no IPv6 route and Java tries IPv6 first, so the job sets `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true`.
+- The first release, 0.1.0, was 56 MB. 36 MB of that was native libraries, stored uncompressed. 16 MB was code that R8 wasn't shrinking. Shrinking is now on (see the design's Shrinking section), and 0.1.1 is the first release built with it.
