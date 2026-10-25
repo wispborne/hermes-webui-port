@@ -300,7 +300,8 @@ The result includes:
 | `inflight` | When a turn is running: `{user, assistant, streaming, ...}`, the text so far, so the app can redraw the reply in progress. |
 | `queued` | A message waiting behind the running turn. |
 | `pending_approval` | An approval that is waiting. |
-| `open_requests` | Server requests still waiting for an answer, as `[{id, method, params}]`. Handle each one exactly like a live server request ([section 9](#9-approvals-and-questions)). |
+| `open_requests` | Server requests still waiting for an answer, as `[{id, method, params}]`. Handle each one exactly like a live server request ([section 9](#9-approvals-and-questions)). The server doesn't send these again as request frames. The shared channel (`deliverOpenRequests` in `apps/shared/src/json-rpc-channel.ts`) hands them to the request handlers when the answer arrives, before the caller has the new runtime id. The app holds them until `attach` has linked the runtime id (`isResuming` in `mobile/src/store/chat.ts`). Declining one as "not shown here" could settle it if no other client shows the session. |
+| `subscription_id` | Only from a gateway with a session authority: this connection's subscription to the session, for `session.detach`. |
 | `info` | Model, provider, working folder, title and other settings. |
 
 If the session is already loaded on the server, resume attaches to the existing live copy. It doesn't start a second one.
@@ -329,8 +330,17 @@ The session is only written to the database when the first message is sent.
 
 ### Close a session
 
-`session.close {session_id: <runtime id>}` unloads the live copy. The saved conversation stays.
-An app doesn't need to call it. The server unloads idle sessions after the client disconnects ([section 10](#10-disconnects-and-reconnecting)).
+`session.close {session_id: <runtime id>}` unloads the live copy for every client, including another device that has the session open. The saved conversation stays.
+An app doesn't need to call it. The server unloads idle sessions after the client disconnects ([section 10](#10-disconnects-and-reconnecting)). The mobile app never sends it.
+
+### Detach from a session
+
+The gateway serves the WebSocket in one of two ways (`tui_gateway/ws.py`, `_authority_connection`):
+
+- **With a session authority:** `session.resume` returns a `subscription_id`. `session.detach {session_id, subscription_id, end_reason?}` drops only this connection's subscription. Other clients keep the session. A stale subscription id answers `detached: false`. (`tui_gateway/contracts/canonical.py`, `gateway/session_controls.py`.)
+- **Without one (the older path):** there's no `subscription_id` and no `session.detach`. A client stays attached to every session it resumed until its socket closes.
+
+While any client is attached, the server never unloads the session. The mobile app attaches to sessions it only watches for alerts, so it detaches from them once their request is settled, and doesn't attach at all on the older path. See `docs/adr/0003-phone-checks-for-waiting-sessions.md`.
 
 ### Other session methods
 

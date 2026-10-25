@@ -3,7 +3,11 @@
 // sessions, and plays scripted replies.
 //
 //   cd mobile
-//   node scripts/demo-gateway.mjs [--port 8787]
+//   node scripts/demo-gateway.mjs [--port 8787] [--detach]
+//
+// --detach acts like a gateway with a session authority: session.resume
+// answers carry a subscription_id, and session.detach drops one client from a
+// session. Without it, the demo acts like the older kind, with neither.
 //
 // On the emulator, the gateway URL is http://10.0.2.2:8787. Sign in with any
 // username and the password "demo".
@@ -21,6 +25,7 @@
 //   r  restart: a new replay epoch, so the app must reload what it shows
 //   l  start a turn on the "laptop" session, as if another device did
 //   a  start a turn on the "Weekly report" session that waits on an Approval
+//      (a session the phone hasn't opened, for the other-session alerts)
 //   t  time out every waiting Approval
 //   q  quit
 
@@ -30,7 +35,7 @@ import { parseArgs } from 'node:util'
 
 import { WebSocketServer } from 'ws'
 
-const { values: options } = parseArgs({ options: { port: { type: 'string', default: '8787' } } })
+const { values: options } = parseArgs({ options: { port: { type: 'string', default: '8787' }, detach: { type: 'boolean', default: false } } })
 const PORT = Number(options.port)
 const VERSION = '0.22.4'
 const PASSWORD = 'demo'
@@ -420,9 +425,28 @@ function handleRpc(client, frame) {
         info: { model: 'demo-model', title: sessions.get(storedId).title },
         running: entry.running,
         inflight: entry.inflight,
-        open_requests: openRequests(entry)
+        open_requests: openRequests(entry),
+        ...(options.detach ? { subscription_id: `sub-${client.id}-${entry.runtimeId}` } : {})
       })
     }
+
+    case 'session.detach': {
+      const entry = live.get(params.session_id)
+
+      if (!options.detach) {
+        return fail(-32601, 'method not found: session.detach')
+      }
+
+      const detached = Boolean(entry?.clients.delete(client))
+      console.log(`session.detach ${params.session_id} (${params.subscription_id}): ${detached ? 'detached' : 'not attached'}`)
+
+      return reply({ session_id: params.session_id, subscription_id: params.subscription_id, detached })
+    }
+
+    case 'session.close':
+      console.log(`session.close ${params.session_id}`)
+
+      return reply({ closed: true, messages: [] })
 
     case 'prompt.submit': {
       const entry = live.get(params.session_id)
@@ -673,7 +697,7 @@ server.on('upgrade', (req, socket, head) => {
     }
 
     console.log('WebSocket connected')
-    const client = { ws, sendFrame: frame => ws.readyState === ws.OPEN && ws.send(JSON.stringify(frame)) }
+    const client = { id: id('c-'), ws, sendFrame: frame => ws.readyState === ws.OPEN && ws.send(JSON.stringify(frame)) }
     clients.add(client)
     client.sendFrame({ jsonrpc: '2.0', method: 'event', params: { type: 'gateway.ready', payload: { skin: {}, change_events: true, heartbeat: true, replay_epoch: replayEpoch } } })
 

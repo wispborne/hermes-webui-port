@@ -41,6 +41,11 @@ export interface ResumeAnswer {
   inflight?: { user?: string; assistant?: string } | null
   info?: { title?: string | null } | null
   open_requests?: { id: string; method: string; params: Record<string, unknown> }[] | null
+  /**
+   * This connection's subscription to the session. Only gateways with a
+   * session authority give one, and only they accept `session.detach`.
+   */
+  subscription_id?: string | null
 }
 
 export interface CreateAnswer {

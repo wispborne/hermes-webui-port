@@ -11,14 +11,16 @@ import * as background from '../../modules/hermes-background'
 import { t } from '@/i18n/t'
 import { loadAppSettings, saveAppSettings } from '@/storage/app-settings'
 import { $appActive } from '@/store/app-state'
-import { chatStore, onSessionEvent } from '@/store/chat'
+import { loadMarkers } from '@/gateway/sessions-api'
+import { $canDetach, chatStore, detachChat, isWatched, onSessionEvent, watchChat } from '@/store/chat'
 import { $auth, $gateway } from '@/store/gateway'
 import { $prompts, answerApproval, onPromptsChange, promptsFor } from '@/store/prompts'
-import { $localMarkers, $sessionRows } from '@/store/sessions'
+import { $localMarkers, $remoteMarkers, $sessionRows } from '@/store/sessions'
 
 import { APPROVAL_CATEGORY, CHANNELS, type NotificationContent, Notifications } from './notifications'
 import { applyNetworkChange, type NetworkState } from './reconnect'
 import { type Activity, ServiceControl } from './service-control'
+import { Watch } from './watch'
 
 /** The chat key of the session on screen, set by the Session screen. */
 export const $onScreen = atom<string | null>(null)
@@ -148,6 +150,56 @@ export function handleNotificationResponse(response: ExpoNotifications.Notificat
   }
 }
 
+// ------------------------------------------------------------ sessions on other devices
+
+/**
+ * A watched session's request is settled: detach, so the gateway can unload
+ * the session once nobody uses it. Not while it's on screen.
+ */
+function detachIfSettled(key: string) {
+  const prompts = promptsFor(key)
+  const onScreen = $appActive.get() && $onScreen.get() === key
+
+  if (isWatched(key) && !prompts.approvals.length && !prompts.question && !onScreen) {
+    void detachChat(key)
+  }
+}
+
+const watch = new Watch({
+  loadMarkers: async () => {
+    const connection = $gateway.get()?.connection
+
+    if (!connection?.isOpen) {
+      throw new Error('Not connected.')
+    }
+
+    const markers = await loadMarkers(connection.client)
+    $remoteMarkers.set(markers)
+
+    return markers
+  },
+  isAttached: storedId => storedId in $localMarkers.get(),
+  alert: storedId => {
+    const plain = () => notifications.sessionWaiting(storedId, $sessionRows.get().find(row => row.id === storedId)?.title ?? null)
+
+    // A gateway that can't detach would keep the session loaded, so it gets the plain alert.
+    if ($canDetach.get() === false) {
+      plain()
+
+      return
+    }
+
+    // Attaching brings the request as a card, which raises the usual notification.
+    watchChat(storedId)
+      .then(() => detachIfSettled(storedId))
+      .catch(() => plain())
+  },
+  forget: storedId => notifications.sessionStoppedWaiting(storedId),
+  now: () => Date.now(),
+  setTimer: (callback, ms) => setTimeout(callback, ms),
+  clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>)
+})
+
 // ------------------------------------------------------------ wiring
 
 let started = false
@@ -183,7 +235,23 @@ export function startBackground() {
   $localMarkers.listen(sync)
   sync()
 
-  onPromptsChange((key, prompts) => notifications.promptsChanged(key, prompts, context(key)))
+  onPromptsChange((key, prompts) => {
+    notifications.promptsChanged(key, prompts, context(key))
+    detachIfSettled(key)
+  })
+
+  // Sessions on other devices are watched while Keep connected keeps the connection open.
+  let stopStatus: (() => void) | null = null
+  const syncWatch = () =>
+    watch.setOn($keepConnected.get() && $auth.get().phase === 'signed-in' && Boolean($gateway.get()?.connection.isOpen))
+
+  $gateway.subscribe(gateway => {
+    stopStatus?.()
+    stopStatus = gateway ? gateway.connection.$status.listen(syncWatch) : null
+    syncWatch()
+  })
+  $keepConnected.listen(syncWatch)
+  $auth.listen(syncWatch)
 
   // Cards that were quiet because their session was on screen need a
   // notification once the app leaves the screen, and lose it when it's back.

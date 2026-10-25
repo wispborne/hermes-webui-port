@@ -11,6 +11,9 @@
 // - sending: every message goes through the outbox, so none is lost
 // - catching up: after a reconnect every attached session is resumed again,
 //   and reloaded when the shared client couldn't replay what was missed
+// - watching: a session the phone hasn't opened can be attached without its
+//   transcript, so its waiting request raises the usual notification, and
+//   detached again afterwards (see background/watch.ts)
 
 import { JsonRpcGatewayError } from '@hermes/shared/json-rpc-channel'
 import type { GatewayEvent } from '@hermes/shared/json-rpc-gateway'
@@ -38,7 +41,7 @@ import {
 import { loadTranscript, markOpened, saveTranscript } from '@/storage/transcripts'
 
 import { $gateway, type GatewayContext, onGatewayChange } from './gateway'
-import { $sessionRows, setLocalMarker } from './sessions'
+import { $sessionRows, clearLocalMarker, setLocalMarker } from './sessions'
 
 export interface ChatSession extends StreamState {
   /** The stored id, or `local-…` for a session not created on the gateway yet. */
@@ -72,6 +75,16 @@ const attached = new Set<string>()
 const gaps = new Set<string>()
 /** Old outbox entries the person chose to send anyway. */
 const confirmedOld = new Set<string>()
+/** Sessions attached only to alert the person, not opened on the phone. Their transcript isn't loaded. */
+const watched = new Set<string>()
+/** Each attached session's subscription, when the gateway gives one. */
+const subscriptions = new Map<string, string>()
+
+/**
+ * Whether this gateway gives each connection its own subscription, which it
+ * can drop with `session.detach`. Null until a `session.resume` answer says.
+ */
+export const $canDetach = atom<boolean | null>(null)
 
 const blank = (key: string): ChatSession => ({
   key,
@@ -145,6 +158,16 @@ export function onOpenRequests(listener: OpenRequestsListener): () => void {
 
 /** The chat key for a runtime id, if the session is open on the phone. */
 export const keyForRuntimeId = (runtimeId: string | undefined) => (runtimeId ? byRuntimeId.get(runtimeId) : undefined)
+
+let resuming = 0
+
+/**
+ * A `session.resume` is waiting for its answer. The shared channel hands the
+ * answer's `open_requests` to the request handlers before the answer reaches
+ * `attach`, so their runtime id isn't known yet. The approvals store holds
+ * such requests until `attach` has linked the runtime id.
+ */
+export const isResuming = () => resuming > 0
 
 /** Adds a note to a session's transcript, such as the timed-out note. */
 export function addNote(key: string, text: string, tone: 'error' | 'info' = 'info') {
@@ -334,6 +357,9 @@ export async function openChat(key: string): Promise<void> {
     return
   }
 
+  // A watched session that the person opens is an ordinary open session from now on.
+  watched.delete(key)
+
   if (!store.get().title) {
     update(key, state => ({ ...state, title: titleFromList(storedId) }))
   }
@@ -415,10 +441,20 @@ export async function attach(key: string): Promise<void> {
     await client.sessionReplayBarrier(before.runtimeId)
   }
 
-  const answer = await client.request<ResumeAnswer>('session.resume', { session_id: before.storedId, omit_messages: true })
+  let answer: ResumeAnswer
+
+  resuming++
+
+  try {
+    answer = await client.request<ResumeAnswer>('session.resume', { session_id: before.storedId, omit_messages: true })
+  } finally {
+    resuming--
+  }
+
   const runtimeId = answer.session_id
   const moved = before.runtimeId !== null && before.runtimeId !== runtimeId
-  const reload = gaps.has(key) || moved || chatStore(key).get().transcript !== 'loaded'
+  // A watched session has no transcript to keep current.
+  const reload = !watched.has(key) && (gaps.has(key) || moved || chatStore(key).get().transcript !== 'loaded')
 
   if (before.runtimeId && before.runtimeId !== runtimeId) {
     byRuntimeId.delete(before.runtimeId)
@@ -427,6 +463,13 @@ export async function attach(key: string): Promise<void> {
   byRuntimeId.set(runtimeId, key)
   attached.add(key)
   gaps.delete(key)
+  $canDetach.set(Boolean(answer.subscription_id))
+
+  if (answer.subscription_id) {
+    subscriptions.set(key, answer.subscription_id)
+  } else {
+    subscriptions.delete(key)
+  }
 
   if (reload) {
     await loadLatest(key, gateway).catch(() => undefined)
@@ -452,6 +495,63 @@ export async function attach(key: string): Promise<void> {
 
   for (const listener of openRequestListeners) {
     listener(key, answer.open_requests ?? [])
+  }
+}
+
+/**
+ * Attaches to a session the phone hasn't opened, so its waiting requests
+ * arrive as cards and raise the usual notifications. The transcript isn't
+ * loaded. Does nothing for a session that's already attached.
+ */
+export async function watchChat(key: string): Promise<void> {
+  if (attached.has(key) || !$gateway.get()?.connection.isOpen) {
+    return
+  }
+
+  watched.add(key)
+
+  try {
+    await attach(key)
+  } catch (error) {
+    watched.delete(key)
+    throw error
+  }
+}
+
+/** The session is attached only to alert the person. */
+export const isWatched = (key: string) => watched.has(key)
+
+/**
+ * Drops a watched session's subscription with `session.detach`, so the
+ * gateway can unload the session once nobody uses it. Never `session.close`,
+ * which would unload it for every device. Does nothing when the gateway gave
+ * no subscription: then the session stays attached until the connection
+ * closes, like a session opened on the phone.
+ */
+export async function detachChat(key: string): Promise<void> {
+  const subscription = subscriptions.get(key)
+  const { runtimeId, storedId } = chatStore(key).get()
+
+  if (!watched.has(key) || !subscription || !runtimeId) {
+    return
+  }
+
+  watched.delete(key)
+  attached.delete(key)
+  subscriptions.delete(key)
+  byRuntimeId.delete(runtimeId)
+  update(key, state => ({ ...state, runtimeId: null, running: false }))
+
+  if (storedId) {
+    clearLocalMarker(storedId)
+  }
+
+  const connection = $gateway.get()?.connection
+
+  if (connection?.isOpen) {
+    await connection.client
+      .request('session.detach', { session_id: runtimeId, subscription_id: subscription })
+      .catch((error: unknown) => console.warn('Could not detach from the session', error))
   }
 }
 
@@ -743,6 +843,9 @@ onGatewayChange(gateway => {
   attached.clear()
   gaps.clear()
   pending.clear()
+  watched.clear()
+  subscriptions.clear()
+  $canDetach.set(null)
   lastEpoch = null
 
   if (gateway) {

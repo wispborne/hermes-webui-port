@@ -67,7 +67,8 @@ export const appStrings = {
     working: 'Hermes is working',
     connected: 'Connected to the gateway',
     keepConnected: 'Keep connected',
-    keepConnectedDescription: 'Stay connected in the background, even when nothing is running. Uses more battery.',
+    keepConnectedDescription:
+      'Stay connected in the background, even when nothing is running. Also alerts you when a session on another device needs your input. Uses more battery.',
     notificationsTitle: 'Allow notifications',
     notificationsWhy: 'Hermes shows a notification when it needs your answer or finishes a reply while the app is closed.',
     batteryTitle: 'Allow background use',

@@ -14,7 +14,7 @@ import { atom } from 'nanostores'
 
 import { t } from '@/i18n/t'
 
-import { addNote, attach, chatStore, keyForRuntimeId, onOpenRequests, onSessionEvent } from './chat'
+import { addNote, attach, chatStore, isResuming, keyForRuntimeId, onOpenRequests, onSessionEvent } from './chat'
 import { $gateway, type GatewayContext, onGatewayChange } from './gateway'
 import { setLocalMarker } from './sessions'
 
@@ -132,6 +132,22 @@ function approvalFromParams(params: Record<string, unknown>, requestId: string |
 
 const SHOWN_REQUESTS = new Set(['approval', 'clarify'])
 
+/** Requests that arrived during a resume for a runtime id it hadn't linked yet. */
+const unclaimed = new Map<string, ServerRequest>()
+
+/** Handles the requests held during a resume, now that it has linked its runtime id. */
+function claimRequests(gateway: GatewayContext) {
+  for (const [id, request] of [...unclaimed]) {
+    if (keyForRuntimeId(request.params.session_id)) {
+      unclaimed.delete(id)
+      handleRequest(request, gateway)
+    } else if (!isResuming()) {
+      unclaimed.delete(id)
+      decline(request, gateway)
+    }
+  }
+}
+
 /**
  * Handles every server request. Approvals and Questions become cards. Every
  * other request is declined as "not shown here", so a laptop with the same
@@ -139,6 +155,13 @@ const SHOWN_REQUESTS = new Set(['approval', 'clarify'])
  */
 function handleRequest(request: ServerRequest, gateway: GatewayContext): boolean {
   const key = keyForRuntimeId(request.params.session_id)
+
+  // A resume's open requests arrive before the resume links its runtime id.
+  if (!key && SHOWN_REQUESTS.has(request.method) && isResuming()) {
+    unclaimed.set(request.id, request)
+
+    return true
+  }
 
   if (!SHOWN_REQUESTS.has(request.method) || !key) {
     decline(request, gateway)
@@ -436,6 +459,7 @@ function wire(gateway: GatewayContext): () => void {
 
   // A resume lists the requests still open; any other card was settled while away.
   const stopOpen = onOpenRequests((key, open) => {
+    claimRequests(gateway)
     const ids = new Set(open.map(request => request.id))
     const prompts = promptsFor(key)
     const stale = [
@@ -462,6 +486,7 @@ onGatewayChange(gateway => {
   unwire?.()
   unwire = null
   liveRequests.clear()
+  unclaimed.clear()
   $prompts.set({})
 
   if (gateway) {

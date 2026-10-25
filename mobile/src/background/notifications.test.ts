@@ -108,3 +108,38 @@ describe('notifications', () => {
     expect(shown.get('finished:s1')).toMatchObject({ title: 'Turn failed' })
   })
 })
+
+describe('sessions the phone is only watching', () => {
+  it('shows "Input needed" without buttons, which opens the session', () => {
+    const { notifications, shown } = setup()
+
+    notifications.sessionWaiting('laptop-1', 'Plan the garden')
+
+    expect(shown.get('waiting:laptop-1')).toEqual({
+      title: 'Input needed — Plan the garden',
+      body: 'Hermes is waiting for your response.',
+      channel: 'needs-input',
+      url: 'hermes://session/laptop-1',
+      data: { url: 'hermes://session/laptop-1' }
+    })
+  })
+
+  it('uses the plain title when the session has none', () => {
+    const { notifications, shown } = setup()
+
+    notifications.sessionWaiting('laptop-1', null)
+
+    expect(shown.get('waiting:laptop-1')?.title).toBe('Input needed')
+  })
+
+  it('removes it when the session stops waiting, or is opened', () => {
+    const { notifications, shown } = setup()
+
+    notifications.sessionWaiting('a', 'A')
+    notifications.sessionWaiting('b', 'B')
+    notifications.sessionStoppedWaiting('a')
+    notifications.sessionOpened('b')
+
+    expect([...shown.keys()]).toEqual([])
+  })
+})

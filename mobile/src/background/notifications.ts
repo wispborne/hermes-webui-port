@@ -6,6 +6,9 @@
 //   Approval of a session. Removed when its card is removed.
 // - "Input needed — {session}" with the first question. Removed with its card.
 // - "Hermes finished" (or "Turn failed") when a turn ends off screen.
+// - "Input needed — {session}", without buttons, for a session the phone isn't
+//   attached to that has been waiting (see watch.ts). Removed when it stops
+//   waiting or is opened.
 // Nothing is raised for the session on screen.
 
 import { t } from '@/i18n/t'
@@ -116,8 +119,27 @@ export class Notifications {
     })
   }
 
-  /** The person opened a session: its "finished" notification has done its job. */
+  /** The person opened a session: its "finished" and "waiting" notifications have done their job. */
   sessionOpened(key: string) {
     this.notifier.dismiss(`finished:${key}`)
+    this.notifier.dismiss(`waiting:${key}`)
+  }
+
+  /** A session the phone isn't attached to has been waiting. Tapping it opens the session. */
+  sessionWaiting(storedId: string, title: string | null) {
+    const url = sessionUrl(storedId)
+
+    this.notifier.show(`waiting:${storedId}`, {
+      title: named('inputTitleNamed', 'inputTitle', title),
+      body: t('notifications.native.inputBody'),
+      channel: CHANNELS.needsInput,
+      url,
+      data: { url }
+    })
+  }
+
+  /** The session stopped waiting. */
+  sessionStoppedWaiting(storedId: string) {
+    this.notifier.dismiss(`waiting:${storedId}`)
   }
 }

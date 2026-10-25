@@ -2,7 +2,7 @@
 
 - The gateway sends Approvals and Questions only to the connections attached to that session. No event tells other connections that a session needs input or that a turn finished.
 - `session.active_list` lists every Live session, from every device. Each row has a `status`, and `waiting` means a request is pending. The row doesn't say which request. Nothing pushes changes to the list, so the desktop asks for it on a timer, and the app's Sessions screen does the same every 10 seconds while on screen.
-- Any connection can attach to a Live session with `session.resume`. It then gets the same Approval and Question frames as the other attached connections, and the waiting ones in `open_requests`. The first answer wins.
+- Any connection can attach to a Live session with `session.resume`. It then gets the same Approval and Question frames as the other attached connections. Requests that were already waiting come only in the answer's `open_requests`, not as frames. The first answer wins.
 - While any connection is attached, the gateway never unloads the session.
 - The gateway has two ways of serving the WebSocket (`tui_gateway/ws.py`, `_authority_connection`):
   - **With a session authority:** `session.resume` returns a `subscription_id`, and `session.detach {session_id, subscription_id}` drops that one connection's subscription without closing the session for anyone else.
@@ -50,6 +50,10 @@ On the first alert for a session, the app attaches to it with `session.resume` w
 
 The app learns which kind of gateway it has from the first `session.resume` it sends on each connection, including ones made by opening a session. Until it knows, the watch makes one attach to find out. If that answer has no `subscription_id`, the app sends no detach, so that one session stays attached until the connection closes, like a session opened on the phone.
 
+### Requests that arrive during a resume
+
+The shared channel hands a resume's `open_requests` to the request handlers when the answer arrives, before `attach` has linked the new runtime id to the session. The approvals store used to decline them as "not shown here". That could settle the request if no other device showed the session, and it also hid the card when a waiting session was opened on the phone. While a resume is in flight (`isResuming`), the store now holds requests for an unknown runtime id. It handles them once `attach` has linked it, and declines only those that still match no session.
+
 ### Wording
 
 - The plain notification uses the desktop's `notifications.native.inputTitleNamed` and `inputBody` strings, so it reads like the desktop's.
@@ -57,9 +61,7 @@ The app learns which kind of gateway it has from the first `session.resume` it s
 
 ### Demo gateway
 
-`mobile/scripts/demo-gateway.mjs` gets:
-- a key, `w`, that makes a session the phone hasn't opened wait on an Approval
-- a flag, `--detach`, that adds a `subscription_id` to `session.resume` answers and accepts `session.detach`
+`mobile/scripts/demo-gateway.mjs` gets a flag, `--detach`, that adds a `subscription_id` to `session.resume` answers and accepts `session.detach`. Its existing `a` key already makes a session the phone hasn't opened wait on an Approval.
 
 That covers both kinds of gateway on the emulator.
 

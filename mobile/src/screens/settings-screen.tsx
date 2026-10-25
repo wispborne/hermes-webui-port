@@ -78,7 +78,7 @@ export function SettingsScreen() {
         <Divider />
         <List.Item
           description={t('app.background.keepConnectedDescription')}
-          descriptionNumberOfLines={3}
+          descriptionNumberOfLines={4}
           onPress={() => toggleKeepConnected(!keepConnected)}
           right={() => <Switch onValueChange={toggleKeepConnected} testID="keep-connected" value={keepConnected} />}
           title={t('app.background.keepConnected')}
