@@ -84,8 +84,13 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # The default package list includes "tools", which newer SDK command-line
+      # tools no longer have. Gradle downloads the platform, build tools and NDK
+      # it needs by itself.
       - uses: android-actions/setup-android@v3
         if: steps.version.outputs.release == 'true'
+        with:
+          packages: platform-tools
 
       - uses: actions/cache@v4
         if: steps.version.outputs.release == 'true'
