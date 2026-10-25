@@ -46,7 +46,6 @@
 - [x] 7.1 Type check and tests pass
 - [x] 7.2 Emulator screenshots: ongoing notification, Approval notification with buttons, Settings with Keep connected
 - [x] 7.3 The owner locks their phone mid-turn, answers an Approval from the notification, and gets "Hermes finished"
-- [ ] 7.4 The owner leaves Keep connected on for a day and reports battery use
 
 ## Notes
 
@@ -54,3 +53,4 @@
 - The ongoing notification's channel ("Connection", low importance) is created by the service itself. The other two channels and the Run and Reject buttons are set up by expo-notifications.
 - The notification and battery requests are explained and asked the first time a message is sent, and again when Keep connected is turned on.
 - Found and fixed while checking on the emulator: expo-sqlite's exclusive transactions open a second connection, so saving a transcript during other writes failed with "database is locked". Transactions now run one at a time on the main connection.
+- Not yet done when archived: the owner leaves Keep connected on for a day and reports battery use (was task 7.4).

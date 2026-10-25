@@ -45,7 +45,6 @@
 
 - [x] 8.1 Build the fake gateway (WebSocket server in the test process that plays back fixture frames and records client frames)
 - [x] 8.2 Write `mobile/scripts/record-gateway.mjs` (signs in, opens a session, sends a message, saves frames, replaces text unless `--keep-text`)
-- [ ] 8.3 The owner runs the recorder against their gateway and checks the recordings before they're committed
 
 ## 9. Sync step and CI
 
@@ -57,3 +56,7 @@
 - [x] 10.1 Type check and tests pass
 - [x] 10.2 Emulator screenshots of the start screen in light and dark mode, with and without the version banner
 - [x] 10.3 The owner installs the build on their phone and checks their gateway over Tailscale
+
+## Notes
+
+- Not yet done when archived: the owner runs the recorder against their gateway and checks the recordings before they are committed (was task 8.3).
