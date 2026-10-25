@@ -41,10 +41,12 @@ The release key is made once with `bash scripts/release-key-wizard.sh`. It makes
 
 ### Install with Obtainium
 
-1. In Obtainium, add an app with the source URL `https://git.wispborne.com/david/hermes-ui`.
+1. In Obtainium, add an app with the source URL `https://git.wispborne.com/david/hermes-ui`, and set the source type to Forgejo. Obtainium has no Gitea option, and its Forgejo source works with Gitea.
 2. Set "Filter release titles by regular expression" to `^Hermes mobile`. The same repository has the web UI's `ui-*` releases, and this skips them.
 3. Set "Filter APKs by regular expression" to `hermes-.*\.apk`.
 4. Install. Obtainium then offers each new release as an update.
+
+Obtainium reads the releases through Gitea's API without signing in. That needs the repository to be public, and Gitea's `app.ini` to let signed-out visitors view it: `REQUIRE_SIGNIN_VIEW = expensive` (Gitea 1.23 or newer) or `false` under `[service]`. With `true`, the API answers "Only signed in user is allowed to call APIs.", and Obtainium shows an error such as 403 or 429.
 
 The APK is built for 64-bit ARM phones (`arm64-v8a`), not for emulators.
 
