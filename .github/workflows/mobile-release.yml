@@ -1,0 +1,196 @@
+# Makes a mobile app release when the version in mobile/app.json changes.
+#
+# If main's version has no mobile-v<version> tag yet, this checks the app,
+# builds a release APK signed with the Hermes release key, and publishes a
+# Gitea release "Hermes mobile <version>" tagged mobile-v<version>, with
+# hermes-<version>.apk attached. Obtainium installs it from there.
+#
+# The key comes from four Actions secrets, made by
+# mobile/scripts/release-key-wizard.sh. Releases are made on Gitea only.
+# GitHub mirrors main, so the job skips there.
+
+name: Mobile release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - mobile/**
+      - apps/shared/**
+      - apps/desktop/src/themes/**
+      - .github/workflows/mobile-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Two quick pushes must not both release the same version.
+concurrency:
+  group: mobile-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.server_url != 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Check for a new version
+        id: version
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./mobile/app.json').expo.version")
+          tag="mobile-v$version"
+
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists. Bump the version in mobile/app.json to make a release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing $version."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check the signing secrets are set
+        if: steps.version.outputs.release == 'true'
+        env:
+          KEYSTORE: ${{ secrets.HERMES_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.HERMES_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.HERMES_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.HERMES_KEY_PASSWORD }}
+        run: |
+          for name in KEYSTORE KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "The secret HERMES_$name isn't set. Run mobile/scripts/release-key-wizard.sh." >&2
+              exit 1
+            fi
+          done
+
+      - uses: actions/setup-node@v4
+        if: steps.version.outputs.release == 'true'
+        with:
+          node-version: 24
+
+      - uses: actions/setup-java@v4
+        if: steps.version.outputs.release == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        if: steps.version.outputs.release == 'true'
+
+      - uses: actions/cache@v4
+        if: steps.version.outputs.release == 'true'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('mobile/package-lock.json') }}
+          restore-keys: gradle-
+
+      # The strings export and the tests load desktop code, which needs the web UI's packages.
+      - name: Install packages
+        if: steps.version.outputs.release == 'true'
+        run: |
+          npx -y npm@11 ci --ignore-scripts --no-audit --no-fund
+          npm --prefix mobile ci --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+      - name: Type check and test
+        if: steps.version.outputs.release == 'true'
+        run: |
+          npm --prefix mobile run typecheck
+          npm --prefix mobile test
+
+      - name: Build the APK
+        if: steps.version.outputs.release == 'true'
+        working-directory: mobile
+        env:
+          KEYSTORE: ${{ secrets.HERMES_KEYSTORE_BASE64 }}
+          # Gradle reads ORG_GRADLE_PROJECT_<name> as the property <name>, so
+          # the passwords stay out of the command line.
+          ORG_GRADLE_PROJECT_hermesKeystorePassword: ${{ secrets.HERMES_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_hermesKeyAlias: ${{ secrets.HERMES_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_hermesKeyPassword: ${{ secrets.HERMES_KEY_PASSWORD }}
+          ORG_GRADLE_PROJECT_reactNativeArchitectures: arm64-v8a
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/hermes-release.keystore"
+          printf '%s' "$KEYSTORE" | base64 -d > "$keystore"
+          export ORG_GRADLE_PROJECT_hermesKeystore="$keystore"
+
+          npx expo prebuild --platform android --clean --no-install
+          (cd android && ./gradlew assembleRelease --console=plain)
+
+          cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/hermes-${{ steps.version.outputs.version }}.apk"
+          rm -f "$keystore"
+
+      - name: Check the APK is signed with the release key
+        if: steps.version.outputs.release == 'true'
+        run: |
+          set -euo pipefail
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)apksigner
+          certs=$("$apksigner" verify --print-certs "$RUNNER_TEMP/hermes-${{ steps.version.outputs.version }}.apk")
+          echo "$certs"
+
+          if grep -q 'CN=Android Debug' <<<"$certs"; then
+            echo "The APK is signed with the debug key, not the release key." >&2
+            exit 1
+          fi
+
+      - name: Write the release notes
+        if: steps.version.outputs.release == 'true'
+        run: |
+          set -euo pipefail
+          last=$(git tag --list 'mobile-v*' --sort=-v:refname | head -n 1)
+
+          if [ -n "$last" ]; then
+            git log --reverse --format='- %s' "$last..HEAD" -- mobile/ > "$RUNNER_TEMP/notes.md"
+          else
+            git log --reverse --format='- %s' HEAD -- mobile/ > "$RUNNER_TEMP/notes.md"
+          fi
+
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: Publish the release
+        if: steps.version.outputs.release == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/hermes-$VERSION.apk"
+          auth="Authorization: token $TOKEN"
+
+          body=$(jq -n \
+            --arg tag "$TAG" \
+            --arg target "$(git rev-parse HEAD)" \
+            --arg name "Hermes mobile $VERSION" \
+            --rawfile notes "$RUNNER_TEMP/notes.md" \
+            '{tag_name: $tag, target_commitish: $target, name: $name, body: $notes}')
+
+          # Gitea makes the tag along with the release.
+          release=$(curl -fsS -X POST -H "$auth" -H 'Content-Type: application/json' -d "$body" "$API/releases")
+          id=$(jq -r .id <<<"$release")
+
+          # Without the APK the release is no use, and its tag would stop the
+          # next run from trying again. So undo both if the upload fails.
+          if ! curl -fsS -X POST -H "$auth" -F "attachment=@$apk" "$API/releases/$id/assets?name=hermes-$VERSION.apk" >/dev/null; then
+            echo "Uploading the APK failed. Removing the release and its tag." >&2
+            curl -fsS -X DELETE -H "$auth" "$API/releases/$id" || true
+            curl -fsS -X DELETE -H "$auth" "$API/tags/$TAG" || true
+            exit 1
+          fi
+
+          echo "Released $TAG: $(jq -r .html_url <<<"$release")" | tee -a "$GITHUB_STEP_SUMMARY"

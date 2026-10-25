@@ -45,7 +45,7 @@ A config plugin, `mobile/plugins/with-release-signing.js`, adds a `release` sign
 - `hermesKeyAlias`
 - `hermesKeyPassword`
 
-When they're missing, as on the owner's PC, the release build falls back to the debug key, as Expo's template does today. The workflow passes them with `-P`.
+When they're missing, as on the owner's PC, the release build falls back to the debug key, as Expo's template does today. The workflow sets them as `ORG_GRADLE_PROJECT_<name>` environment variables, which Gradle reads as properties, so the passwords stay out of the command line.
 
 The key is made once by `mobile/scripts/release-key-wizard.sh`. It runs `keytool` to make a keystore with a 30-year validity and prints the keystore as base64. It then walks the owner through:
 - adding four Gitea Actions secrets: `HERMES_KEYSTORE_BASE64`, `HERMES_KEYSTORE_PASSWORD`, `HERMES_KEY_ALIAS` and `HERMES_KEY_PASSWORD`
@@ -69,15 +69,15 @@ The release APK is built for `arm64-v8a` only (`-PreactNativeArchitectures=arm64
 1. Read `expo.version` from `mobile/app.json`. If the tag `mobile-v<version>` already exists, stop. This is how "the version changed" is decided, so a later commit without a bump releases nothing.
 2. Set up Node 24, Java 17 (`actions/setup-java`) and the Android SDK (`android-actions/setup-android`). Install the root and mobile packages, as the Mobile workflow does.
 3. Run the type check and tests. A release never ships code that fails them.
-4. Decode the keystore from the secret into the runner's temp folder. Run `npx expo prebuild --platform android --clean`, then `./gradlew assembleRelease` with the signing properties and the architecture. Gradle caches are kept between runs with `actions/cache`.
+4. Decode the keystore from the secret into the runner's temp folder. Run `npx expo prebuild --platform android --clean`, then `./gradlew assembleRelease` with the signing properties and the architecture. An earlier step fails the run if any of the four secrets is empty. Gradle caches are kept between runs with `actions/cache`.
 5. Check the APK's signature with `apksigner verify --print-certs`. Fail if it's the debug key.
 6. Write the release notes. They're the subjects of the commits that changed `mobile/` since the last `mobile-v` tag (`git log --format='- %s' <last>..HEAD -- mobile/`). The first release lists every commit that changed `mobile/`.
-7. Tag the commit `mobile-v<version>` and push the tag. Create the Gitea release through the API with the workflow's token:
+7. Create the Gitea release through the API with the workflow's token. Gitea creates the tag `mobile-v<version>` on the commit along with it:
    - title "Hermes mobile <version>"
    - body: the notes
    - one asset, `hermes-<version>.apk`
 
-If any step after the tag fails, the run deletes the tag again, so the next run can retry the same version.
+If the APK upload fails, the run deletes the release and the tag, so the next run can retry the same version. Every other step runs before the tag exists.
 
 ### Obtainium
 

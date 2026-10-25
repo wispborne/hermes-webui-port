@@ -21,6 +21,18 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "plugins": ["expo-router", "expo-sqlite"]
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "./plugins/with-release-signing"
+    ]
   }
 }

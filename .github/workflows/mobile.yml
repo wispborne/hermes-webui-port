@@ -41,7 +41,7 @@ jobs:
         run: |
           npm --prefix mobile run strings
           npm --prefix mobile run built-for-version
-          if ! git diff --exit-code -- mobile/src/i18n/en.generated.json mobile/src/gateway/built-for-version.ts; then
+          if ! git diff --exit-code -- mobile/src/i18n/en.generated.json mobile/src/theme/themes.generated.json mobile/src/gateway/built-for-version.ts; then
             echo "Run 'npm --prefix mobile run strings' and 'npm --prefix mobile run built-for-version', then commit the result." >&2
             exit 1
           fi

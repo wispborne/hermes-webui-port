@@ -29,6 +29,27 @@ npm run android
 
 This builds on your machine, without the Expo cloud. It also starts Metro, which serves the JavaScript to the app. After the first build, `npm start` is enough while you only change JavaScript.
 
+The development build is called "Hermes Dev" and has the app ID `com.wispborne.hermes.dev`, so it installs next to the release app. `npm run android` and `npm start` set `APP_VARIANT=development` for it. `app.config.ts` reads that.
+
+## Releases
+
+A push to main that changes the version in `app.json` makes a release. The `Mobile release` workflow on Gitea checks the app, builds an APK signed with the release key, and publishes the release "Hermes mobile <version>", tagged `mobile-v<version>`, with `hermes-<version>.apk` attached. The release notes are the commits that changed `mobile/` since the last release.
+
+The version has three parts, each from 0 to 99. Android's version number is worked out from it: 1.2.3 becomes 10203.
+
+The release key is made once with `bash scripts/release-key-wizard.sh`. It makes the key, walks you through adding it as four Gitea Actions secrets, and has you back it up in your password manager. Every release must be signed with that key. If it's lost, the installed app can't be updated and has to be uninstalled, which deletes what it saved on the phone.
+
+### Install with Obtainium
+
+1. In Obtainium, add an app with the source URL `https://git.wispborne.com/david/hermes-ui`.
+2. Set "Filter release titles by regular expression" to `^Hermes mobile`. The same repository has the web UI's `ui-*` releases, and this skips them.
+3. Set "Filter APKs by regular expression" to `hermes-.*\.apk`.
+4. Install. Obtainium then offers each new release as an update.
+
+The APK is built for 64-bit ARM phones (`arm64-v8a`), not for emulators.
+
+A development build made before the development build had its own app ID used `com.wispborne.hermes`. Uninstall it before installing the first release. Sign-in, sessions and transcripts come back from the gateway. Appearance choices and unsent messages in the Outbox don't.
+
 ## Checks
 
 ```bash

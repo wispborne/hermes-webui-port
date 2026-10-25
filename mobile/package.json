@@ -5,8 +5,8 @@
   "description": "The Hermes mobile app, for chatting with a Hermes gateway from a phone.",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start --dev-client",
-    "android": "expo run:android",
+    "start": "node scripts/expo-dev.mjs start --dev-client",
+    "android": "node scripts/expo-dev.mjs run:android",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "strings": "node scripts/export-strings.mjs",
@@ -19,6 +19,7 @@
     "@shopify/flash-list": "^2.0.2",
     "expo": "~57.0.0",
     "expo-asset": "~57.0.0",
+    "expo-build-properties": "~57.0.22",
     "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.0",
     "expo-dev-client": "~57.0.0",
