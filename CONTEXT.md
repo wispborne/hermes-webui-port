@@ -58,6 +58,10 @@ _Avoid_: Permission prompt, confirmation
 Hermes asking the person one to five questions during a turn and waiting for the answers.
 _Avoid_: Clarify, clarify request, prompt
 
+**Private input**:
+Hermes asking the person during a turn for something it must not show or keep: a sudo password, a secret value such as an API key, a password manager's master password, a login to save, or a verification code. What the person types goes to the gateway and isn't kept on their device.
+_Avoid_: Secret prompt, sudo prompt, masked prompt
+
 **Needs input**:
-The state of a session whose turn is waiting on an approval or a question.
+The state of a session whose turn is waiting on an approval, a question or a private input.
 _Avoid_: Blocked, waiting, pending
