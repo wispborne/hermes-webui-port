@@ -24,8 +24,8 @@
 ## 5. Done
 
 - [x] 5.1 Type check and tests pass
-- [ ] 5.2 The owner runs the wizard and adds the secrets
-- [ ] 5.3 The owner re-runs the Mobile release workflow on Gitea, and it makes the 0.1.0 release
+- [x] 5.2 The owner runs the wizard and adds the secrets
+- [x] 5.3 The owner re-runs the Mobile release workflow on Gitea, and it makes the 0.1.0 release
 - [ ] 5.4 The owner uninstalls the old development build, adds the app to Obtainium, installs 0.1.0 and signs in
 - [ ] 5.5 The owner bumps to 0.1.1, and Obtainium installs it as an update with sign-in kept
 
