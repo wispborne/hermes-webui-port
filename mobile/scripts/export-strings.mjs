@@ -3,6 +3,9 @@
 //   npm --prefix mobile run strings
 //
 // Reads apps/desktop/src/i18n/en.ts and writes mobile/src/i18n/en.generated.json.
+// Also writes mobile/src/theme/themes.generated.json: the names and descriptions
+// of the desktop's built-in themes whose colours come from apps/shared, in the
+// desktop's order. The colours themselves are read from apps/shared at build time.
 // It needs the web UI's packages installed at the repo root (`npm ci`), because
 // en.ts imports desktop code and is loaded with the root's `tsx`.
 //
@@ -27,14 +30,17 @@ const EXPORTED = [
   'assistant.thread.showEarlier',
   'assistant.thread.thinking',
   'assistant.thread.thought',
+  'assistant.themePicker',
   'common',
   'composer.message',
   'composer.placeholderFollowUp',
   'composer.send',
   'composer.stop',
   'notifications.native',
+  'settings.appearance',
   'settings.connections',
   'settings.gateway',
+  'settings.modeOptions',
   'settings.nav',
   'settings.vault.identifierTypes',
   'settings.vault.passwordField',
@@ -55,10 +61,13 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const source = path.join(repoRoot, 'apps/desktop/src/i18n/en.ts')
 const output = path.join(repoRoot, 'mobile/src/i18n/en.generated.json')
 
-const { en } = await tsImport(pathToFileURL(source).href, {
-  parentURL: import.meta.url,
-  tsconfig: path.join(repoRoot, 'apps/desktop/tsconfig.json')
-})
+const loadDesktop = file =>
+  tsImport(pathToFileURL(path.join(repoRoot, file)).href, {
+    parentURL: import.meta.url,
+    tsconfig: path.join(repoRoot, 'apps/desktop/tsconfig.json')
+  })
+
+const { en } = await loadDesktop(path.relative(repoRoot, source))
 
 const MARK = '\u0001'
 
@@ -156,3 +165,14 @@ for (const prefix of EXPORTED) {
 mkdirSync(path.dirname(output), { recursive: true })
 writeFileSync(output, `${JSON.stringify(strings, null, 2)}\n`)
 console.log(`Wrote ${path.relative(repoRoot, output)}.`)
+
+const { BUILTIN_THEME_LIST } = await loadDesktop('apps/desktop/src/themes/presets.ts')
+const { THEME_PRESET_PALETTES } = await loadDesktop('apps/shared/src/theme-presets.ts')
+const themesOutput = path.join(repoRoot, 'mobile/src/theme/themes.generated.json')
+
+const themes = BUILTIN_THEME_LIST.filter(theme => theme.name in THEME_PRESET_PALETTES).map(
+  ({ description, label, name }) => ({ name, label, description })
+)
+
+writeFileSync(themesOutput, `${JSON.stringify(themes, null, 2)}\n`)
+console.log(`Wrote ${path.relative(repoRoot, themesOutput)}.`)

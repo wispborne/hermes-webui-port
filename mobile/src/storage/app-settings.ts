@@ -2,8 +2,9 @@ import { SQLiteStorage } from 'expo-sqlite/kv-store'
 
 /**
  * Settings that belong to the app, not to one gateway: the last gateway URL
- * and the username, used to fill in Sign in. They are kept when a gateway's
- * data is deleted on sign-out. The password is never saved here or anywhere.
+ * and the username, used to fill in Sign in, and the appearance. They are kept
+ * when a gateway's data is deleted on sign-out. The password is never saved
+ * here or anywhere.
  */
 export interface AppSettings {
   gatewayUrl: string | null
@@ -12,7 +13,17 @@ export interface AppSettings {
   keepConnected?: boolean
   /** The notification and battery requests were explained and asked once. */
   backgroundAsked?: boolean
+  /** Appearance: Light, Dark, or follow the phone. */
+  colorMode?: ColorMode
+  /** Appearance: a theme name from the shared palettes. */
+  themeName?: string | null
+  /** Appearance: a desktop accent swatch id, or null for the theme's own accent. */
+  accent?: string | null
 }
+
+export type ColorMode = 'light' | 'dark' | 'system'
+
+const COLOR_MODES: readonly ColorMode[] = ['light', 'dark', 'system']
 
 export interface SettingsStore {
   getItemSync(key: string): string | null
@@ -33,7 +44,10 @@ const KEYS = {
   gatewayUrl: 'gateway_url',
   username: 'username',
   keepConnected: 'keep_connected',
-  backgroundAsked: 'background_asked'
+  backgroundAsked: 'background_asked',
+  colorMode: 'color_mode',
+  themeName: 'theme_name',
+  accent: 'accent'
 } as const
 
 export function loadAppSettings(): AppSettings {
@@ -43,7 +57,10 @@ export function loadAppSettings(): AppSettings {
     gatewayUrl: read('gatewayUrl'),
     username: read('username'),
     keepConnected: read('keepConnected') === 'true',
-    backgroundAsked: read('backgroundAsked') === 'true'
+    backgroundAsked: read('backgroundAsked') === 'true',
+    colorMode: COLOR_MODES.find(mode => mode === read('colorMode')) ?? 'system',
+    themeName: read('themeName'),
+    accent: read('accent')
   }
 }
 

@@ -179,7 +179,7 @@ function CheckResult({ onRetry, result }: { onRetry: () => void; result: Gateway
     case 'gateway':
       return (
         <View style={styles.row}>
-          <Icon color={colors.primary} size={18} source="check-circle-outline" />
+          <Icon color={colors.primary} size={18} source="check-circle" />
           <Text variant="bodyMedium">{t('app.gatewayCheck.version', { version: result.version })}</Text>
         </View>
       )

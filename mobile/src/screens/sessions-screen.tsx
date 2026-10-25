@@ -108,7 +108,7 @@ export function SessionsScreen() {
         <Appbar.Content title={t('sidebar.sessions')} />
         <Appbar.Action
           accessibilityLabel={t('settings.nav.keysSettings')}
-          icon="cog-outline"
+          icon="cog"
           onPress={() => router.push('/settings')}
           testID="open-settings"
         />

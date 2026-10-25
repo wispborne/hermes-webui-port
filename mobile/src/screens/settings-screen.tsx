@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { askBackgroundPermissions } from '@/background/permission-dialogs'
 import { $batteryRestricted, $keepConnected, setKeepConnected } from '@/background/wiring'
+import { AppearanceSettings } from '@/components/appearance-settings'
 import { OfflineBanner } from '@/components/offline-banner'
 import { checkSignIn } from '@/gateway/auth'
 import { BUILT_FOR_HERMES_VERSION } from '@/gateway/built-for-version'
@@ -24,7 +25,7 @@ function toggleKeepConnected(on: boolean) {
   }
 }
 
-/** Settings: the gateway, who is signed in, Keep connected, the three versions, and Sign out. */
+/** Settings: the gateway, who is signed in, Appearance, Keep connected, the three versions, and Sign out. */
 export function SettingsScreen() {
   const auth = useStore($auth)
   const gateway = useStore($gateway)
@@ -73,6 +74,8 @@ export function SettingsScreen() {
         <List.Item description={url ?? unknown} title={t('app.settings.gateway')} />
         <List.Item description={signedInAs} testID="signed-in-as" title={t('app.settings.signedInAs')} />
         <Divider />
+        <AppearanceSettings />
+        <Divider />
         <List.Item
           description={t('app.background.keepConnectedDescription')}
           descriptionNumberOfLines={3}
@@ -84,7 +87,7 @@ export function SettingsScreen() {
           <List.Item
             description={t('app.background.batteryDeclined')}
             descriptionNumberOfLines={3}
-            left={props => <List.Icon {...props} icon="battery-alert-variant-outline" />}
+            left={props => <List.Icon {...props} icon="battery-alert-variant" />}
             title={t('app.background.batteryTitle')}
           />
         ) : null}

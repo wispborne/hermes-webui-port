@@ -18,7 +18,7 @@ export function OfflineBanner() {
 
   return (
     <View accessibilityRole="alert" style={[styles.banner, { backgroundColor: colors.errorContainer }]} testID="offline-banner">
-      <Icon color={colors.error} size={18} source="cloud-off-outline" />
+      <Icon color={colors.error} size={18} source="cloud-off" />
       <Text style={[styles.text, { color: colors.onErrorContainer }]} variant="bodyMedium">
         {t('app.gatewayCheck.unreachable')}
       </Text>

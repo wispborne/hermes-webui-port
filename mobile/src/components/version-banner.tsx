@@ -21,7 +21,7 @@ export function VersionBanner({ gatewayVersion }: { gatewayVersion: string }) {
 
   return (
     <View accessibilityRole="alert" style={[styles.banner, { backgroundColor: colors.secondaryContainer }]}>
-      <Icon color={colors.onSecondaryContainer} size={18} source="information-outline" />
+      <Icon color={colors.onSecondaryContainer} size={18} source="information" />
       <Text style={[styles.text, { color: colors.onSecondaryContainer }]} variant="bodyMedium">
         {t('app.versionBanner', { builtFor: BUILT_FOR_HERMES_VERSION, gateway: gatewayVersion })}
       </Text>

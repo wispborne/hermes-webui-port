@@ -60,6 +60,13 @@ A choice SHALL apply at once, without restarting the app.
 - **WHEN** the person picks Theme default
 - **THEN** each theme uses its own accent
 
+### Requirement: Filled icons
+The app SHALL use filled icons, not outline icons, wherever an icon set has both.
+
+#### Scenario: Settings icon
+- **WHEN** Sessions shows the Settings button
+- **THEN** its icon is the filled cog
+
 ### Requirement: Appearance saved on the phone
 The app SHALL save Color Mode, Theme and Accent color on the phone, separately from any gateway's data. Signing out SHALL keep them. They SHALL NOT be sent to the gateway. Until the person changes them, they SHALL be System, `nous` and Theme default.
 

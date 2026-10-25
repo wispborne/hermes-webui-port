@@ -6,6 +6,7 @@ import { useColorScheme } from 'react-native'
 import { PaperProvider } from 'react-native-paper'
 
 import { BackgroundPermissionDialogs } from '@/background/permission-dialogs'
+import { $appearance, schemeFor } from '@/store/appearance'
 import { $auth } from '@/store/gateway'
 import { hermesTheme } from '@/theme/theme'
 
@@ -32,9 +33,11 @@ function useAuthRouting() {
 export default function RootLayout() {
   useAuthRouting()
 
-  // Follows the phone's light or dark setting, and redraws when it changes.
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light'
-  const theme = useMemo(() => hermesTheme(scheme), [scheme])
+  // Redraws when the appearance changes in Settings, and when the phone's light
+  // or dark setting changes while Color Mode is System.
+  const { accent, colorMode, themeName } = useStore($appearance)
+  const scheme = schemeFor(colorMode, useColorScheme())
+  const theme = useMemo(() => hermesTheme(scheme, { themeName, accent }), [scheme, themeName, accent])
 
   const navigationTheme = useMemo(() => {
     const base = scheme === 'dark' ? DarkTheme : DefaultTheme

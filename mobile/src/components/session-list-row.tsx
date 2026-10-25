@@ -67,7 +67,7 @@ function MarkerIcon({ marker }: { marker: SessionMarker | null }) {
   if (marker === 'needs-input') {
     return (
       <View accessibilityLabel={t('sidebar.row.needsInput')} testID="marker-needs-input">
-        <Icon color={colors.error} size={16} source="message-question-outline" />
+        <Icon color={colors.error} size={16} source="message-question" />
       </View>
     )
   }

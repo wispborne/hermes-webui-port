@@ -79,7 +79,7 @@ A nanostore, `$appearance`, holds the three values. `_layout.tsx` reads it toget
 A new Appearance section above Keep connected, with the desktop's strings:
 - **Color Mode** (`settings.appearance.colorMode`, with `colorModeDesc` as its description): a three-way segmented button labelled from `settings.modeOptions.*.label`.
 - **Theme** (`settings.appearance.themeTitle`): a row showing the current theme's label. It opens a list of the themes. Each row shows the label, the description, and four colour dots (background, card, primary, foreground) drawn in the current mode. The current theme is checked.
-- **Accent color** (`assistant.themePicker.accent`): a row of nine circles, Theme default (`assistant.themePicker.themeAccent`) first, then the eight swatches. Each has the swatch's name as its accessibility label. The chosen one has a ring.
+- **Accent color** (`assistant.themePicker.accent`): a row of eight circles: Theme default (`assistant.themePicker.themeAccent`) first, then the swatches other than Nous blue, which the desktop treats as Theme default. Each has the swatch's name as its accessibility label. The chosen one has a ring.
 
 Picking any of these applies it straight away. `export-strings.mjs` gains the `settings.appearance`, `settings.modeOptions` and `assistant.themePicker` prefixes.
 

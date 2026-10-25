@@ -1,0 +1,57 @@
+[
+  {
+    "name": "nous",
+    "label": "Nous",
+    "description": "GitHub chrome, Nous blue accent"
+  },
+  {
+    "name": "github",
+    "label": "GitHub",
+    "description": "GitHub Light Default and Dark Default"
+  },
+  {
+    "name": "catppuccin",
+    "label": "Catppuccin",
+    "description": "Soothing pastels — Latte and Mocha"
+  },
+  {
+    "name": "everforest",
+    "label": "Everforest",
+    "description": "Warm, low-contrast forest greens"
+  },
+  {
+    "name": "solarized",
+    "label": "Solarized",
+    "description": "Fixed-contrast light and dark"
+  },
+  {
+    "name": "nous-alt",
+    "label": "Nous Alt",
+    "description": "Glass neutrals, cream on mission-blue"
+  },
+  {
+    "name": "midnight",
+    "label": "Midnight",
+    "description": "Deep blue-violet with cool accents"
+  },
+  {
+    "name": "ember",
+    "label": "Ember",
+    "description": "Warm crimson and bronze — forge vibes"
+  },
+  {
+    "name": "mono",
+    "label": "Mono",
+    "description": "Clean grayscale — minimal and focused"
+  },
+  {
+    "name": "slate",
+    "label": "Slate",
+    "description": "Cool slate blue — focused developer theme"
+  },
+  {
+    "name": "cyberpunk",
+    "label": "Cyberpunk",
+    "description": "Neon green on black — matrix terminal"
+  }
+]

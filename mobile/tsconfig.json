@@ -15,6 +15,9 @@
       ],
       "@hermes/shared/*": [
         "../apps/shared/src/*"
+      ],
+      "@hermes/desktop-themes/*": [
+        "../apps/desktop/src/themes/*"
       ]
     }
   },

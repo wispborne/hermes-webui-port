@@ -9,11 +9,13 @@ on:
     paths:
       - mobile/**
       - apps/shared/**
+      - apps/desktop/src/themes/**
       - .github/workflows/mobile.yml
   pull_request:
     paths:
       - mobile/**
       - apps/shared/**
+      - apps/desktop/src/themes/**
       - .github/workflows/mobile.yml
 
 jobs:

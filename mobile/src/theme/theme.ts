@@ -1,13 +1,22 @@
+import { resolveAccentPick } from '@hermes/desktop-themes/accents'
+import { retintTheme } from '@hermes/desktop-themes/retint'
 import { mix } from '@hermes/shared/color'
-import { THEME_PRESET_PALETTES, type ThemePresetColors } from '@hermes/shared/theme-presets'
+import { THEME_PRESET_PALETTES, type ThemePresetColors, type ThemePresetPalette } from '@hermes/shared/theme-presets'
 import { configureFonts, MD3DarkTheme, MD3LightTheme, type MD3Theme } from 'react-native-paper'
 
 import { typeScale } from './compact'
+import { drawablePalette } from './css-color'
 
-/** The desktop's default theme. The app takes its colours from it, never from a copy. */
-const HERMES_THEME = THEME_PRESET_PALETTES.nous
+/** The desktop's default theme. */
+export const DEFAULT_THEME_NAME = 'nous'
 
 export type ColorScheme = 'light' | 'dark'
+
+/** The theme and accent picked in Settings. `accent` is a desktop swatch id, or null for the theme's own. */
+export interface ThemeChoice {
+  themeName?: string
+  accent?: string | null
+}
 
 /** Paper's Material 3 theme, plus the Hermes colours Material 3 has no role for. */
 export type HermesTheme = MD3Theme & {
@@ -19,13 +28,36 @@ export type HermesTheme = MD3Theme & {
   }
 }
 
-export function hermesPalette(scheme: ColorScheme): ThemePresetColors {
-  return scheme === 'dark' ? (HERMES_THEME.darkColors ?? HERMES_THEME.colors) : HERMES_THEME.colors
+const PALETTES: Record<string, ThemePresetPalette> = THEME_PRESET_PALETTES
+
+/**
+ * The palette for one mode of a theme, from the shared palettes, never from a
+ * copy. An accent is applied with the desktop's own recolouring. A theme name
+ * that no longer exists falls back to the default theme.
+ */
+export function hermesPalette(scheme: ColorScheme, { themeName, accent }: ThemeChoice = {}): ThemePresetColors {
+  const name = themeName && themeName in PALETTES ? themeName : DEFAULT_THEME_NAME
+  const preset = PALETTES[name]!
+  // Android can't draw `color-mix()`, and the recolouring can't read it either.
+  let palette: ThemePresetPalette = {
+    colors: drawablePalette(preset.colors),
+    darkColors: preset.darkColors && drawablePalette(preset.darkColors)
+  }
+
+  // A swatch paints differently in light and dark (Mono), so it's resolved for
+  // the mode being drawn, as the desktop does when it's picked.
+  const seed = accent ? resolveAccentPick(accent, scheme === 'dark')?.hex : null
+
+  if (seed) {
+    palette = retintTheme({ name, label: name, description: '', ...palette }, seed)
+  }
+
+  return scheme === 'dark' ? (palette.darkColors ?? palette.colors) : palette.colors
 }
 
-export function hermesTheme(scheme: ColorScheme): HermesTheme {
+export function hermesTheme(scheme: ColorScheme, choice: ThemeChoice = {}): HermesTheme {
   const base = scheme === 'dark' ? MD3DarkTheme : MD3LightTheme
-  const c = hermesPalette(scheme)
+  const c = hermesPalette(scheme, choice)
   const container = c.card
 
   return {

@@ -33,10 +33,10 @@ function UserBubble({ actions, item }: { actions: OutboxActions; item: UserItem 
           {item.text}
         </Text>
       </View>
-      {item.state === 'queued' ? <Label icon="clock-outline" text={t('app.chat.queued')} /> : null}
+      {item.state === 'queued' ? <Label icon="clock" text={t('app.chat.queued')} /> : null}
       {waiting && item.outboxId ? (
         <View style={styles.outboxRow}>
-          <Label icon="cloud-upload-outline" text={t('app.chat.waitingToSend')} />
+          <Label icon="cloud-upload" text={t('app.chat.waitingToSend')} />
           <Button compact mode="text" onPress={() => actions.onCancel(item.outboxId!)}>
             {t('common.cancel')}
           </Button>
@@ -44,7 +44,7 @@ function UserBubble({ actions, item }: { actions: OutboxActions; item: UserItem 
       ) : null}
       {item.state === 'old' && item.outboxId ? (
         <View style={styles.outboxRow}>
-          <Label icon="clock-alert-outline" text={t('app.chat.oldMessage')} />
+          <Label icon="clock-alert" text={t('app.chat.oldMessage')} />
           <Button compact mode="text" onPress={() => actions.onSendNow(item.outboxId!)}>
             {t('app.chat.sendNow')}
           </Button>
@@ -100,7 +100,7 @@ function AssistantBubble({ item }: { item: AssistantItem }) {
       {item.text ? <Markdown text={item.text} /> : item.streaming && !item.reasoning ? <ActivityIndicator size={14} style={styles.typing} /> : null}
       {item.error ? (
         <View style={[styles.error, { backgroundColor: colors.errorContainer }]}>
-          <Icon color={colors.error} size={16} source="alert-circle-outline" />
+          <Icon color={colors.error} size={16} source="alert-circle" />
           <Text style={[styles.flex, { color: colors.onErrorContainer }]} variant="bodySmall">
             <Text style={{ color: colors.error, fontWeight: '600' }}>{t('notifications.native.turnErrorTitle')}. </Text>
             {item.error}
@@ -154,7 +154,7 @@ function ToolRow({ item }: { item: ToolItem }) {
         {item.running ? (
           <ActivityIndicator size={14} />
         ) : (
-          <Icon color={colors.primary} size={16} source="check-circle-outline" />
+          <Icon color={colors.primary} size={16} source="check-circle" />
         )}
         <Text style={styles.toolName} variant="labelLarge">
           {item.name}
@@ -180,7 +180,7 @@ function Note({ item }: { item: NoteItem }) {
 
   return (
     <View style={styles.note}>
-      <Icon color={item.tone === 'error' ? colors.error : colors.onSurfaceVariant} size={14} source={item.tone === 'error' ? 'alert-circle-outline' : 'information-outline'} />
+      <Icon color={item.tone === 'error' ? colors.error : colors.onSurfaceVariant} size={14} source={item.tone === 'error' ? 'alert-circle' : 'information'} />
       <Text style={[styles.flex, { color: item.tone === 'error' ? colors.error : colors.onSurfaceVariant }]} variant="bodySmall">
         {item.text}
       </Text>

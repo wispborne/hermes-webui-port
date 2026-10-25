@@ -180,6 +180,14 @@ describe('signing out', () => {
     expect($auth.get().phase).toBe('signed-out')
   })
 
+  it('keeps the appearance', async () => {
+    saveAppSettings({ colorMode: 'dark', themeName: 'everforest', accent: 'pink' })
+    await signInWithSavedData()
+    await signOut()
+
+    expect(loadAppSettings()).toMatchObject({ colorMode: 'dark', themeName: 'everforest', accent: 'pink' })
+  })
+
   it('starts with no saved data when signing in again', async () => {
     await signInWithSavedData()
     await signOut()

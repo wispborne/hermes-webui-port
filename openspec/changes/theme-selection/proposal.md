@@ -25,4 +25,6 @@ None.
 
 - Changed: `mobile/src/theme/` (themes built from any preset and accent), `mobile/src/app/_layout.tsx` (reads the saved choices), the Settings screen, `mobile/src/storage/app-settings.ts` (three new settings).
 - Changed: `mobile/tsconfig.json` and `mobile/metro.config.js` (a narrow path to four files in `apps/desktop/src/themes/`), `mobile/scripts/export-strings.mjs` (exports the Appearance strings and the theme names).
+- Changed: `.github/workflows/mobile.yml` also runs when `apps/desktop/src/themes/**` changes.
+- Changed: the app's outline icons become filled ones.
 - No change to the web UI or to `apps/`.
