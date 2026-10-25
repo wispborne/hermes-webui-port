@@ -34,6 +34,7 @@ function markdownStyle(theme: HermesTheme): MarkdownStyle {
       color: colors.onSurface,
       borderColor: colors.outline,
       headerBackgroundColor: colors.surfaceVariant,
+      headerTextColor: colors.onSurfaceVariant,
       rowEvenBackgroundColor: colors.background,
       rowOddBackgroundColor: mix(colors.background, colors.surfaceVariant, 0.5),
       marginBottom: 8
