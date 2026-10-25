@@ -54,6 +54,16 @@ The app learns which kind of gateway it has from the first `session.resume` it s
 
 The shared channel hands a resume's `open_requests` to the request handlers when the answer arrives, before `attach` has linked the new runtime id to the session. The approvals store used to decline them as "not shown here". That could settle the request if no other device showed the session, and it also hid the card when a waiting session was opened on the phone. While a resume is in flight (`isResuming`), the store now holds requests for an unknown runtime id. It handles them once `attach` has linked it, and declines only those that still match no session.
 
+### Timers in the background
+
+React Native on Android pauses JavaScript timers when the app leaves the screen, unless a headless JS task is running (`JavaTimerManager`). Incoming WebSocket messages still reach JavaScript, but `setTimeout` doesn't fire. So the watch's 10-second check never ran with the app in the background. Neither did the service's 5-minute stop delay or the connection's retry backoff.
+
+The native module now starts a headless task, `HermesKeepTimers`, in `startService` and finishes it in `stopService`. The task never ends by itself (`src/background/boot.ts`). While the foreground service runs, so do the app's timers.
+
+### Detaching after an answer
+
+Answering removes the card before the answer frame is sent, in the same tick. A detach triggered by the card going away would then reach the gateway before the answer. `detachIfSettled` checks one tick later, so the detach always follows the answer on the socket.
+
 ### Wording
 
 - The plain notification uses the desktop's `notifications.native.inputTitleNamed` and `inputBody` strings, so it reads like the desktop's.

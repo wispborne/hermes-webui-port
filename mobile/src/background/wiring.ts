@@ -157,12 +157,16 @@ export function handleNotificationResponse(response: ExpoNotifications.Notificat
  * the session once nobody uses it. Not while it's on screen.
  */
 function detachIfSettled(key: string) {
-  const prompts = promptsFor(key)
-  const onScreen = $appActive.get() && $onScreen.get() === key
+  // Answering removes the card before the answer goes out, in the same tick.
+  // Checking a tick later keeps the detach behind the answer on the socket.
+  setTimeout(() => {
+    const prompts = promptsFor(key)
+    const onScreen = $appActive.get() && $onScreen.get() === key
 
-  if (isWatched(key) && !prompts.approvals.length && !prompts.question && !onScreen) {
-    void detachChat(key)
-  }
+    if (isWatched(key) && !prompts.approvals.length && !prompts.question && !onScreen) {
+      void detachChat(key)
+    }
+  }, 0)
 }
 
 const watch = new Watch({

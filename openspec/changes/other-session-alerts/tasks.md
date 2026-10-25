@@ -25,10 +25,16 @@
 ## 5. Done
 
 - [x] 5.1 Type check and tests pass
-- [ ] 5.2 On the emulator, with the demo gateway both with and without `--detach`: lock the phone, press `a`, get the alert after about 30–40 seconds, answer it, and check the gateway's log for `session.detach` (or no attach)
+- [x] 5.2 On the emulator, with the demo gateway both with and without `--detach`: lock the phone, press `a`, get the alert after about 30–40 seconds, answer it, and check the gateway's log for `session.detach` (or no attach)
 - [ ] 5.3 The owner starts a turn on the laptop that waits on an Approval, leaves it, and gets the alert on the phone. Note here which kind of alert their gateway gives.
 
 ## Notes
 
 - Found while building: a resume's `open_requests` reached the approvals store before `attach` had linked the runtime id, so they were declined as "not shown here". That hid the card when a waiting session was opened, and could settle the request if no other device showed the session. The store now holds them during a resume (see the design's "Requests that arrive during a resume").
 - The demo gateway's existing `a` key already makes a session the phone hasn't opened wait, so no `w` key was added.
+- 5.2 found that JavaScript timers stop in the background, so the watch never checked. The native module now runs a headless task while the foreground service is on (see the design's "Timers in the background"). This also fixes the service's 5-minute stop delay and the retry backoff in the background.
+- 5.2 also found the detach reaching the gateway before the Run answer. The check now runs a tick later (see "Detaching after an answer").
+- 5.2 results, on a release build on the emulator, with the app in the background:
+  - Older gateway (no `--detach`): "Input needed — Weekly report summary" with no buttons, about 34 seconds after the watch started. Tapping it opened the session with its Approval card. Run worked. The phone never attached to the session before the tap.
+  - Gateway with `--detach`: the Approval notification with Run and Reject, 41 seconds after the turn started waiting. Run from the shade answered it, then `session.detach` with the subscription went out, then the turn finished. No `session.close` was sent.
+
