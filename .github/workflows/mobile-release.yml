@@ -33,6 +33,11 @@ jobs:
   release:
     if: github.server_url != 'https://github.com'
     runs-on: ubuntu-latest
+    env:
+      # The runner's containers have no IPv6 route. Java tries a host's IPv6
+      # address first and fails with "Network is unreachable" (the Gradle
+      # download did), so every Java process here uses IPv4.
+      JAVA_TOOL_OPTIONS: -Djava.net.preferIPv4Stack=true
     steps:
       - uses: actions/checkout@v4
         with:
