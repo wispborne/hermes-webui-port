@@ -56,4 +56,4 @@
 
 - [x] 10.1 Type check and tests pass
 - [x] 10.2 Emulator screenshots of the start screen in light and dark mode, with and without the version banner
-- [ ] 10.3 The owner installs the build on their phone and checks their gateway over Tailscale
+- [x] 10.3 The owner installs the build on their phone and checks their gateway over Tailscale

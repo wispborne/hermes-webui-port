@@ -34,7 +34,7 @@
 
 - [x] 6.1 Type check and tests pass
 - [x] 6.2 Emulator screenshots: Approval card, stacked Approvals, Question card (choices, multi-select, free text), timed-out note
-- [ ] 6.3 The owner answers a real Approval and a real Question on their phone, and checks the answered-on-the-laptop case
+- [x] 6.3 The owner answers a real Approval and a real Question on their phone, and checks the answered-on-the-laptop case
 
 ## Notes
 

@@ -34,8 +34,8 @@
 
 - [x] 6.1 Type check and tests pass
 - [x] 6.2 Emulator screenshots of Sign in (empty, error) and Settings
-- [ ] 6.3 The owner signs in on their phone, force-stops the app, restarts the phone, and confirms the app is still signed in
-- [ ] 6.4 The owner signs out and confirms the app returns to Sign in with the URL kept
+- [x] 6.3 The owner signs in on their phone, force-stops the app, restarts the phone, and confirms the app is still signed in
+- [x] 6.4 The owner signs out and confirms the app returns to Sign in with the URL kept
 
 ## Notes
 

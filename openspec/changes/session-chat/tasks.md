@@ -58,7 +58,7 @@
 
 - [x] 9.1 Type check and tests pass
 - [x] 9.2 Emulator screenshots: streaming reply, tool rows open and closed, outbox messages, Stop
-- [ ] 9.3 The owner uses it on their phone for real work, including turning Tailscale off and on mid-reply and sending while offline
+- [x] 9.3 The owner uses it on their phone for real work, including turning Tailscale off and on mid-reply and sending while offline
 
 ## Notes
 

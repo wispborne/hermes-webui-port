@@ -31,7 +31,7 @@
 
 - [x] 5.1 Type check and tests pass
 - [x] 5.2 Emulator screenshots: list online with markers, offline with the banner, search results
-- [ ] 5.3 The owner checks on their phone that a turn started on the laptop shows its running marker
+- [x] 5.3 The owner checks on their phone that a turn started on the laptop shows its running marker
 
 ## Notes
 

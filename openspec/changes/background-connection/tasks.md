@@ -45,7 +45,7 @@
 
 - [x] 7.1 Type check and tests pass
 - [x] 7.2 Emulator screenshots: ongoing notification, Approval notification with buttons, Settings with Keep connected
-- [ ] 7.3 The owner locks their phone mid-turn, answers an Approval from the notification, and gets "Hermes finished"
+- [x] 7.3 The owner locks their phone mid-turn, answers an Approval from the notification, and gets "Hermes finished"
 - [ ] 7.4 The owner leaves Keep connected on for a day and reports battery use
 
 ## Notes
