@@ -157,6 +157,8 @@ export function SessionScreen({ id }: SessionScreenProps) {
         <PromptCards sessionKey={key} />
         <View style={[styles.composer, { borderColor: colors.outline }]}>
           <TextInput
+            autoFocus={id === 'new'}
+            contentStyle={styles.inputText}
             dense
             mode="outlined"
             multiline
@@ -176,6 +178,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
               iconColor={colors.error}
               mode="contained"
               onPress={() => void stopTurn(key)}
+              style={styles.composerButton}
               testID="stop"
             />
           ) : (
@@ -185,6 +188,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
               icon="send"
               mode="contained"
               onPress={send}
+              style={styles.composerButton}
               testID="send"
             />
           )}
@@ -194,6 +198,13 @@ export function SessionScreen({ id }: SessionScreenProps) {
   )
 }
 
+/** Paper's height for a dense outlined text box. */
+const INPUT_HEIGHT = 48
+/** Paper's IconButton without its margin. */
+const COMPOSER_BUTTON_SIZE = 40
+/** Centers one 20 dp line of text in the box. */
+const INPUT_TEXT_PADDING = (INPUT_HEIGHT - 20) / 2
+
 const styles = StyleSheet.create({
   center: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: space.screen * 2 },
   centerText: { textAlign: 'center' },
@@ -201,14 +212,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: space.step,
+    gap: space.listGap,
     paddingHorizontal: space.listGap,
-    paddingVertical: space.step
+    paddingVertical: space.listGap
   },
+  // Paper's buttons have a 6 dp margin. Without it, the button lines up with the box's edges.
+  composerButton: { margin: 0, marginBottom: (INPUT_HEIGHT - COMPOSER_BUTTON_SIZE) / 2 },
   earlier: { alignSelf: 'center', marginVertical: space.step },
   fill: { flex: 1 },
   footerSpace: { height: space.listGap },
   input: { flex: 1, maxHeight: 160 },
+  // On Android, Paper gives a multiline box without a label no top or bottom padding, so the text sat at the top.
+  inputText: { paddingBottom: INPUT_TEXT_PADDING, paddingTop: INPUT_TEXT_PADDING },
   status: { alignItems: 'center', flexDirection: 'row', gap: space.listGap, paddingHorizontal: space.screen, paddingVertical: space.listGap },
   title: { fontSize: 16 }
 })
