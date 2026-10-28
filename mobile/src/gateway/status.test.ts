@@ -1,3 +1,4 @@
+import { BUILT_FOR_HERMES_VERSION } from './built-for-version'
 import { checkGateway, normalizeGatewayUrl, versionDiffers } from './status'
 
 const answer = (status: number, body: unknown) =>
@@ -65,8 +66,8 @@ describe('checkGateway', () => {
 
 describe('versionDiffers', () => {
   it('compares with the built-for version, with or without a leading v', () => {
-    expect(versionDiffers('0.22.4')).toBe(false)
-    expect(versionDiffers('v0.22.4')).toBe(false)
-    expect(versionDiffers('0.23.0')).toBe(true)
+    expect(versionDiffers(BUILT_FOR_HERMES_VERSION)).toBe(false)
+    expect(versionDiffers(`v${BUILT_FOR_HERMES_VERSION}`)).toBe(false)
+    expect(versionDiffers('0.0.1')).toBe(true)
   })
 })
