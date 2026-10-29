@@ -1,19 +1,26 @@
 ## ADDED Requirements
 
 ### Requirement: Open Memory review
-The Sessions screen SHALL have a Memory review button in its top bar. While pending memories wait, the button SHALL show how many. The count SHALL update when Sessions opens and every minute while Sessions is on screen and the gateway is connected.
+Settings ▸ Memory & Context SHALL have a Pending memories row that always opens the Memory review screen, with the number waiting. While pending memories wait, the Sessions screen's top bar SHALL also show a Memory review button with how many. The count SHALL update when Sessions opens and every minute while Sessions is on screen and the gateway is connected.
 
 #### Scenario: Pending memories wait
 - **WHEN** the gateway holds three pending memories and the person opens Sessions
-- **THEN** the Memory review button shows 3
+- **THEN** a Memory review button shows 3, and tapping it opens the Memory review screen
 
 #### Scenario: None wait
 - **WHEN** no pending memories wait
-- **THEN** the button shows no count
+- **THEN** Sessions shows no Memory review button
 
-#### Scenario: Open the screen
-- **WHEN** the person taps the Memory review button
-- **THEN** the Memory review screen opens
+#### Scenario: From Settings
+- **WHEN** the person opens Settings ▸ Memory & Context and taps Pending memories
+- **THEN** the Memory review screen opens, whether or not any wait
+
+### Requirement: Approval switch in Settings
+Settings ▸ Memory & Context SHALL also show the "Ask before saving memories" switch, the same setting as on the Memory review screen.
+
+#### Scenario: Turn approval off in Settings
+- **WHEN** the person turns the switch off in Settings ▸ Memory & Context
+- **THEN** the gateway's `memory.write_approval` is off, and the Memory review screen's switch shows off too
 
 ### Requirement: List pending memories
 The Memory review screen SHALL list each pending memory, oldest first. Each SHALL show what it does (Add, Edit, Remove, Replace or Several changes), where it goes (Memory or User profile), "Background review" when Hermes suggested it on its own, and its text. For an edit or a removal it SHALL show the full memory that would change. When the gateway sent only the start of the text, the screen SHALL say so.

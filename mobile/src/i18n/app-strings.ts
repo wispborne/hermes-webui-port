@@ -83,9 +83,10 @@ export const appStrings = {
   // The web UI's memory review plugin keeps its strings in its own i18n.ts,
   // which `npm run strings` doesn't export. Same wording as there.
   memoryReview: {
-    open: 'Memory review',
     openWithCount: 'Memory review, {count} pending',
     title: 'Pending memories',
+    waiting: '{count} waiting for review',
+    noneWaiting: 'None waiting',
     approval: 'Ask before saving memories',
     approvalHelp: "When this is on, Hermes asks you before it saves a memory. If it can't ask, the memory waits here.",
     refresh: 'Refresh',

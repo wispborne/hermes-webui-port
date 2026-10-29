@@ -1,67 +1,54 @@
 import { useStore } from '@nanostores/react'
-import Constants from 'expo-constants'
-import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
-import { Appbar, Button, Divider, List, Switch } from 'react-native-paper'
+import { type Href, router, useFocusEffect } from 'expo-router'
+import { useCallback } from 'react'
+import { ScrollView, StyleSheet } from 'react-native'
+import { Appbar, List } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { askBackgroundPermissions } from '@/background/permission-dialogs'
-import { $batteryRestricted, $keepConnected, setKeepConnected } from '@/background/wiring'
-import { AppearanceSettings } from '@/components/appearance-settings'
 import { OfflineBanner } from '@/components/offline-banner'
-import { checkSignIn } from '@/gateway/auth'
-import { BUILT_FOR_HERMES_VERSION } from '@/gateway/built-for-version'
-import { checkGateway } from '@/gateway/status'
 import { t } from '@/i18n/t'
-import { $auth, $gateway, signOut } from '@/store/gateway'
-import { space } from '@/theme/compact'
+import { $pendingMemoryCount, reloadMemoryReview } from '@/store/memory-review'
 
-function toggleKeepConnected(on: boolean) {
-  setKeepConnected(on)
-
-  if (on) {
-    void askBackgroundPermissions()
-  }
+interface Section {
+  id: string
+  label: () => string
+  icon: string
+  href: Href
 }
 
-/** Settings: the gateway, who is signed in, Appearance, Keep connected, the three versions, and Sign out. */
+/**
+ * The web settings dialog's sections the phone has, in the dialog's order:
+ * Model, Chat, Appearance, Workspace, Safety, Browser, Passwords & Logins,
+ * Memory & Context, Voice, Advanced, Notifications, Billing, Providers,
+ * Gateways, Keyboard Shortcuts, Tools & Keys, Sessions, Plugins, About.
+ */
+const SECTIONS: Section[] = [
+  {
+    id: 'appearance',
+    label: () => t('settings.sections.appearance'),
+    icon: 'palette-outline',
+    href: '/settings/appearance'
+  },
+  { id: 'memory', label: () => t('settings.sections.memory'), icon: 'brain', href: '/settings/memory' },
+  {
+    id: 'notifications',
+    label: () => t('settings.nav.notifications'),
+    icon: 'bell-outline',
+    href: '/settings/notifications'
+  },
+  { id: 'gateways', label: () => t('settings.nav.gateway'), icon: 'server-network', href: '/settings/gateways' },
+  { id: 'about', label: () => t('settings.nav.about'), icon: 'information-outline', href: '/settings/about' }
+]
+
+/** Settings: the list of sections, laid out like the web UI's settings dialog. Each opens its own page. */
 export function SettingsScreen() {
-  const auth = useStore($auth)
-  const gateway = useStore($gateway)
-  const url = auth.phase === 'signed-in' ? auth.url : null
-  const [user, setUser] = useState<string | null>(null)
-  const [gatewayVersion, setGatewayVersion] = useState<string | null>(null)
-  const [signingOut, setSigningOut] = useState(false)
-  const keepConnected = useStore($keepConnected)
-  const batteryRestricted = useStore($batteryRestricted)
+  const pendingMemories = useStore($pendingMemoryCount)
 
-  useEffect(() => {
-    if (!gateway) {
-      return
-    }
-
-    let live = true
-
-    void checkSignIn(gateway.rest).then(check => {
-      if (live && check.kind === 'signed-in') {
-        setUser(check.user.name)
-      }
-    })
-
-    void checkGateway(gateway.url).then(found => {
-      if (live && found.kind === 'gateway') {
-        setGatewayVersion(found.version)
-      }
-    })
-
-    return () => {
-      live = false
-    }
-  }, [gateway])
-
-  const unknown = t('app.settings.unknown')
-  const signedInAs = user ?? (auth.phase === 'signed-in' ? auth.username : null) ?? unknown
+  useFocusEffect(
+    useCallback(() => {
+      void reloadMemoryReview()
+    }, [])
+  )
 
   return (
     <SafeAreaView edges={['bottom']} style={styles.fill}>
@@ -71,59 +58,26 @@ export function SettingsScreen() {
       </Appbar.Header>
       <OfflineBanner />
       <ScrollView>
-        <List.Item description={url ?? unknown} title={t('app.settings.gateway')} />
-        <List.Item description={signedInAs} testID="signed-in-as" title={t('app.settings.signedInAs')} />
-        <Divider />
-        <AppearanceSettings />
-        <Divider />
-        <List.Item
-          description={t('app.background.keepConnectedDescription')}
-          descriptionNumberOfLines={4}
-          onPress={() => toggleKeepConnected(!keepConnected)}
-          right={() => <Switch onValueChange={toggleKeepConnected} testID="keep-connected" value={keepConnected} />}
-          title={t('app.background.keepConnected')}
-        />
-        {batteryRestricted ? (
+        {SECTIONS.map(section => (
           <List.Item
-            description={t('app.background.batteryDeclined')}
-            descriptionNumberOfLines={3}
-            left={props => <List.Icon {...props} icon="battery-alert-variant" />}
-            title={t('app.background.batteryTitle')}
+            description={
+              section.id === 'memory' && pendingMemories > 0
+                ? t('app.memoryReview.waiting', { count: pendingMemories })
+                : undefined
+            }
+            key={section.id}
+            left={props => <List.Icon {...props} icon={section.icon} />}
+            onPress={() => router.push(section.href)}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            testID={`settings-${section.id}`}
+            title={section.label()}
           />
-        ) : null}
-        <Divider />
-        <List.Item description={Constants.expoConfig?.version ?? unknown} title={t('app.settings.appVersion')} />
-        <List.Item description={BUILT_FOR_HERMES_VERSION} title={t('app.settings.builtFor')} />
-        <List.Item description={gatewayVersion ?? unknown} testID="gateway-version" title={t('app.settings.gatewayVersion')} />
-        <Divider />
-        <View style={styles.actions}>
-          <Button
-            compact
-            disabled={signingOut}
-            icon="logout"
-            loading={signingOut}
-            mode="outlined"
-            onPress={async () => {
-              setSigningOut(true)
-
-              try {
-                await signOut()
-              } finally {
-                setSigningOut(false)
-              }
-            }}
-            style={styles.button}
-          >
-            {t('settings.gateway.signOut')}
-          </Button>
-        </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  actions: { padding: space.screen },
-  button: { alignSelf: 'flex-start' },
   fill: { flex: 1 }
 })

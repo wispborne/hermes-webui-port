@@ -22,7 +22,7 @@ export function ThemeScreen() {
   return (
     <SafeAreaView edges={['bottom']} style={styles.fill}>
       <Appbar.Header mode="small">
-        <Appbar.BackAction onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings'))} />
+        <Appbar.BackAction onPress={() => (router.canGoBack() ? router.back() : router.replace('/settings/appearance'))} />
         <Appbar.Content title={t('settings.appearance.themeTitle')} />
       </Appbar.Header>
       <FlatList

@@ -500,6 +500,16 @@
       "vault": "Passwords & Logins",
       "plugins": "Plugins"
     },
+    "sections": {
+      "model": "Model",
+      "chat": "Chat",
+      "appearance": "Appearance",
+      "workspace": "Workspace",
+      "safety": "Safety",
+      "memory": "Memory & Context",
+      "voice": "Voice",
+      "advanced": "Advanced"
+    },
     "vault": {
       "identifierTypes": {
         "email": "Email",

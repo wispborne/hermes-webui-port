@@ -20,9 +20,17 @@
 - [x] 4.1 `command.dispatch` for `memory` in `mobile/scripts/demo-gateway.mjs`, with made-up pending memories
 - [x] 4.2 Describe `/memory` through `command.dispatch` in `mobile/GATEWAY_PROTOCOL.md`
 
-## 5. Done
+## 5. Settings like the web dialog
 
-- [x] 5.1 Type check and tests pass, including the web plugin's parser tests
-- [x] 5.2 Emulator screenshots: Sessions with the count, the list, a reply after an approve, the confirmation, and the empty screen
-- [x] 5.3 On the emulator against a v0.22.5 gateway: approve, reject, approve all, and the switch, checking the gateway's memory files after each
-- [ ] 5.4 The owner installs it on their phone and approves or rejects a pending memory
+- [x] 5.1 Export `settings.sections` in `mobile/scripts/export-strings.mjs` and run `npm --prefix mobile run strings`
+- [x] 5.2 Settings screen as a list of sections, and pages for Appearance, Memory & Context, Notifications, Gateways and About under `mobile/src/app/settings/`
+- [x] 5.3 Memory & Context page: the approval switch and the Pending memories row with its count
+- [x] 5.4 Show the Sessions screen's Memory review button only while pending memories wait
+- [x] 5.5 Tests: the Settings list order, the Memory & Context row opens Memory review, and the Sessions button hides when none wait
+
+## 6. Done
+
+- [x] 6.1 Type check and tests pass, including the web plugin's parser tests
+- [x] 6.2 Emulator screenshots: Sessions with the count, the list, a reply after an approve, the confirmation, the empty screen, the Settings list and the Memory & Context page
+- [x] 6.3 On the emulator against a v0.22.5 gateway: approve, reject, approve all, and the switch, checking the gateway's memory files after each
+- [ ] 6.4 The owner installs it on their phone and approves or rejects a pending memory

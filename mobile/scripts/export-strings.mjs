@@ -42,6 +42,7 @@ const EXPORTED = [
   'settings.gateway',
   'settings.modeOptions',
   'settings.nav',
+  'settings.sections',
   'settings.vault.identifierTypes',
   'settings.vault.passwordField',
   'sidebar.filter',

@@ -26,8 +26,21 @@ The facts below were checked in the hermes-agent v0.22.5 source (`bf0203a794`): 
 ### Shared parser
 `mobile/tsconfig.json` and `mobile/shared-resolution.js` map `@hermes/memory-review/<name>` to `apps/desktop/src/plugins/memory-review/<name>.ts`, as they already do for the desktop themes. `parse.ts` imports nothing, so Metro and Jest can load it. Its tests stay in the web plugin, where `npx vitest run` runs them. The phone's own tests cover the store and the screen.
 
+### Settings like the web dialog
+The web settings dialog is a list of sections on the left with a page on the right. The phone shows the list as the Settings screen, and each section opens a page of its own, as Android settings do. The names and order are the dialog's: Model, Chat, Appearance, Workspace, Safety, Browser, Passwords & Logins, Memory & Context, Voice, Advanced, Notifications, Billing, Providers, Gateways, Keyboard Shortcuts, Tools & Keys, Sessions, Plugins, About. The phone shows only the ones it has something for:
+
+| Section | Page |
+| --- | --- |
+| Appearance | Color mode, theme and accent (the existing Appearance controls) |
+| Memory & Context | Ask before saving memories, and Pending memories, which opens Memory review |
+| Notifications | Keep connected, and the battery note |
+| Gateways | Gateway URL, who is signed in, Sign out |
+| About | App version, Built for Hermes, Gateway Hermes version |
+
+The names come from the desktop's `settings.sections` and `settings.nav` strings, which `npm run strings` now exports. Other sections join the list as the phone gains their features.
+
 ### Where it opens
-A lightbulb button in the Sessions screen's top bar, next to Settings, with a badge showing the count when any wait. The web UI has a sidebar link and a status bar count. The phone has no sidebar, and Sessions is the home screen.
+Settings ▸ Memory & Context ▸ Pending memories always opens it. The web UI has a sidebar link and a status bar count; the phone has no sidebar, so Settings is the place it can always be found. A lightbulb button with the count also appears in the Sessions screen's top bar, but only while pending memories wait, so it doesn't take room for nothing.
 
 ### Store
 `mobile/src/store/memory-review.ts` holds the last answer: the approval setting, the list, or the unreadable reply text, plus a loading flag and an error. `reloadMemoryReview()` runs `/memory`. `runMemoryCommand(arg)` runs an action, sets the reply, and reloads. Sessions calls `reloadMemoryReview()` when it gains focus and every 60 s while it's focused and the connection is open. The Memory review screen reloads when it opens and on pull to refresh. Nothing is written to the phone's database.

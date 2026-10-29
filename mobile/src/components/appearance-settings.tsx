@@ -31,8 +31,8 @@ export function AppearanceSettings() {
   ]
 
   return (
+    // Shown on Settings ▸ Appearance, whose top bar already names it.
     <List.Section>
-      <List.Subheader>{t('settings.appearance.title')}</List.Subheader>
       <List.Item
         description={t('settings.appearance.colorModeDesc')}
         descriptionNumberOfLines={2}

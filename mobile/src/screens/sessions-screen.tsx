@@ -114,23 +114,20 @@ export function SessionsScreen() {
     <SafeAreaView edges={['bottom']} style={styles.fill}>
       <Appbar.Header mode="small">
         <Appbar.Content title={t('sidebar.sessions')} />
-        <View>
-          <Appbar.Action
-            accessibilityLabel={
-              pendingMemories > 0
-                ? t('app.memoryReview.openWithCount', { count: pendingMemories })
-                : t('app.memoryReview.open')
-            }
-            icon="lightbulb-outline"
-            onPress={() => router.push('/memory-review')}
-            testID="open-memory-review"
-          />
-          {pendingMemories > 0 ? (
+        {/* Only while pending memories wait. Settings ▸ Memory & Context always has the way in. */}
+        {pendingMemories > 0 ? (
+          <View>
+            <Appbar.Action
+              accessibilityLabel={t('app.memoryReview.openWithCount', { count: pendingMemories })}
+              icon="lightbulb-outline"
+              onPress={() => router.push('/memory-review')}
+              testID="open-memory-review"
+            />
             <Badge size={16} style={styles.badge} testID="memory-count">
               {pendingMemories}
             </Badge>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
         <Appbar.Action
           accessibilityLabel={t('settings.nav.keysSettings')}
           icon="cog"
