@@ -252,6 +252,7 @@ interface UserBubbleActionsProps {
   onCancel?: () => Promise<void> | void
   onRequestRestoreConfirm?: (messageId: string, target: RestoreMessageTarget) => void
   runtimeUserOrdinal: RestoreMessageTarget['userOrdinal']
+  showEdit: boolean
   showRestore: boolean
   showStop: boolean
 }
@@ -262,6 +263,7 @@ const UserBubbleActions: FC<UserBubbleActionsProps> = ({
   onCancel,
   onRequestRestoreConfirm,
   runtimeUserOrdinal,
+  showEdit,
   showRestore,
   showStop
 }) => {
@@ -269,7 +271,26 @@ const UserBubbleActions: FC<UserBubbleActionsProps> = ({
 
   return (
     <>
-      <MessageHoverTime className={cn(!showStop && !showRestore && 'pr-0.5')} />
+      <MessageHoverTime className={cn(!showEdit && !showStop && !showRestore && 'pr-0.5')} />
+      {/* Clicking the bubble also edits, but nothing on screen says so. */}
+      {showEdit && (
+        <Tip label={copy.editMessage}>
+          <ActionBarPrimitive.Edit asChild>
+            <button
+              aria-label={copy.editMessage}
+              className={cn('pointer-events-auto size-6', USER_ACTION_ICON_BUTTON_CLASS)}
+              onClick={event => {
+                event.stopPropagation()
+                triggerHaptic('selection')
+              }}
+              onPointerDown={() => notifyThreadEditOpen()}
+              type="button"
+            >
+              <Codicon name="edit" size="0.875rem" />
+            </button>
+          </ActionBarPrimitive.Edit>
+        </Tip>
+      )}
       {showStop ? (
         <button
           aria-label={copy.stop}
@@ -581,6 +602,7 @@ export const UserMessage: FC<{
                     onCancel={onCancel}
                     onRequestRestoreConfirm={onRequestRestoreConfirm}
                     runtimeUserOrdinal={runtimeUserOrdinal}
+                    showEdit={!readOnly}
                     showRestore={showRestore}
                     showStop={showStop}
                   />
