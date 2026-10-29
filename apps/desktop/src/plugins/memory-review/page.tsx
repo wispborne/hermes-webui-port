@@ -2,9 +2,9 @@ import {
   Button,
   Codicon,
   ConfirmDialog,
+  cn,
   PanelBlock,
   PanelEmpty,
-  PanelPill,
   PanelSectionLabel,
   Switch,
   Tip,
@@ -12,7 +12,7 @@ import {
   useQueryClient,
   useValue
 } from '@hermes/plugin-sdk'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 import { $reviewSessionId, fetchReview, reviewKey, runMemoryCommand } from './api'
 import { type MemoryReviewText, useMemoryReviewText } from './i18n'
@@ -24,6 +24,24 @@ interface Reply {
 }
 
 type Busy = null | string
+
+const TAG_TONE = {
+  good: 'bg-primary/10 text-primary',
+  muted: 'bg-foreground/10 text-muted-foreground',
+  warn: 'bg-amber-500/10 text-amber-600 dark:text-amber-300'
+}
+
+// PanelPill's look without its `capitalize`, which turned "User profile" into
+// "User Profile".
+function Tag({ children, tone = 'muted' }: { children: string; tone?: keyof typeof TAG_TONE }) {
+  return (
+    <span
+      className={cn('inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.62rem] font-medium', TAG_TONE[tone])}
+    >
+      {children}
+    </span>
+  )
+}
 
 function WriteCard({
   busy,
@@ -41,12 +59,12 @@ function WriteCard({
   return (
     <li className="rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) p-3">
       <div className="flex flex-wrap items-center gap-1.5">
-        <PanelPill tone={write.action === 'remove' ? 'warn' : 'muted'}>{text.action[write.action]}</PanelPill>
-        {write.target && <PanelPill>{text.target[write.target]}</PanelPill>}
+        <Tag tone={write.action === 'remove' ? 'warn' : 'muted'}>{text.action[write.action]}</Tag>
+        {write.target && <Tag>{text.target[write.target]}</Tag>}
         {write.background && (
           <Tip label={text.backgroundTip}>
             <span>
-              <PanelPill tone="good">{text.background}</PanelPill>
+              <Tag tone="good">{text.background}</Tag>
             </span>
           </Tip>
         )}
@@ -72,9 +90,11 @@ function WriteCard({
 
       <div className="mt-3 flex justify-end gap-1.5">
         <Button disabled={busy !== null} onClick={onReject} size="sm" variant="ghost">
+          {busy === `reject ${write.id}` && <Codicon name="loading" size="0.875rem" spinning />}
           {text.reject}
         </Button>
         <Button disabled={busy !== null} onClick={onApprove} size="sm">
+          {busy === `approve ${write.id}` && <Codicon name="loading" size="0.875rem" spinning />}
           {text.approve}
         </Button>
       </div>
@@ -90,6 +110,12 @@ export function MemoryReviewPage() {
   const [reply, setReply] = useState<null | Reply>(null)
   const [confirm, setConfirm] = useState<'approve' | 'reject' | null>(null)
 
+  // The reply box sits above the list; bring it into view when it appears
+  // after acting on a card further down. Stable, so it runs once per reply.
+  const revealReply = useCallback((node: HTMLDivElement | null) => {
+    node?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [])
+
   const query = useQuery({
     queryFn: () => fetchReview(sessionId),
     queryKey: reviewKey(sessionId)
@@ -98,34 +124,26 @@ export function MemoryReviewPage() {
   const review = query.data?.kind === 'review' ? query.data.review : null
   const writes = review?.writes ?? []
 
-  const run = async (key: string, args: string) => {
-    setBusy(key)
+  // `args` doubles as the busy key, so the pressed button can show a spinner.
+  const run = async (args: string) => {
+    setBusy(args)
+    setReply(null)
 
     try {
       const output = await runMemoryCommand(sessionId, args)
-      setReply({ failed: replyFailed(output), text: output })
-    } catch (error) {
-      setReply({ failed: true, text: error instanceof Error ? error.message : String(error) })
-    } finally {
-      setBusy(null)
-      await queryClient.invalidateQueries({ queryKey: reviewKey(sessionId) })
-    }
-  }
 
-  const setApproval = async (on: boolean) => {
-    setBusy('approval')
-
-    try {
-      const output = await runMemoryCommand(sessionId, `approval ${on ? 'on' : 'off'}`)
-
-      if (parseApprovalReply(output) === null) {
-        setReply({ failed: true, text: output })
+      if (args.startsWith('approval ')) {
+        if (parseApprovalReply(output) === null) {
+          setReply({ failed: true, text: output })
+        }
+      } else {
+        setReply({ failed: replyFailed(output), text: output })
       }
     } catch (error) {
       setReply({ failed: true, text: error instanceof Error ? error.message : String(error) })
     } finally {
-      setBusy(null)
       await queryClient.invalidateQueries({ queryKey: reviewKey(sessionId) })
+      setBusy(null)
     }
   }
 
@@ -168,8 +186,8 @@ export function MemoryReviewPage() {
           <WriteCard
             busy={busy}
             key={write.id}
-            onApprove={() => void run(write.id, `approve ${write.id}`)}
-            onReject={() => void run(write.id, `reject ${write.id}`)}
+            onApprove={() => void run(`approve ${write.id}`)}
+            onReject={() => void run(`reject ${write.id}`)}
             text={text}
             write={write}
           />
@@ -220,7 +238,7 @@ export function MemoryReviewPage() {
                 checked={review.approvalOn}
                 className="mt-0.5"
                 disabled={busy !== null}
-                onCheckedChange={on => void setApproval(on)}
+                onCheckedChange={on => void run(`approval ${on ? 'on' : 'off'}`)}
               />
               <span className="min-w-0">
                 <span className="block text-xs font-medium text-foreground">{text.approval}</span>
@@ -233,6 +251,7 @@ export function MemoryReviewPage() {
 
           {reply && (
             <div
+              ref={revealReply}
               className={
                 reply.failed
                   ? 'rounded-lg border border-destructive/30 bg-destructive/5 p-3'
@@ -262,7 +281,7 @@ export function MemoryReviewPage() {
         destructive={confirm === 'reject'}
         dismissOnConfirm
         onClose={() => setConfirm(null)}
-        onConfirm={() => run(`${confirm}-all`, `${confirm} all`)}
+        onConfirm={() => run(`${confirm} all`)}
         open={confirm !== null}
         title={confirm === 'reject' ? text.rejectAllTitle(writes.length) : text.approveAllTitle(writes.length)}
       />
