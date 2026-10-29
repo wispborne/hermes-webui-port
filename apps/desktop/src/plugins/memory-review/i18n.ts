@@ -14,6 +14,8 @@ const en = {
   openPage: 'Open memory review',
   title: 'Pending memories',
   waiting: (n: number) => `${plural(n, 'memory', 'memories')} waiting for review`,
+  noneWaiting: 'None waiting',
+  review: 'Review',
   countTip: (n: number) => `${plural(n, 'pending memory', 'pending memories')}. Click to review.`,
   approval: 'Ask before saving memories',
   approvalHelp: "When this is on, Hermes asks you before it saves a memory. If it can't ask, the memory waits here.",

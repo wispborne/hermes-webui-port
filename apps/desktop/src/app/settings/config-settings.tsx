@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { Slot } from '@/contrib/react/slot'
 import { getElevenLabsVoices, getHermesConfigSchema, saveHermesConfig } from '@/hermes'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
@@ -515,6 +516,8 @@ function ConfigSettingsInner({
       {activeSectionId === 'voice' ? (
         <ListRow description={c.voiceShortcutHintDesc} title={c.voiceShortcutHintTitle} />
       ) : null}
+      {/* hermes-ui: plugin rows for this settings page, e.g. settings.config.memory.persistent. */}
+      <Slot area={`settings.config.${activeSectionId}${subpage ? `.${subpage}` : ''}`} />
       {showEmptyState ? (
         <EmptyState description={c.emptyDesc} title={c.emptyTitle} />
       ) : visibleFields.length === 0 ? null : (

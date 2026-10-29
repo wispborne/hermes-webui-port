@@ -1,10 +1,12 @@
 /**
  * Memory review — a page for the memory writes Hermes is holding for approval
- * (`memory.write_approval`), plus a sidebar entry and a status bar count.
- * Everything goes through the gateway's `/memory` command, read by ./parse.
+ * (`memory.write_approval`), plus a sidebar entry, a status bar count, and rows
+ * in Settings ▸ Memory & Context. Everything goes through the gateway's
+ * `/memory` command, read by ./parse.
  *
  * Not from upstream: this folder exists only in this repo, so upstream syncs
- * merge around it.
+ * merge around it. The one upstream edit it needs is the settings slot in
+ * app/settings/config-settings.tsx.
  */
 
 import {
@@ -27,6 +29,7 @@ import {
 import { $reviewSessionId, fetchReview, reviewKey, trackReviewSession } from './api'
 import { MEMORY_REVIEW_LOCALES, useMemoryReviewText } from './i18n'
 import { MemoryReviewPage } from './page'
+import { MemorySettingsRows } from './settings-rows'
 
 const PATH = '/memory-review'
 
@@ -87,6 +90,12 @@ const plugin: HermesPlugin = {
         area: STATUSBAR_AREAS.right,
         order: 81,
         render: () => <PendingCount />
+      },
+      {
+        // The slot this repo adds to upstream's config-settings.tsx.
+        id: 'settings',
+        area: 'settings.config.memory.persistent',
+        render: () => <MemorySettingsRows path={PATH} />
       }
     ])
 
