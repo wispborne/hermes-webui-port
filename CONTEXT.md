@@ -65,3 +65,7 @@ _Avoid_: Secret prompt, sudo prompt, masked prompt
 **Needs input**:
 The state of a session whose turn is waiting on an approval, a question or a private input.
 _Avoid_: Blocked, waiting, pending
+
+**Pending memory**:
+A change to Hermes's memory or user profile that Hermes is holding until the person approves or rejects it. It isn't part of a turn: it waits on the gateway, and the person reviews it on the Memory review page.
+_Avoid_: Staged write, pending write, memory approval

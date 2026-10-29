@@ -2,7 +2,7 @@ import { useStore } from '@nanostores/react'
 import { router, useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Appbar, FAB, Searchbar, Text } from 'react-native-paper'
+import { ActivityIndicator, Appbar, Badge, FAB, Searchbar, Text } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { OfflineBanner } from '@/components/offline-banner'
@@ -11,6 +11,7 @@ import type { SessionRow } from '@/gateway/sessions-api'
 import { useConnectionStatus } from '@/hooks/use-connection-status'
 import { t } from '@/i18n/t'
 import { $gateway } from '@/store/gateway'
+import { $pendingMemoryCount, keepMemoryCountCurrent } from '@/store/memory-review'
 import {
   $hasMoreSessions,
   $markers,
@@ -69,6 +70,7 @@ export function SessionsScreen() {
   const rows = useStore($sessionRows)
   const markers = useStore($markers)
   const hasMore = useStore($hasMoreSessions)
+  const pendingMemories = useStore($pendingMemoryCount)
   const [query, setQuery] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const { result, searching } = useSessionSearch(query)
@@ -83,7 +85,13 @@ export function SessionsScreen() {
       void reloadSessions(gateway)
       void reloadMarkers(gateway)
 
-      return keepSessionsCurrent(gateway)
+      const stopSessions = keepSessionsCurrent(gateway)
+      const stopMemories = keepMemoryCountCurrent(gateway)
+
+      return () => {
+        stopSessions()
+        stopMemories()
+      }
     }, [gateway])
   )
 
@@ -106,6 +114,23 @@ export function SessionsScreen() {
     <SafeAreaView edges={['bottom']} style={styles.fill}>
       <Appbar.Header mode="small">
         <Appbar.Content title={t('sidebar.sessions')} />
+        <View>
+          <Appbar.Action
+            accessibilityLabel={
+              pendingMemories > 0
+                ? t('app.memoryReview.openWithCount', { count: pendingMemories })
+                : t('app.memoryReview.open')
+            }
+            icon="lightbulb-outline"
+            onPress={() => router.push('/memory-review')}
+            testID="open-memory-review"
+          />
+          {pendingMemories > 0 ? (
+            <Badge size={16} style={styles.badge} testID="memory-count">
+              {pendingMemories}
+            </Badge>
+          ) : null}
+        </View>
         <Appbar.Action
           accessibilityLabel={t('settings.nav.keysSettings')}
           icon="cog"
@@ -161,6 +186,7 @@ export function SessionsScreen() {
 }
 
 const styles = StyleSheet.create({
+  badge: { position: 'absolute', right: 6, top: 6 },
   empty: { padding: space.screen },
   fab: { bottom: space.screen * 2, position: 'absolute', right: space.screen },
   fill: { flex: 1 },

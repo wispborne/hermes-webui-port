@@ -4,6 +4,8 @@
 // `@hermes/shared` and `@hermes/shared/<name>` are mapped to its source files.
 // `@hermes/desktop-themes/<name>` is mapped to apps/desktop/src/themes, for the
 // few desktop theme files that import nothing else from the desktop.
+// `@hermes/memory-review/<name>` is mapped to the web UI's memory review plugin,
+// for its parser, which imports nothing.
 // The shared files import each other as `./name.js` while the files end in
 // `.ts`. TypeScript accepts that, but Metro and Jest don't, so a relative
 // `.js` import that doesn't exist is retried as `.ts`.
@@ -14,8 +16,9 @@ const path = require('node:path')
 const sharedRoot = path.resolve(__dirname, '../apps/shared')
 const sharedSrc = path.join(sharedRoot, 'src')
 const desktopThemesRoot = path.resolve(__dirname, '../apps/desktop/src/themes')
+const memoryReviewRoot = path.resolve(__dirname, '../apps/desktop/src/plugins/memory-review')
 
-/** The file a `@hermes/shared` or `@hermes/desktop-themes` import points to, or null for any other import. */
+/** The file a `@hermes/shared`, `@hermes/desktop-themes` or `@hermes/memory-review` import points to, or null for any other import. */
 function hermesSharedFile(moduleName) {
   if (moduleName === '@hermes/shared') {
     return path.join(sharedSrc, 'index.ts')
@@ -27,6 +30,10 @@ function hermesSharedFile(moduleName) {
 
   if (moduleName.startsWith('@hermes/desktop-themes/')) {
     return path.join(desktopThemesRoot, `${moduleName.slice('@hermes/desktop-themes/'.length)}.ts`)
+  }
+
+  if (moduleName.startsWith('@hermes/memory-review/')) {
+    return path.join(memoryReviewRoot, `${moduleName.slice('@hermes/memory-review/'.length)}.ts`)
   }
 
   return null
@@ -49,4 +56,4 @@ function tsFallback(moduleName, fromFile) {
   return fs.existsSync(path.resolve(dir, ts)) ? ts : null
 }
 
-module.exports = { desktopThemesRoot, hermesSharedFile, sharedRoot, tsFallback }
+module.exports = { desktopThemesRoot, hermesSharedFile, memoryReviewRoot, sharedRoot, tsFallback }

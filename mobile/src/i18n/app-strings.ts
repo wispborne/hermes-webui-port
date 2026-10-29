@@ -80,5 +80,50 @@ export const appStrings = {
   connection: {
     connecting: 'Connecting to the gateway…'
   },
+  // The web UI's memory review plugin keeps its strings in its own i18n.ts,
+  // which `npm run strings` doesn't export. Same wording as there.
+  memoryReview: {
+    open: 'Memory review',
+    openWithCount: 'Memory review, {count} pending',
+    title: 'Pending memories',
+    approval: 'Ask before saving memories',
+    approvalHelp: "When this is on, Hermes asks you before it saves a memory. If it can't ask, the memory waits here.",
+    refresh: 'Refresh',
+    more: 'More',
+    approve: 'Approve',
+    reject: 'Reject',
+    approveAll: 'Approve all',
+    rejectAll: 'Reject all',
+    approveAllTitle: 'Approve {count} pending memories?',
+    approveAllBody: 'Each one is saved. Edits and removals change your existing memories.',
+    rejectAllTitle: 'Reject {count} pending memories?',
+    rejectAllBody: 'Each one is deleted without being saved.',
+    dismiss: 'Dismiss',
+    action: {
+      add: 'Add',
+      batch: 'Several changes',
+      patch: 'Edit',
+      remove: 'Remove',
+      replace: 'Replace',
+      unknown: 'Change'
+    },
+    target: {
+      memory: 'Memory',
+      user: 'User profile'
+    },
+    background: 'Background review',
+    maybeCut: 'Hermes only sends the start of this text, so the end may be missing.',
+    entryAdds: 'Adds this memory',
+    entryChanges: 'Changes this memory',
+    entryRemoves: 'Removes this memory',
+    unpinned:
+      "This was saved by an older version of Hermes and doesn't say which memory it changes. Reject it and ask Hermes again.",
+    emptyTitle: 'No pending memories',
+    emptyOn: 'When Hermes wants to save a memory and no one is there to answer, it waits here.',
+    emptyOff:
+      'Ask before saving memories is off, so Hermes saves memories without asking. Removals that Hermes suggests on its own still wait here.',
+    loadFailed: "Couldn't load pending memories",
+    unreadable: "Hermes sent a reply this screen couldn't read:"
+  },
   versionBanner: 'Built for Hermes {builtFor}. The gateway runs {gateway}.'
 }

@@ -27,7 +27,11 @@
 //   a  start a turn on the "Weekly report" session that waits on an Approval
 //      (a session the phone hasn't opened, for the other-session alerts)
 //   t  time out every waiting Approval
+//   m  refill the pending memories shown on Memory review
 //   q  quit
+//
+// `/memory` through command.dispatch answers with the same text as hermes-agent
+// v0.22.5, from a few made-up pending memories. Approve and reject remove them.
 
 import { randomBytes } from 'node:crypto'
 import http from 'node:http'
@@ -144,6 +148,95 @@ for (let i = 0; i < 45; i++) {
 
 /** runtime id -> { runtimeId, storedId, seq, events, running, status, clients:Set, pending:Map, cancel } */
 const live = new Map()
+
+// ------------------------------------------------------------ pending memories
+
+let memoryApproval = true
+let pendingMemories = []
+
+function refillPendingMemories() {
+  pendingMemories = [
+    { id: 'a1b2c3d4', lines: ['add to memory: Prefers short answers in plain English'] },
+    {
+      id: 'b2c3d4e5',
+      lines: ['add to memory: Keeps a running list of release notes in docs/releases.md and wants every new feature added there with the date, a one-l']
+    },
+    {
+      id: 'c3d4e5f6',
+      lines: [
+        'patch in memory: entry matching: tea',
+        "span 'tea' becomes: green tea (rest of the entry is kept)",
+        '      patchs entry: User likes tea in the morning'
+      ]
+    },
+    {
+      id: 'd4e5f6a7',
+      auto: true,
+      lines: [
+        'background review consolidation (remove on memory): - remove: old project',
+        '      removes entry: The old project lives in /srv/old-app and is no longer used'
+      ]
+    },
+    { id: 'e5f6a7b8', lines: ['add to user profile: Works on Hermes UI on weekends'] }
+  ]
+}
+
+refillPendingMemories()
+
+/** The reply hermes-agent's `/memory` command gives, for the made-up pending memories. */
+function memoryCommand(arg) {
+  const [sub, target] = arg.trim().split(/\s+/)
+  const state = `memory.write_approval = ${memoryApproval ? 'on' : 'off'}`
+
+  if (!sub || sub === 'pending') {
+    const list = pendingMemories.length
+      ? [
+          `Pending memory writes (${pendingMemories.length}):`,
+          ...pendingMemories.flatMap(write => [`  ${write.id}${write.auto ? ' [auto]' : ''}  ${write.lines[0]}`, ...write.lines.slice(1)]),
+          '',
+          'Apply: /memory approve <id>   Reject: /memory reject <id>'
+        ].join('\n')
+      : 'No pending memory writes.'
+
+    return sub ? list : `${state}\n\n${list}`
+  }
+
+  if (sub === 'approval') {
+    if (target !== 'on' && target !== 'off') {
+      return `${state}\nSet with: /memory approval <on|off>`
+    }
+
+    memoryApproval = target === 'on'
+
+    return `memory.write_approval set to '${target}'.`
+  }
+
+  if ((sub === 'approve' || sub === 'reject') && target) {
+    const chosen = target === 'all' ? pendingMemories : pendingMemories.filter(write => write.id === target)
+
+    if (chosen.length === 0) {
+      return target === 'all' ? 'No pending memory writes.' : `No pending memory write with id '${target}'.`
+    }
+
+    pendingMemories = pendingMemories.filter(write => !chosen.includes(write))
+    console.log(`[demo] ${sub}d pending memories: ${chosen.map(write => write.id).join(', ')}`)
+
+    if (sub === 'reject') {
+      return target === 'all' ? `Rejected ${chosen.length} pending memory write(s).` : `Rejected pending memory write '${target}'.`
+    }
+
+    const removed = chosen.flatMap(write =>
+      write.lines.filter(line => line.startsWith('      removes entry: ')).map(line => `  ${write.id}: ${line.slice(21)}`)
+    )
+
+    return [
+      `Approved ${chosen.length} memory write(s).`,
+      ...(removed.length ? ['Removed entry (re-add anything you still need):', ...removed] : [])
+    ].join('\n')
+  }
+
+  return 'Unknown /memory subcommand. Use: pending, approve <id>, reject <id>, approval <on|off>.'
+}
 
 function liveFor(storedId) {
   for (const entry of live.values()) {
@@ -518,6 +611,14 @@ function handleRpc(client, frame) {
       return reply({ approvals: [...(entry?.pending.values() ?? [])].filter(p => p.method === 'approval').map(p => p.params) })
     }
 
+    case 'command.dispatch': {
+      if (params.name !== 'memory') {
+        return fail(4018, `not a quick/plugin/bundle/skill command: ${params.name}`)
+      }
+
+      return reply({ type: 'exec', output: memoryCommand(params.arg ?? '') })
+    }
+
     default:
       return fail(-32601, `unknown method ${method}`)
   }
@@ -586,7 +687,7 @@ const server = http.createServer(async (req, res) => {
   console.log(route)
 
   // For scripted runs without a terminal: POST /demo/<key> does the same as the key.
-  const demoKey = /^\/demo\/([dlrat])$/.exec(url.pathname)
+  const demoKey = /^\/demo\/([dlratm])$/.exec(url.pathname)
 
   if (req.method === 'POST' && demoKey) {
     process.stdin.emit('data', demoKey[1])
@@ -761,6 +862,10 @@ process.stdin.on('data', key => {
     case 'a':
       console.log('Starting a turn that waits on an Approval.')
       void runTurn(liveFor(reportSessionId), 'Please approve the cleanup.')
+      break
+    case 'm':
+      console.log('Refilling the pending memories.')
+      refillPendingMemories()
       break
     case 'q':
     case '\u0003':

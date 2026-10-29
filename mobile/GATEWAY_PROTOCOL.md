@@ -20,7 +20,8 @@ Where a fact comes from one file, the file is named so it can be checked again a
 10. [Disconnects and reconnecting](#10-disconnects-and-reconnecting)
 11. [Notifications when the app is closed](#11-notifications-when-the-app-is-closed)
 12. [Keeping up with Hermes updates](#12-keeping-up-with-hermes-updates)
-13. [Not covered here](#13-not-covered-here)
+13. [Pending memories](#13-pending-memories)
+14. [Not covered here](#14-not-covered-here)
 
 ## 1. Which protocol this is
 
@@ -597,7 +598,46 @@ The protocol changes between Hermes releases. When this repo moves to a new Herm
 
 The app should read `version` from `GET /api/status` and warn when it doesn't match the version it was built for.
 
-## 13. Not covered here
+## 13. Pending memories
+
+Hermes holds a change to its memory or user profile for the person to approve when `memory.write_approval` is on and nobody can answer in a chat, and for every edit or removal its background review suggests. Each one is a file in `<HERMES_HOME>/pending/memory/<id>.json` on the gateway (`tools/write_approval.py`).
+
+No REST route or JSON-RPC method lists them. The `/memory` command does, as plain text, through `command.dispatch`:
+
+```json
+{"jsonrpc": "2.0", "id": 7, "method": "command.dispatch", "params": {"name": "memory", "arg": "", "session_id": ""}}
+```
+
+The result is `{"type": "exec", "output": "<text>"}`. It works without a session: an empty `session_id` uses the gateway's own profile. Use it rather than `slash.exec`, which starts a whole CLI process for the session.
+
+`arg` is one of:
+
+| `arg` | What it does |
+| --- | --- |
+| empty | The approval setting, then the list |
+| `pending` | The list |
+| `approve <id>`, `approve all` | Saves it and removes it from the list |
+| `reject <id>`, `reject all` | Removes it without saving |
+| `approval on`, `approval off` | Changes `memory.write_approval` |
+
+The list looks like this. `[auto]` marks one from background review. Summaries can run over several lines. For an edit or removal, the full memory it changes follows on a line indented by six spaces.
+
+```
+memory.write_approval = on
+
+Pending memory writes (2):
+  a1b2c3d4  add to memory: Prefers short answers
+  d4e5f6a7 [auto]  background review consolidation (remove on memory): - remove: old project
+      removes entry: The old project lives in /srv/old-app and is no longer used
+
+Apply: /memory approve <id>   Reject: /memory reject <id>
+```
+
+A memory added during a turn shows only its first 120 characters. The full text is saved on approve. The app reads this text with the web UI's parser, `apps/desktop/src/plugins/memory-review/parse.ts`, whose tests hold the exact formats (`hermes_cli/write_approval_commands.py`).
+
+The gateway sends no event when a memory is held, so the app asks again to keep the count current.
+
+## 14. Not covered here
 
 - The canonical protocol (`hermes-gateway-v1`, `session.mutate`, `execution_generation`). The desktop uses it only on its private local connection.
 - Profiles beyond the default one. Most methods take an optional `profile`, and REST routes take `?profile=`.

@@ -18,6 +18,9 @@
       ],
       "@hermes/desktop-themes/*": [
         "../apps/desktop/src/themes/*"
+      ],
+      "@hermes/memory-review/*": [
+        "../apps/desktop/src/plugins/memory-review/*"
       ]
     }
   },
