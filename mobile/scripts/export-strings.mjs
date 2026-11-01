@@ -30,6 +30,7 @@ const EXPORTED = [
   'assistant.thread.showEarlier',
   'assistant.thread.thinking',
   'assistant.thread.thought',
+  'assistant.tool.titles',
   'assistant.themePicker',
   'common',
   'composer.message',

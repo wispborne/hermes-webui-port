@@ -18,6 +18,8 @@
 //   - contains "ask": Hermes asks a Question with three choices
 //   - contains "fail": the turn fails
 //   - contains "slow": a long reply, streamed slowly, so Stop can be tried
+//   - contains "explore": thinking and tool calls in turns, a dozen steps
+//     before the reply, as when Hermes looks through a project
 //   - contains "chart" or "image": a reply that delivers files with MEDIA:
 //     directives: two pictures, a PDF and a sound named in a sentence, a
 //     missing picture and one the phone can't draw. The "Garden water chart"
@@ -459,6 +461,43 @@ const REPLY_INTRO = 'Here is what I found.\n\n'
 const REPLY_BODY =
   'The build reads **three** settings:\n\n- `cache_dir`, where layers are kept\n- `max_size`, the limit in GB\n- `keep_days`\n\n| Setting | Default |\n| --- | --- |\n| max_size | 20 |\n| keep_days | 14 |\n\n```python\ndef prune(cache, max_size=20):\n    """Delete the oldest layers until the cache fits."""\n    layers = sorted(cache.layers, key=lambda layer: layer.used_at)\n    while cache.size() > max_size and layers:\n        cache.delete(layers.pop(0))\n```\n\nRun it once a day.'
 
+const README = '/opt/data/project/README.md'
+
+// The "explore" turn: each thought, then the tool calls after it.
+const EXPLORE_STEPS = [
+  [
+    ' The trim is done. Let me check the README headings myself before I report.',
+    [
+      ['search_files', { pattern: '^#{1,3}', path: README }, '9 matches'],
+      ['search_files', { pattern: 'described above|next section', path: README }, 'No matches']
+    ]
+  ],
+  ['Nine headings, and nothing points at a missing section. The README should be about 514 lines.', [['read_file', { path: README }, 'Read 514 lines']]],
+  ['"What this is not" is worth keeping: it says what the project leaves out on purpose.', [['read_file', { path: README, offset: 400 }, 'Read 114 lines']]],
+  [
+    'The Layout section lists every tool. The test comment should point at the audit files now.',
+    [
+      ['search_files', { pattern: 'play_audit|energy_audit', path: '/opt/data/project/tests' }, '2 matches'],
+      ['read_file', { path: '/opt/data/project/tests/test_core.cpp' }, 'Read 80 lines'],
+      ['terminal', { command: 'ctest --test-dir build' }, '2 of 2 passed']
+    ]
+  ],
+  ['Everything checks out. Time to report.', []]
+]
+
+async function streamReasoning(entry, text) {
+  for (const piece of text.match(/.{1,6}/gs) ?? []) {
+    if (entry.stopped) {
+      return false
+    }
+
+    emit(entry, 'reasoning.delta', { text: piece })
+    await sleep(35)
+  }
+
+  return true
+}
+
 async function runTurn(entry, text) {
   const session = sessions.get(entry.storedId)
   saveRow(entry.storedId, 'user', text)
@@ -542,6 +581,24 @@ async function runTurn(entry, text) {
       const answers = answer?.answers
 
       await streamText(entry, answers ? `Thanks. I'll use: ${JSON.stringify(answers)}.` : 'No answers, so I left it.', 30)
+      finalText = entry.inflight.assistant
+      return
+    }
+
+    if (lower.includes('explore')) {
+      for (const [thought, tools] of EXPLORE_STEPS) {
+        if (!(await streamReasoning(entry, thought))) {
+          return
+        }
+
+        saveRow(entry.storedId, 'assistant', '', { reasoning: thought })
+
+        for (const [name, args, summary] of tools) {
+          await runTool(entry, name, args, summary, `${summary}.`)
+        }
+      }
+
+      await streamText(entry, 'The README has nine sections, and nothing in it points at a section that is gone.', 30)
       finalText = entry.inflight.assistant
       return
     }

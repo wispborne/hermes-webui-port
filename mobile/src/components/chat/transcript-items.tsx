@@ -1,9 +1,10 @@
 import { useStore } from '@nanostores/react'
 import { memo, useEffect, useMemo, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Image, Pressable, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Button, Icon, Text } from 'react-native-paper'
 
-import type { AssistantItem, ChatItem, NoteItem, ToolItem, UserItem } from '@/chat/items'
+import type { DisplayItem } from '@/chat/activity'
+import type { AssistantItem, NoteItem, UserItem } from '@/chat/items'
 import { type MediaKind, mediaKind, mediaName, parseMediaSegments } from '@/chat/media'
 import { loadMediaDataUrl, loadProxiedImage } from '@/gateway/media-api'
 import { t } from '@/i18n/t'
@@ -11,6 +12,7 @@ import { $gateway } from '@/store/gateway'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
 
+import { ActivityBlock } from './activity-block'
 import { Markdown } from './markdown'
 
 export interface OutboxActions {
@@ -77,27 +79,6 @@ function Label({ icon, text }: { icon: string; text: string }) {
       <Text style={{ color: colors.onSurfaceVariant }} variant="labelSmall">
         {text}
       </Text>
-    </View>
-  )
-}
-
-function Reasoning({ streaming, text }: { streaming: boolean; text: string }) {
-  const { colors } = useHermesTheme()
-  const [open, setOpen] = useState(false)
-
-  return (
-    <View style={styles.reasoning}>
-      <Pressable accessibilityRole="button" onPress={() => setOpen(!open)} style={styles.reasoningHeader}>
-        <Icon color={colors.onSurfaceVariant} size={16} source={open ? 'chevron-down' : 'chevron-right'} />
-        <Text style={{ color: colors.onSurfaceVariant }} variant="labelMedium">
-          {streaming ? t('assistant.thread.thinking') : t('assistant.thread.thought')}
-        </Text>
-      </Pressable>
-      {open ? (
-        <Text selectable style={[styles.reasoningText, { borderColor: colors.outline, color: colors.onSurfaceVariant }]} variant="bodySmall">
-          {text}
-        </Text>
-      ) : null}
     </View>
   )
 }
@@ -255,12 +236,11 @@ function AssistantBubble({ item }: { item: AssistantItem }) {
 
   return (
     <View style={styles.assistant}>
-      {item.reasoning ? <Reasoning streaming={Boolean(item.streaming) && !item.text} text={item.reasoning} /> : null}
       {segments.length ? (
         segments.map((segment, index) =>
           segment.kind === 'text' ? <Markdown key={index} text={segment.text} /> : <Media key={`${index}:${segment.path}`} path={segment.path} />
         )
-      ) : item.streaming && !item.reasoning ? (
+      ) : item.streaming ? (
         <ActivityIndicator size={14} style={styles.typing} />
       ) : null}
       {item.error ? (
@@ -270,70 +250,6 @@ function AssistantBubble({ item }: { item: AssistantItem }) {
             <Text style={{ color: colors.error, fontWeight: '600' }}>{t('notifications.native.turnErrorTitle')}. </Text>
             {item.error}
           </Text>
-        </View>
-      ) : null}
-    </View>
-  )
-}
-
-const pretty = (value: unknown) => {
-  if (value === undefined || value === null) {
-    return ''
-  }
-
-  return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
-}
-
-function Mono({ label, text }: { label: string; text: string }) {
-  const { colors } = useHermesTheme()
-
-  return (
-    <View style={styles.monoBlock}>
-      <Text style={{ color: colors.onSurfaceVariant }} variant="labelSmall">
-        {label}
-      </Text>
-      <ScrollView horizontal style={[styles.monoScroll, { backgroundColor: colors.surfaceVariant }]}>
-        <Text selectable style={[styles.mono, { color: colors.onSurface }]}>
-          {text.length > 6000 ? `${text.slice(0, 6000)}\n…` : text}
-        </Text>
-      </ScrollView>
-    </View>
-  )
-}
-
-/** A tool call: name and summary, tapped open to show the arguments, result and diff. */
-function ToolRow({ item }: { item: ToolItem }) {
-  const { colors } = useHermesTheme()
-  const [open, setOpen] = useState(false)
-  const summary = item.summary ?? item.context ?? (item.running ? t('app.chat.running') : '')
-
-  return (
-    <View style={[styles.tool, { borderColor: colors.outline }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        onPress={() => setOpen(!open)}
-        style={styles.toolHeader}
-        testID={`tool-${item.toolId}`}
-      >
-        {item.running ? (
-          <ActivityIndicator size={14} />
-        ) : (
-          <Icon color={colors.primary} size={16} source="check-circle" />
-        )}
-        <Text style={styles.toolName} variant="labelLarge">
-          {item.name}
-        </Text>
-        <Text numberOfLines={1} style={[styles.flex, { color: colors.onSurfaceVariant }]} variant="bodySmall">
-          {summary}
-        </Text>
-        <Icon color={colors.onSurfaceVariant} size={16} source={open ? 'chevron-up' : 'chevron-down'} />
-      </Pressable>
-      {open ? (
-        <View style={styles.toolBody}>
-          {item.args !== undefined ? <Mono label={t('app.chat.arguments')} text={pretty(item.args)} /> : null}
-          {item.result ? <Mono label={t('app.chat.result')} text={item.result} /> : null}
-          {item.diff ? <Mono label={t('app.chat.changes')} text={item.diff} /> : null}
         </View>
       ) : null}
     </View>
@@ -354,14 +270,14 @@ function Note({ item }: { item: NoteItem }) {
 }
 
 /** One transcript item. Items are memoized, so only the one that changed redraws. */
-export const TranscriptItem = memo(function TranscriptItem({ actions, item }: { actions: OutboxActions; item: ChatItem }) {
+export const TranscriptItem = memo(function TranscriptItem({ actions, item }: { actions: OutboxActions; item: DisplayItem }) {
   switch (item.kind) {
     case 'user':
       return <UserBubble actions={actions} item={item} />
     case 'assistant':
       return <AssistantBubble item={item} />
-    case 'tool':
-      return <ToolRow item={item} />
+    case 'activity':
+      return <ActivityBlock item={item} />
     case 'note':
       return <Note item={item} />
   }
@@ -391,18 +307,8 @@ const styles = StyleSheet.create({
   mediaFrameLoading: { height: 260 },
   mediaImage: { flex: 1 },
   mediaPlaceholder: { alignItems: 'center', alignSelf: 'flex-start', borderRadius: 8, height: 120, justifyContent: 'center', marginVertical: space.step, width: 220 },
-  mono: { fontFamily: 'monospace', fontSize: 12, lineHeight: 16, padding: space.listGap },
-  monoBlock: { gap: 2 },
-  monoScroll: { borderRadius: 6, maxHeight: 240 },
   note: { alignItems: 'center', flexDirection: 'row', gap: space.step * 2, paddingHorizontal: space.screen, paddingVertical: space.step },
   outboxRow: { alignItems: 'center', flexDirection: 'row', gap: space.step },
-  reasoning: { marginBottom: space.step },
-  reasoningHeader: { alignItems: 'center', flexDirection: 'row', gap: space.step, paddingVertical: 2 },
-  reasoningText: { borderLeftWidth: 2, marginLeft: space.step * 2, paddingLeft: space.listGap },
-  tool: { borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, marginHorizontal: space.screen, marginVertical: 2 },
-  toolBody: { gap: space.listGap, paddingBottom: space.listGap, paddingHorizontal: space.listGap },
-  toolHeader: { alignItems: 'center', flexDirection: 'row', gap: space.listGap, minHeight: 36, paddingHorizontal: space.listGap },
-  toolName: { fontFamily: 'monospace' },
   typing: { alignSelf: 'flex-start', marginVertical: space.step },
   userBubble: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, maxWidth: '85%', paddingHorizontal: space.screen, paddingVertical: space.listGap },
   userRow: { alignItems: 'flex-end', gap: 2, paddingHorizontal: space.screen, paddingVertical: space.step }

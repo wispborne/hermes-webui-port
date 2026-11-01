@@ -6,7 +6,7 @@ import { KeyboardAvoidingView, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Appbar, Button, IconButton, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import type { ChatItem } from '@/chat/items'
+import { type DisplayItem, displayItems } from '@/chat/activity'
 import { askBackgroundPermissions } from '@/background/permission-dialogs'
 import { $onScreen } from '@/background/wiring'
 import { PromptCards } from '@/components/chat/prompt-cards'
@@ -52,7 +52,14 @@ export function SessionScreen({ id }: SessionScreenProps) {
   const answerText = asked && typeof question?.answers[asked.qid] === 'string' && !(asked.choices ?? []).includes(question.answers[asked.qid] as string)
     ? (question.answers[asked.qid] as string)
     : ''
-  const list = useRef<FlashListRef<ChatItem>>(null)
+  const list = useRef<FlashListRef<DisplayItem>>(null)
+  const shownBefore = useRef<ReadonlyMap<string, DisplayItem>>(new Map())
+  const shown = useMemo(() => {
+    const next = displayItems(chat.items, chat.running, shownBefore.current)
+    shownBefore.current = new Map(next.map(item => [item.key, item]))
+
+    return next
+  }, [chat.items, chat.running])
 
   useEffect(() => {
     void openChat(key).catch((error: unknown) => console.warn('Could not open the session', error))
@@ -126,7 +133,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
             </View>
           ) : (
             <FlashList
-              data={chat.items}
+              data={shown}
               keyExtractor={item => item.key}
               keyboardShouldPersistTaps="handled"
               ref={list}

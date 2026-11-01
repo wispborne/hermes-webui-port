@@ -7,7 +7,8 @@ import { fireEvent, render, screen } from '@testing-library/react-native'
 import { PaperProvider } from 'react-native-paper'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
-import type { ChatItem } from '@/chat/items'
+import type { DisplayItem } from '@/chat/activity'
+import type { AssistantItem, UserItem } from '@/chat/items'
 import { type OutboxActions, TranscriptItem } from '@/components/chat/transcript-items'
 import { clearMediaDataCache } from '@/gateway/media-api'
 import { hermesTheme } from '@/theme/theme'
@@ -44,10 +45,10 @@ beforeEach(() => {
   readDelayMs = 0
 })
 
-const reply = (text: string, extra: Record<string, unknown> = {}): ChatItem => ({ kind: 'assistant', key: 'reply-1', text, ...extra })
-const mine = (text: string): ChatItem => ({ kind: 'user', key: 'user-1', text })
+const reply = (text: string, extra: Record<string, unknown> = {}): AssistantItem => ({ kind: 'assistant', key: 'reply-1', text, ...extra })
+const mine = (text: string): UserItem => ({ kind: 'user', key: 'user-1', text })
 
-async function show(item: ChatItem) {
+async function show(item: DisplayItem) {
   await render(
     <SafeAreaProvider initialMetrics={metrics}>
       <PaperProvider theme={hermesTheme('light')}>

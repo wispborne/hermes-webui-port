@@ -47,8 +47,7 @@ export const appStrings = {
     notSaved: "This session isn't saved on this phone. It loads when the gateway can be reached.",
     arguments: 'Arguments',
     result: 'Result',
-    changes: 'Changes',
-    running: 'Running…'
+    changes: 'Changes'
   },
   approval: {
     // The desktop's line (assistant.approval.timedOutSystemLine) goes on to
