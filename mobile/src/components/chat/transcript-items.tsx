@@ -134,13 +134,16 @@ type ImageState = { phase: 'loading' } | { phase: 'shown'; src: string; proxied:
  * unreadable, or the Gateway can't be reached. A failed image is read again
  * when the connection to the Gateway comes back. An `http(s)` image the phone
  * can't load is asked of the Gateway's image proxy before it gives up. Tapping
- * the image switches between a fixed frame and full width.
+ * the image switches between a fixed frame and full width. Once the picture
+ * loads, the frame takes its shape, so a wide chart has no empty bands.
  */
 function MediaImage({ path }: { path: string }) {
   const gateway = useStore($gateway)
   const [state, setState] = useState<ImageState>({ phase: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [expanded, setExpanded] = useState(false)
+  /** Width over height, once the picture has loaded. */
+  const [ratio, setRatio] = useState<number | null>(null)
   const slug = mediaSlug(path)
   const failed = state.phase === 'failed'
 
@@ -219,10 +222,23 @@ function MediaImage({ path }: { path: string }) {
       accessibilityRole="button"
       accessibilityState={{ expanded }}
       onPress={() => setExpanded(!expanded)}
-      style={expanded ? styles.mediaExpanded : styles.mediaFrame}
+      style={[expanded ? styles.mediaExpanded : styles.mediaFrame, ratio ? { aspectRatio: ratio } : expanded ? styles.mediaExpandedLoading : styles.mediaFrameLoading]}
       testID={`media-${slug}`}
     >
-      <Image onError={onImageError} resizeMode="contain" source={{ uri: state.src }} style={styles.mediaImage} testID={`media-${slug}-image`} />
+      <Image
+        onError={onImageError}
+        onLoad={event => {
+          const { height, width } = event.nativeEvent.source
+
+          if (width > 0 && height > 0) {
+            setRatio(width / height)
+          }
+        }}
+        resizeMode="contain"
+        source={{ uri: state.src }}
+        style={styles.mediaImage}
+        testID={`media-${slug}-image`}
+      />
     </Pressable>
   )
 }
@@ -368,8 +384,11 @@ const styles = StyleSheet.create({
     paddingVertical: space.step,
     paddingHorizontal: space.listGap
   },
-  mediaExpanded: { borderRadius: 8, height: 420, marginVertical: space.step, overflow: 'hidden', width: '100%' },
-  mediaFrame: { alignSelf: 'flex-start', borderRadius: 8, height: 260, marginVertical: space.step, maxWidth: '100%', overflow: 'hidden', width: 300 },
+  // A frame takes the picture's shape once it loads, up to maxHeight. The Loading heights hold the space until then.
+  mediaExpanded: { borderRadius: 8, marginVertical: space.step, maxHeight: 640, overflow: 'hidden', width: '100%' },
+  mediaExpandedLoading: { height: 420 },
+  mediaFrame: { alignSelf: 'flex-start', borderRadius: 8, marginVertical: space.step, maxHeight: 360, maxWidth: '100%', overflow: 'hidden', width: 300 },
+  mediaFrameLoading: { height: 260 },
   mediaImage: { flex: 1 },
   mediaPlaceholder: { alignItems: 'center', alignSelf: 'flex-start', borderRadius: 8, height: 120, justifyContent: 'center', marginVertical: space.step, width: 220 },
   mono: { fontFamily: 'monospace', fontSize: 12, lineHeight: 16, padding: space.listGap },

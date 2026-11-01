@@ -37,6 +37,6 @@
 ## 6. Done
 
 - [x] 6.1 Type check and tests pass in `mobile/`. Along the way two pre-existing test flakes were fixed: the Memory review menu test now uses fake timers (Paper's menu popup opens through animation timers that starve on a loaded machine), and the outbox tests wait for a sent entry to be cleared instead of assuming it is gone the moment the gateway accepts the send.
-- [ ] 6.2 Emulator screenshots: a reply with a delivered image, the spinner frame while it loads, an expanded image, chips for a report and a sound, and the chip for a file the gateway doesn't have
+- [x] 6.2 Emulator screenshots, against `scripts/demo-gateway.mjs` (its "Garden water chart" session, or a message with "chart"). Seen on the emulator: frames now take the picture's shape once it loads, so a wide chart has no empty bands. Also seen: pictures read again on their own when the gateway comes back. Screenshots taken:: a reply with a delivered image, the spinner frame while it loads, an expanded image, chips for a report and a sound, and the chip for a file the gateway doesn't have
 - [ ] 6.3 On the emulator against a real gateway: ask Hermes for a picture and a PDF, check the images render, tap to expand, and reopen the Session to see them read again
 - [ ] 6.4 The owner installs it on their phone and sees an image Hermes delivered

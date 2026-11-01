@@ -18,6 +18,10 @@
 //   - contains "ask": Hermes asks a Question with three choices
 //   - contains "fail": the turn fails
 //   - contains "slow": a long reply, streamed slowly, so Stop can be tried
+//   - contains "chart" or "image": a reply that delivers files with MEDIA:
+//     directives: two pictures, a PDF and a sound named in a sentence, a
+//     missing picture and one the phone can't draw. The "Garden water chart"
+//     session holds the same reply, saved.
 //   - anything else: a reply with Markdown, a code block and one tool call
 //
 // Keys typed into the terminal (or POST /demo/<key>):
@@ -35,6 +39,7 @@
 
 import { randomBytes } from 'node:crypto'
 import http from 'node:http'
+import { deflateSync } from 'node:zlib'
 import { parseArgs } from 'node:util'
 
 import { WebSocketServer } from 'ws'
@@ -96,6 +101,116 @@ function addSession({ title, preview, ageMinutes, source = 'gui', hidden = false
   return sessionId
 }
 
+// ------------------------------------------------------------ delivered files
+
+/** A PNG from a function that colours each pixel, so the demo needs no image files. */
+function makePng(width, height, pixel) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n
+
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    }
+
+    return c >>> 0
+  })
+  const crc = bytes => {
+    let c = 0xffffffff
+
+    for (const byte of bytes) {
+      c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8)
+    }
+
+    return (c ^ 0xffffffff) >>> 0
+  }
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const sum = Buffer.alloc(4)
+    sum.writeUInt32BE(crc(body))
+
+    return Buffer.concat([length, body, sum])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8 // bits per channel
+  header[9] = 2 // RGB
+  const rows = Buffer.alloc((width * 3 + 1) * height)
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const [r, g, b] = pixel(x, y)
+      const at = y * (width * 3 + 1) + 1 + x * 3
+      rows[at] = r
+      rows[at + 1] = g
+      rows[at + 2] = b
+    }
+  }
+
+  const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', deflateSync(rows)), chunk('IEND', Buffer.alloc(0))])
+
+  return `data:image/png;base64,${png.toString('base64')}`
+}
+
+/** Litres per week for six beds, as a bar chart. */
+const BED_WATER = [18, 22, 34, 31, 20, 15]
+const bedWaterChart = makePng(480, 300, (x, y) => {
+  const bar = Math.floor((x - 30) / 72)
+  const inBar = x >= 30 && bar < 6 && (x - 30) % 72 >= 12 && (x - 30) % 72 < 60
+  const top = 270 - BED_WATER[bar] * 7
+
+  if (y === 270 || (x === 30 && y <= 270)) {
+    return [90, 90, 90]
+  }
+
+  if (inBar && y < 270 && y >= top) {
+    return bar === 2 || bar === 3 ? [214, 120, 40] : [60, 130, 200]
+  }
+
+  return y % 40 === 30 && y < 270 ? [232, 236, 240] : [250, 250, 250]
+})
+
+/** Six beds seen from above, on grass. */
+const gardenPlan = makePng(360, 240, (x, y) => {
+  const column = Math.floor((x - 20) / 110)
+  const row = Math.floor((y - 20) / 110)
+  const inBed = x >= 20 && y >= 20 && column < 3 && row < 2 && (x - 20) % 110 < 95 && (y - 20) % 110 < 95
+
+  if (inBed) {
+    return (x + y) % 12 < 2 ? [70, 120, 50] : [120, 84, 52]
+  }
+
+  return [126 + ((x * 7 + y * 3) % 20), 176, 96]
+})
+
+/** Files the gateway can read, by path. The photo the reply names is missing on purpose. */
+const deliveredFiles = new Map([
+  ['/opt/data/image_cache/bed-water.png', bedWaterChart],
+  ['/opt/data/image_cache/garden-plan.png', gardenPlan],
+  // Not a real PNG: the phone can't draw it.
+  ['/opt/data/image_cache/broken.png', 'data:image/png;base64,AAAAAAAA']
+])
+
+const MEDIA_REPLY = [
+  'Here is the water each bed needs per week:',
+  'MEDIA:/opt/data/image_cache/bed-water.png',
+  'Beds 3 and 4 get the most sun, so they need the most water.',
+  '',
+  'The full plan is in MEDIA:/opt/data/reports/irrigation plan.pdf, with a spoken summary in MEDIA:/opt/data/audio/summary.mp3.',
+  '',
+  '| Layout | File |',
+  '| --- | --- |',
+  '| Six beds | MEDIA:/opt/data/image_cache/garden-plan.png |',
+  '',
+  "Last year's photo is gone:",
+  'MEDIA:/opt/data/image_cache/old-photo.png',
+  '',
+  "And this one isn't a picture the phone can draw:",
+  'MEDIA:/opt/data/image_cache/broken.png'
+].join('\n')
+
 const longChat = []
 
 for (let i = 1; i <= 70; i++) {
@@ -143,6 +258,17 @@ for (let i = 0; i < 45; i++) {
     messages: [['user', `Something from ${i + 4} days ago.`]]
   })
 }
+
+// Added last, so the sessions above keep their ids.
+addSession({
+  title: 'Garden water chart',
+  preview: 'Make me a chart of how much water each bed needs.',
+  ageMinutes: 8,
+  messages: [
+    ['user', 'Make me a chart of how much water each bed needs.'],
+    ['assistant', MEDIA_REPLY]
+  ]
+})
 
 // ---------------------------------------------------------------- live sessions
 
@@ -412,6 +538,12 @@ async function runTurn(entry, text) {
       const answers = answer?.answers
 
       await streamText(entry, answers ? `Thanks. I'll use: ${JSON.stringify(answers)}.` : 'No answers, so I left it.', 30)
+      finalText = entry.inflight.assistant
+      return
+    }
+
+    if (lower.includes('chart') || lower.includes('image')) {
+      await streamText(entry, MEDIA_REPLY, 30)
       finalText = entry.inflight.assistant
       return
     }
@@ -750,6 +882,14 @@ const server = http.createServer(async (req, res) => {
     const offset = Number(url.searchParams.get('offset') ?? 0)
 
     return sendJson(res, 200, { sessions: rows.slice(offset, offset + limit), total: rows.length, limit, offset })
+  }
+
+  if (route === 'GET /api/fs/read-data-url') {
+    // Slow enough to see the spinner frame.
+    await sleep(1200)
+    const dataUrl = deliveredFiles.get(url.searchParams.get('path') ?? '')
+
+    return dataUrl ? sendJson(res, 200, { dataUrl }) : sendJson(res, 404, { detail: 'File not found' })
   }
 
   if (route === 'GET /api/sessions/search') {
