@@ -58,7 +58,15 @@ tree=$(node desktop-web/scripts/upstream.mjs tree "$upstream")
 if [ "$tree" = "$(git rev-parse "$snapshots^{tree}")" ]; then
   echo "hermes-agent already matches upstream $ref (${upstream:0:10})."
 else
-  snapshot=$(git commit-tree "$tree" -p $snapshots \
+  # commit-tree runs no hooks. A local hooks/commit-date script, if there is
+  # one, can choose the snapshot's time by printing it.
+  commit_date_hook="$(git rev-parse --git-path hooks)/commit-date"
+  snapshot_time=
+  if [ -x "$commit_date_hook" ]; then
+    snapshot_time=$("$commit_date_hook")
+  fi
+  snapshot=$(GIT_AUTHOR_DATE="${snapshot_time:-$GIT_AUTHOR_DATE}" GIT_COMMITTER_DATE="${snapshot_time:-$GIT_COMMITTER_DATE}" \
+    git commit-tree "$tree" -p $snapshots \
     -m "Upstream hermes-agent $ref at ${upstream:0:10} ($date)")
   git update-ref $snapshots "$snapshot"
   echo "hermes-agent now matches upstream $ref (${upstream:0:10}, $date)."
