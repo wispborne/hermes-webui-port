@@ -8,6 +8,12 @@ const draw = (text: string) =>
   parseMediaSegments(text).map((segment: MediaSegment) => (segment.kind === 'text' ? `text:${segment.text}` : `media:${segment.path}`))
 
 /** The prose a reply keeps, with the directives left out. */
+/** The same, for a reply drawn as Markdown. */
+const drawMarkdown = (text: string, streaming = false) =>
+  parseMediaSegments(text, { markdown: true, streaming }).map((segment: MediaSegment) =>
+    segment.kind === 'text' ? `text:${segment.text}` : `media:${segment.path}`
+  )
+
 const prose = (text: string) =>
   parseMediaSegments(text)
     .filter((segment: MediaSegment) => segment.kind === 'text')
@@ -46,24 +52,52 @@ describe('a directive on its own line', () => {
 })
 
 describe('a directive inside a sentence', () => {
-  it('keeps the words before and after it', () => {
-    expect(draw('See MEDIA:/tmp/a.png for details.')).toEqual(['text:See ', 'media:/tmp/a.png', 'text: for details.'])
+  it('leaves the file name in the sentence and draws the file after it', () => {
+    expect(draw('See MEDIA:/tmp/a.png for details.')).toEqual(['text:See a.png for details.', 'media:/tmp/a.png'])
+  })
+
+  it('writes the file name as inline code in Markdown', () => {
+    expect(drawMarkdown('See MEDIA:/tmp/a.png for details.')).toEqual(['text:See `a.png` for details.', 'media:/tmp/a.png'])
   })
 
   it('leaves the period that ends the sentence in the prose', () => {
-    expect(draw('Open MEDIA:/tmp/a.pdf.')).toEqual(['text:Open ', 'media:/tmp/a.pdf', 'text:.'])
+    expect(draw('Open MEDIA:/tmp/a.pdf.')).toEqual(['text:Open a.pdf.', 'media:/tmp/a.pdf'])
   })
 
   it('leaves the punctuation that closes the markdown around it', () => {
-    expect(draw('**MEDIA:/tmp/a.png**')).toEqual(['text:**', 'media:/tmp/a.png', 'text:**'])
+    expect(draw('**MEDIA:/tmp/a.png**')).toEqual(['text:**a.png**', 'media:/tmp/a.png'])
   })
 
   it('reads two directives in one sentence and the words between them', () => {
-    expect(draw('MEDIA:/tmp/a.png, then MEDIA:/tmp/b.pdf.')).toEqual(['media:/tmp/a.png', 'text:, then ', 'media:/tmp/b.pdf', 'text:.'])
+    expect(draw('MEDIA:/tmp/a.png, then MEDIA:/tmp/b.pdf.')).toEqual(['text:a.png, then b.pdf.', 'media:/tmp/a.png', 'media:/tmp/b.pdf'])
   })
 
   it('keeps a bracketed note after it out of the path', () => {
-    expect(draw('Report at MEDIA:/tmp/my report.pdf (done).')).toEqual(['text:Report at ', 'media:/tmp/my report.pdf', 'text: (done).'])
+    expect(draw('Report at MEDIA:/tmp/my report.pdf (done).')).toEqual(['text:Report at my report.pdf (done).', 'media:/tmp/my report.pdf'])
+  })
+
+  it('draws the file at the end of its paragraph, before the next one', () => {
+    expect(draw('See MEDIA:/tmp/a.png here.\n\nNext part.')).toEqual(['text:See a.png here.\n\n', 'media:/tmp/a.png', 'text:Next part.'])
+  })
+
+  it('keeps a table whole and draws the file after it', () => {
+    const table = '| Plot | File |\n| --- | --- |\n| Beds | MEDIA:/tmp/beds.png |\n'
+
+    expect(drawMarkdown(`${table}\nDone.`)).toEqual([
+      'text:| Plot | File |\n| --- | --- |\n| Beds | `beds.png` |\n\n',
+      'media:/tmp/beds.png',
+      'text:Done.'
+    ])
+  })
+})
+
+describe('a directive at the end of a line', () => {
+  it('draws the file after the words before it', () => {
+    expect(draw('Here is the chart: MEDIA:/tmp/a.png\nDone.')).toEqual(['text:Here is the chart:', 'media:/tmp/a.png', 'text:\nDone.'])
+  })
+
+  it('draws the file between two list items', () => {
+    expect(draw('1. Beds\n   MEDIA:/tmp/beds.png\n2. Paths')).toEqual(['text:1. Beds\n', 'media:/tmp/beds.png', 'text:\n2. Paths'])
   })
 })
 
@@ -75,7 +109,7 @@ describe('a quoted path', () => {
   })
 
   it('keeps the spaces inside the quotes when the directive sits in a sentence', () => {
-    expect(draw('Here it is: MEDIA:`/tmp/my report.pdf`, ready.')).toEqual(['text:Here it is: ', 'media:/tmp/my report.pdf', 'text:, ready.'])
+    expect(draw('Here it is: MEDIA:`/tmp/my report.pdf`, ready.')).toEqual(['text:Here it is: my report.pdf, ready.', 'media:/tmp/my report.pdf'])
   })
 })
 
@@ -104,6 +138,12 @@ describe('a directive that is not complete yet', () => {
 
   it('leaves an unclosed quote as text until the quote closes', () => {
     expect(draw('MEDIA:`/tmp/a.png')).toEqual(['text:MEDIA:`/tmp/a.png'])
+  })
+
+  it('leaves an unquoted path at the end of a streaming reply as text, since it may still grow', () => {
+    expect(drawMarkdown('Here:\nMEDIA:/tmp/report.doc', true)).toEqual(['text:Here:\nMEDIA:/tmp/report.doc'])
+    expect(drawMarkdown('Here:\nMEDIA:/tmp/report.docx\n', true)).toEqual(['text:Here:\n', 'media:/tmp/report.docx', 'text:\n'])
+    expect(drawMarkdown('Here:\nMEDIA:`/tmp/report.doc`', true)).toEqual(['text:Here:\n', 'media:/tmp/report.doc'])
   })
 
   it('reads the same text once the path is complete', () => {
@@ -187,5 +227,11 @@ describe('the name to show for a deliverable', () => {
     expect(mediaName('https://example.com/img/photo.jpg?size=large')).toBe('photo.jpg')
     expect(mediaName('notes.txt')).toBe('notes.txt')
     expect(mediaName('/tmp/my report.pdf')).toBe('my report.pdf')
+  })
+
+  it('is the kind and format for a data: value, not the base64 text', () => {
+    expect(mediaName('data:image/png;base64,iVBORw0KGg')).toBe('image.png')
+    expect(mediaName('data:image/svg+xml;base64,PHN2Zz4=')).toBe('image.svg')
+    expect(mediaName('data:application/pdf;base64,JVBERi0')).toBe('file.pdf')
   })
 })

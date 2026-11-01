@@ -150,6 +150,7 @@ The REST routes a first version is likely to use:
 | `GET /api/sessions/{stored_id}/messages` | A saved session's transcript, in pages. See `getLatestSessionMessages` and `getOlderSessionMessages` in `apps/desktop/src/api/sessions.ts` for the paging parameters. |
 | `GET /api/sessions/search?q=...` | Search sessions. |
 | `GET /api/fs/read-data-url?path=<absolute path>` | One file's bytes as `{"dataUrl": "data:<mime>;base64,..."}`. See [section 14](#14-files-a-turn-delivers). |
+| `GET /api/media/proxy?url=<image URL>` | A web image fetched by the gateway, as `{"data_url": ...}`. See [section 14](#14-files-a-turn-delivers). |
 
 The WebSocket can also list sessions and return transcripts (see [section 6](#6-sessions)), so REST is optional for these.
 
@@ -651,6 +652,8 @@ MEDIA:/opt/data/image_cache/chart.png
 `MEDIA:` is followed by the path on the gateway. The path is quoted with backticks, double quotes or apostrophes when it contains spaces, and an unquoted path may contain them too. `MEDIA:` can also carry a `data:` value or an `http(s)` URL, which holds the bytes or the address to read them from itself. The gateway only writes directives for the extensions in `MEDIA_DELIVERY_EXTS` (`gateway/platforms/base.py`), which is what tells a client a path is complete: while a Turn streams, a half-written path is just text.
 
 The bytes come from REST. `GET /api/fs/read-data-url?path=<absolute path>` answers `{"dataUrl": "data:<mime>;base64,..."}` (`hermes_cli/web_routers/files.py`). A file above the gateway's size cap is 413, a path the gateway considers sensitive is 403, and a missing file is 404. The sign-in cookie is enough; no extra auth. The desktop makes the same call when it works against a remote gateway (`apps/desktop/src/lib/desktop-fs.ts`, `readDesktopFileDataUrl`).
+
+An `http(s)` image the client can't load itself can be fetched by the gateway: `GET /api/media/proxy?url=<url>` answers `{"data_url": "data:<mime>;base64,..."}`. Note the field is `data_url` here, not `dataUrl`. It only fetches from the image hosts it allows (`_MEDIA_PROXY_ALLOWED_HOSTS`, the FAL CDNs and Google Cloud Storage) and answers 403 for any other host, 415 for something that isn't an image, and 413 above 25 MB (`hermes_cli/web_routers/files.py`).
 
 The app keeps the directive in its own text and in the saved transcript exactly as the gateway wrote it, and reads the file only when it draws the message. A transcript saved on the phone therefore shows the file again when the Session is reopened, as long as the file is still there.
 

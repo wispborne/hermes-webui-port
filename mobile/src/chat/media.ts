@@ -16,9 +16,14 @@
 // - A directive inside an inline code span or a fenced code block stays text.
 // - A directive that isn't complete yet (a path cut short mid-stream, or an
 //   unclosed quote) stays text until it is.
+// - A directive that ends its line is drawn there, between the lines. One in
+//   the middle of a line (a sentence, a table cell) leaves the file name in the
+//   text, so the line stays whole, and the file is drawn after the paragraph.
 // Unlike the desktop, an unquoted path with no known delivery extension stays
 // text here too. That keeps a half-written path from flashing as a chip
-// mid-stream, and a stray word after `MEDIA:` from becoming a dead chip.
+// mid-stream, and a stray word after `MEDIA:` from becoming a dead chip. While
+// a reply streams, an unquoted path at the very end of the text stays text
+// too: `report.doc` may still grow into `report.docx`.
 
 export type MediaKind = 'image' | 'video' | 'audio' | 'file'
 
@@ -173,7 +178,7 @@ function splitTrailingPunctuation(value: string): { path: string; punctuation: s
  * null when the capture is not a complete directive. Quoted captures keep
  * everything inside their quotes; only bare captures shed punctuation.
  */
-function mediaPathFromCapture(capture: string): { path: string; punctuation: string } | null {
+function mediaPathFromCapture(capture: string): { path: string; punctuation: string; quoted: boolean } | null {
   const raw = capture.trim()
   const quote = raw[0]
   const quoted = raw.length > 1 && quote !== undefined && quote === raw.at(-1) && (quote === '`' || quote === '"' || quote === "'")
@@ -181,7 +186,7 @@ function mediaPathFromCapture(capture: string): { path: string; punctuation: str
   if (quoted) {
     const path = raw.slice(1, -1)
 
-    return isPlausibleMediaPath(path) ? { path, punctuation: '' } : null
+    return isPlausibleMediaPath(path) ? { path, punctuation: '', quoted: true } : null
   }
 
   // A trailing backtick or double quote left in the capture is formatting residue, not part of the path.
@@ -193,7 +198,7 @@ function mediaPathFromCapture(capture: string): { path: string; punctuation: str
     return null
   }
 
-  return { path, punctuation }
+  return { path, punctuation, quoted: false }
 }
 
 /**
@@ -297,18 +302,8 @@ function couldStartDirective(text: string, index: number): boolean {
   return false
 }
 
-/** Whether a match stands alone on its line, in the original text. */
-function isStandaloneLine(text: string, matchStart: number, matchEnd: number): boolean {
-  let before = matchStart - 1
-
-  while (before >= 0 && (text[before] === ' ' || text[before] === '\t')) {
-    before -= 1
-  }
-
-  if (before >= 0 && text[before] !== '\n') {
-    return false
-  }
-
+/** Whether nothing but spaces follows a match on its line. */
+function endsLine(text: string, matchEnd: number): boolean {
   let after = matchEnd
 
   while (after < text.length && (text[after] === ' ' || text[after] === '\t')) {
@@ -318,18 +313,35 @@ function isStandaloneLine(text: string, matchStart: number, matchEnd: number): b
   return after === text.length || text[after] === '\n'
 }
 
+/** A file name to leave in the text, as inline code in Markdown. */
+const inlineName = (path: string, markdown: boolean) => {
+  const name = mediaName(path)
+
+  return markdown && !name.includes('`') ? `\`${name}\`` : name
+}
+
+export interface ParseMediaOptions {
+  /** The text is Markdown: a file name left in a line is written as inline code. */
+  markdown?: boolean
+  /** The reply is still arriving, so an unquoted path at the very end may not be complete. */
+  streaming?: boolean
+}
+
 /**
  * Split text into the order a bubble should draw it: prose segments and media
- * paths. Concatenating the text segments and the resolved directives rebuilds
- * the original text, apart from the directive's own quotes and spacing.
+ * paths. A directive that ends its line splits the text there. One in the
+ * middle of a line is replaced by the file name, and its media segment comes
+ * after the paragraph that held it (at the next blank line, or at the end).
  */
-export function parseMediaSegments(text: string): MediaSegment[] {
+export function parseMediaSegments(text: string, { markdown = false, streaming = false }: ParseMediaOptions = {}): MediaSegment[] {
   if (!text.includes('MEDIA:')) {
     return [{ kind: 'text', text }]
   }
 
   const ranges = codeRanges(text)
   const segments: MediaSegment[] = []
+  // Files named in the middle of a line, drawn once their paragraph ends.
+  let deferred: string[] = []
   let pending = ''
   let rangeIndex = 0
   let i = 0
@@ -339,6 +351,12 @@ export function parseMediaSegments(text: string): MediaSegment[] {
       appendSegment(segments, { kind: 'text', text: pending })
       pending = ''
     }
+
+    for (const path of deferred) {
+      appendSegment(segments, { kind: 'media', path })
+    }
+
+    deferred = []
   }
 
   while (i < text.length) {
@@ -357,37 +375,39 @@ export function parseMediaSegments(text: string): MediaSegment[] {
     if (couldStartDirective(text, i)) {
       DIRECTIVE_AT.lastIndex = i
       const match = DIRECTIVE_AT.exec(text)
+      const found = match ? mediaPathFromCapture(match[1] ?? '') : null
+      const matchEnd = i + (match?.[0].length ?? 0)
 
-      if (match) {
-        const found = mediaPathFromCapture(match[1] ?? '')
-
-        if (found) {
-          const matchEnd = i + match[0].length
-          const standalone = isStandaloneLine(text, i, matchEnd)
-
-          if (standalone) {
-            // The desktop's line rule: a directive line gives up its own indentation and trailing spaces, and keeps the line break.
-            pending = pending.replace(/[ \t]+$/, '')
-          }
-
+      if (found && !(streaming && !found.quoted && matchEnd === text.length)) {
+        // A path with a period or comma after it is part of a sentence, even at the end of the line.
+        if (!found.punctuation && endsLine(text, matchEnd)) {
+          // The directive gives up the spaces around it on its line, and keeps the line break.
+          pending = pending.replace(/[ \t]+$/, '')
           flush()
           appendSegment(segments, { kind: 'media', path: found.path })
           pending = found.punctuation
+          i = matchEnd
 
-          if (standalone) {
-            while (i + match[0].length < text.length && (text[i + match[0].length] === ' ' || text[i + match[0].length] === '\t')) {
-              i += 1
-            }
+          while (i < text.length && (text[i] === ' ' || text[i] === '\t')) {
+            i += 1
           }
-
-          i += match[0].length
-          continue
+        } else {
+          pending += inlineName(found.path, markdown) + found.punctuation
+          deferred.push(found.path)
+          i = matchEnd
         }
+
+        continue
       }
     }
 
     pending += text[i]
     i += 1
+
+    // A blank line ends the paragraph: the files named in it are drawn here.
+    if (deferred.length && text[i - 1] === '\n' && /\n[ \t]*\n$/.test(pending)) {
+      flush()
+    }
   }
 
   flush()
@@ -430,6 +450,15 @@ export function mediaKind(path: string): MediaKind {
 
 /** The file's name: the last path part. Same shape as the desktop's mediaName. */
 export function mediaName(path: string): string {
+  // A `data:` value has no name; the MIME type stands in (`image.png`), not the base64 text.
+  const data = /^data:([a-z]+)\/([a-z0-9.-]+)/i.exec(path)
+
+  if (data?.[1] && data[2]) {
+    const type = data[1].toLowerCase()
+
+    return `${type === 'application' || type === 'text' ? 'file' : type}.${data[2].toLowerCase()}`
+  }
+
   // `C:\Users\…` parses as a URL with scheme `c:`; a drive letter is a path, not a scheme.
   if (!/^[A-Za-z]:[\\/]/.test(path)) {
     try {

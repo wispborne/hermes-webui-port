@@ -24,9 +24,19 @@
 - [x] 4.2 Describe the `MEDIA:` directive and `GET /api/fs/read-data-url` in `mobile/GATEWAY_PROTOCOL.md`, with the route added to the REST table
 - [x] 4.3 No new UI strings: a chip shows the file name and an image carries no text, so nothing needs exporting from the web UI's strings
 
-## 5. Done
+## 5. Review fixes
 
-- [x] 5.1 Type check and tests pass in `mobile/`. Along the way two pre-existing test flakes were fixed: the Memory review menu test now uses fake timers (Paper's menu popup opens through animation timers that starve on a loaded machine), and the outbox tests wait for a sent entry to be cleared instead of assuming it is gone the moment the gateway accepts the send.
-- [ ] 5.2 Emulator screenshots: a reply with a delivered image, the spinner frame while it loads, an expanded image, chips for a report and a sound, and the chip for a file the gateway doesn't have
-- [ ] 5.3 On the emulator against a real gateway: ask Hermes for a picture and a PDF, check the images render, tap to expand, and reopen the Session to see them read again
-- [ ] 5.4 The owner installs it on their phone and sees an image Hermes delivered
+- [x] 5.1 A failed image is read again when the connection to the gateway comes back
+- [x] 5.2 A picture the phone can't draw shows the alert chip; an `http(s)` picture first tries `GET /api/media/proxy`
+- [x] 5.3 Media views are keyed by position and path, so a new path never keeps the old picture or failure
+- [x] 5.4 A directive in the middle of a line leaves the file name in the line (inline code in Markdown), and the file is drawn after the paragraph, so sentences and tables stay whole
+- [x] 5.5 While a reply streams, an unquoted path at the very end of the text stays text (`report.doc` before `report.docx`)
+- [x] 5.6 A `data:` value is named by its type (`image.png`), not its base64 text
+- [x] 5.7 The cache is emptied for a different gateway, and holds about 24 MB of data URL text at most
+
+## 6. Done
+
+- [x] 6.1 Type check and tests pass in `mobile/`. Along the way two pre-existing test flakes were fixed: the Memory review menu test now uses fake timers (Paper's menu popup opens through animation timers that starve on a loaded machine), and the outbox tests wait for a sent entry to be cleared instead of assuming it is gone the moment the gateway accepts the send.
+- [ ] 6.2 Emulator screenshots: a reply with a delivered image, the spinner frame while it loads, an expanded image, chips for a report and a sound, and the chip for a file the gateway doesn't have
+- [ ] 6.3 On the emulator against a real gateway: ask Hermes for a picture and a PDF, check the images render, tap to expand, and reopen the Session to see them read again
+- [ ] 6.4 The owner installs it on their phone and sees an image Hermes delivered

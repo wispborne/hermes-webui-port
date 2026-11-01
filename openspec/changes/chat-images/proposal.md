@@ -4,11 +4,12 @@ Hermes sends a file it made by writing `MEDIA:<path>` into the text of a message
 
 ## What Changes
 
-- A delivered image shows in place of its directive. While the phone reads the file, the frame is held open with a spinner. When the gateway has no such file, refuses it, or can't be reached, the frame becomes a chip with the file name and an alert icon.
+- A delivered image shows in place of its directive. While the phone reads the file, the frame is held open with a spinner. When the gateway has no such file, refuses it, or can't be reached, the frame becomes a chip with the file name and an alert icon. A failed image is read again when the connection comes back. A picture the phone can't draw becomes the same chip; a web image first asks the gateway's image proxy.
+- A directive that ends its line is drawn there. One in the middle of a line leaves the file name in the line, so a sentence or a table stays whole, and the file is drawn after the paragraph.
 - A deliverable that isn't an image — a report, a sound, a video, a spreadsheet — shows as a small chip with an icon for its kind and the file name.
 - A directive never appears as raw text in a bubble. A directive the app can't read as a complete path yet stays text: a path still arriving mid-stream, a value with no known delivery extension, an unclosed quote, or a directive inside a code span or a fenced code block.
 - Tapping an image switches between a fixed frame and full width, and tapping it again switches back.
-- The bytes come from `GET /api/fs/read-data-url`, the same call the web UI uses against a remote gateway. The app keeps the last 16 reads, so a list that redraws or a Session reopened doesn't ask for the same file again. A `data:` or `http(s)` value is used as it is, with no read.
+- The bytes come from `GET /api/fs/read-data-url`, the same call the web UI uses against a remote gateway. The app keeps the last 16 reads (about 24 MB at most, and only for the gateway it is signed in to), so a list that redraws or a Session reopened doesn't ask for the same file again. A `data:` or `http(s)` value is used as it is, with no read.
 - Storage is unchanged. The Session screen's items and the transcript saved on the phone keep the message text exactly as the gateway wrote it, directives included. Reading the directives happens when a message is drawn.
 - `CONTEXT.md` defines Deliverable, and `mobile/GATEWAY_PROTOCOL.md` describes the directive and the file read.
 - The composer is untouched: the phone still sends text only. Sending an image from the phone is a separate change.

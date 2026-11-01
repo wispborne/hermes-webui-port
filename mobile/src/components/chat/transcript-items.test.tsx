@@ -13,7 +13,7 @@ import { clearMediaDataCache } from '@/gateway/media-api'
 import { hermesTheme } from '@/theme/theme'
 
 import { SAMPLE_DATA_URL } from '../../../test/fake-rest'
-import { type Harness, signedInHarness } from '../../../test/harness'
+import { type Harness, signedInHarness, until } from '../../../test/harness'
 
 jest.mock('../../../modules/hermes-background', () => ({ flushCookies: jest.fn(), clearCookies: jest.fn() }))
 
@@ -104,7 +104,7 @@ describe('an image Hermes delivered', () => {
   it('never hands the directive text to Markdown', async () => {
     await show(reply('Look:\nMEDIA:data:image/png;base64,AAA'))
 
-    await screen.findByTestId('media-png-base64-aaa-image')
+    await screen.findByTestId('media-image-png-image')
 
     expect(markdownTexts().join('')).not.toContain('MEDIA:')
   })
@@ -124,6 +124,55 @@ describe('an image Hermes delivered', () => {
     expect(await screen.findByTestId('media-chart-png-chip')).toBeTruthy()
 
     h.rest.reachable = true
+  })
+
+  it('reads the picture again when the connection comes back', async () => {
+    h.rest.reachable = false
+    h.gateway.dropClients()
+    await until(() => h.context.connection.$status.get() === 'offline')
+    await show(reply('MEDIA:/tmp/chart.png'))
+
+    expect(await screen.findByTestId('media-chart-png-chip')).toBeTruthy()
+
+    h.rest.reachable = true
+    h.context.connection.retryNow()
+
+    expect((await screen.findByTestId('media-chart-png-image')).props.source).toEqual({ uri: SAMPLE_DATA_URL })
+  })
+
+  it('shows a chip when the phone can not draw the picture', async () => {
+    await show(reply('MEDIA:/tmp/chart.png'))
+
+    await fireEvent(await screen.findByTestId('media-chart-png-image'), 'error')
+
+    expect(await screen.findByTestId('media-chart-png-chip')).toBeTruthy()
+  })
+
+  it('asks the gateway for a web image the phone can not load, then shows a chip if that fails too', async () => {
+    const url = 'https://v3.fal.media/files/cat.png'
+    let proxyAnswer: { status?: number; body: unknown } = { body: { data_url: SAMPLE_DATA_URL } }
+    h.rest.route('GET', /^\/api\/media\/proxy$/, () => proxyAnswer)
+
+    await show(reply(`MEDIA:${url}`))
+    const direct = await screen.findByTestId('media-cat-png-image')
+
+    expect(direct.props.source).toEqual({ uri: url })
+
+    await fireEvent(direct, 'error')
+
+    await until(() => screen.queryByTestId('media-cat-png-image')?.props.source?.uri === SAMPLE_DATA_URL)
+    expect(h.rest.calls.some(call => call.path === '/api/media/proxy')).toBe(true)
+
+    await fireEvent(screen.getByTestId('media-cat-png-image'), 'error')
+
+    expect(await screen.findByTestId('media-cat-png-chip')).toBeTruthy()
+
+    proxyAnswer = { status: 403, body: { detail: 'Image host not allowed' } }
+    clearMediaDataCache()
+    await show(reply('MEDIA:https://example.com/dog.png'))
+    await fireEvent(await screen.findByTestId('media-dog-png-image'), 'error')
+
+    expect(await screen.findByTestId('media-dog-png-chip')).toBeTruthy()
   })
 
   it('switches between the frame and full width when the image is tapped', async () => {
@@ -158,6 +207,13 @@ describe('a file Hermes delivered that is not an image', () => {
     expect(markdownTexts()).toEqual(['The report is ready:\n'])
   })
 
+  it('keeps a sentence that names a file on one line, and shows the chip after it', async () => {
+    await show(reply('Open MEDIA:/tmp/my report.pdf for the details.'))
+
+    expect(await screen.findByTestId('media-my-report-pdf-chip')).toBeTruthy()
+    expect(markdownTexts()).toEqual(['Open `my report.pdf` for the details.'])
+  })
+
   it('shows a chip in a message the person sent', async () => {
     await show(mine('Look at MEDIA:/tmp/notes.txt'))
 
@@ -187,6 +243,12 @@ describe('a reply with no deliverable', () => {
 
     expect(screen.queryByTestId(/^media-/)).toBeNull()
     expect(markdownTexts()).toEqual(['Working:\nMEDIA:/tmp/cha'])
+  })
+
+  it('leaves a path that could still grow as text while the reply streams', async () => {
+    await show(reply('Here:\nMEDIA:/tmp/report.doc', { streaming: true }))
+
+    expect(screen.queryByTestId(/^media-/)).toBeNull()
   })
 
   it('still shows the typing spinner for a reply with no text yet', async () => {

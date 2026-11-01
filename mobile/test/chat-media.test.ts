@@ -5,6 +5,7 @@
 
 import { mediaName } from '@/chat/media'
 import { clearMediaDataCache, loadMediaDataUrl } from '@/gateway/media-api'
+import type { GatewayRest } from '@/gateway/rest'
 import { loadTranscript } from '@/storage/transcripts'
 import { chatStore, flushDeltas, openChat, sendMessage } from '@/store/chat'
 
@@ -132,6 +133,29 @@ describe('reading a delivered file from the gateway', () => {
     // The first file was the least recently used, so it is read again.
     await loadMediaDataUrl(h.context.rest, '/tmp/c0.png')
     expect(fileReads()).toHaveLength(21)
+  })
+
+  it('keeps big files only up to the size limit', async () => {
+    const big = `data:image/png;base64,${'A'.repeat(10_000_000)}`
+
+    for (const name of ['big1', 'big2', 'big3']) {
+      h.rest.fsFiles.set(`/tmp/${name}.png`, big)
+      await loadMediaDataUrl(h.context.rest, `/tmp/${name}.png`)
+    }
+
+    // Three 10 MB files are over the limit, so the oldest is read again.
+    await loadMediaDataUrl(h.context.rest, '/tmp/big1.png')
+    expect(fileReads()).toHaveLength(4)
+  })
+
+  it('reads the file again from another gateway with the same path', async () => {
+    await loadMediaDataUrl(h.context.rest, CHART)
+    const other = { get: () => Promise.reject(new Error('another gateway')) } as unknown as GatewayRest
+
+    await expect(loadMediaDataUrl(other, CHART)).rejects.toThrow('another gateway')
+    await loadMediaDataUrl(h.context.rest, CHART)
+
+    expect(fileReads()).toHaveLength(2)
   })
 
   it('uses a data: or http value as it is, with no read', async () => {

@@ -1,10 +1,11 @@
+import { useStore } from '@nanostores/react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Button, Icon, Text } from 'react-native-paper'
 
 import type { AssistantItem, ChatItem, NoteItem, ToolItem, UserItem } from '@/chat/items'
 import { type MediaKind, mediaKind, mediaName, parseMediaSegments } from '@/chat/media'
-import { loadMediaDataUrl } from '@/gateway/media-api'
+import { loadMediaDataUrl, loadProxiedImage } from '@/gateway/media-api'
 import { t } from '@/i18n/t'
 import { $gateway } from '@/store/gateway'
 import { space } from '@/theme/compact'
@@ -39,7 +40,7 @@ function UserBubble({ actions, item }: { actions: OutboxActions; item: UserItem 
               {segment.text}
             </Text>
           ) : (
-            <Media key={index} path={segment.path} />
+            <Media key={`${index}:${segment.path}`} path={segment.path} />
           )
         )}
       </View>
@@ -125,51 +126,86 @@ function MediaChip({ alert = false, path }: { alert?: boolean; path: string }) {
   )
 }
 
+type ImageState = { phase: 'loading' } | { phase: 'shown'; src: string; proxied: boolean } | { phase: 'failed' }
+
 /**
  * A delivered image. The bytes are read from the Gateway; the frame shows a
  * spinner while that runs, and a fallback chip when the file is missing,
- * unreadable, or the Gateway can't be reached. Tapping the image switches
- * between a fixed frame and full width.
+ * unreadable, or the Gateway can't be reached. A failed image is read again
+ * when the connection to the Gateway comes back. An `http(s)` image the phone
+ * can't load is asked of the Gateway's image proxy before it gives up. Tapping
+ * the image switches between a fixed frame and full width.
  */
 function MediaImage({ path }: { path: string }) {
-  const [src, setSrc] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
+  const gateway = useStore($gateway)
+  const [state, setState] = useState<ImageState>({ phase: 'loading' })
+  const [attempt, setAttempt] = useState(0)
   const [expanded, setExpanded] = useState(false)
   const slug = mediaSlug(path)
+  const failed = state.phase === 'failed'
 
   useEffect(() => {
-    const rest = $gateway.get()?.rest
+    const rest = gateway?.rest
 
     if (!rest) {
-      setFailed(true)
+      setState({ phase: 'failed' })
 
       return
     }
 
     let onScreen = true
 
+    setState({ phase: 'loading' })
     loadMediaDataUrl(rest, path)
-      .then(dataUrl => {
+      .then(src => {
         if (onScreen) {
-          setSrc(dataUrl)
+          setState({ phase: 'shown', src, proxied: false })
         }
       })
       .catch(() => {
         if (onScreen) {
-          setFailed(true)
+          setState({ phase: 'failed' })
         }
       })
 
     return () => {
       onScreen = false
     }
-  }, [path])
+  }, [attempt, gateway, path])
 
-  if (failed) {
+  // Read again once the connection comes back: the phone may have been offline when it first asked.
+  useEffect(() => {
+    if (!failed || !gateway) {
+      return
+    }
+
+    return gateway.connection.$status.listen(status => {
+      if (status === 'open') {
+        setAttempt(count => count + 1)
+      }
+    })
+  }, [failed, gateway])
+
+  /** The picture couldn't be drawn: try the Gateway's proxy for a web image, else show the chip. */
+  const onImageError = () => {
+    const rest = gateway?.rest
+
+    if (state.phase !== 'shown' || state.proxied || !rest || !/^https?:/i.test(path)) {
+      setState({ phase: 'failed' })
+
+      return
+    }
+
+    loadProxiedImage(rest, path)
+      .then(src => setState(current => (current.phase === 'shown' ? { phase: 'shown', src, proxied: true } : current)))
+      .catch(() => setState({ phase: 'failed' }))
+  }
+
+  if (state.phase === 'failed') {
     return <MediaChip alert path={path} />
   }
 
-  if (!src) {
+  if (state.phase === 'loading') {
     return (
       <View style={styles.mediaPlaceholder} testID={`media-${slug}-loading`}>
         <ActivityIndicator size={18} />
@@ -186,7 +222,7 @@ function MediaImage({ path }: { path: string }) {
       style={expanded ? styles.mediaExpanded : styles.mediaFrame}
       testID={`media-${slug}`}
     >
-      <Image resizeMode="contain" source={{ uri: src }} style={styles.mediaImage} testID={`media-${slug}-image`} />
+      <Image onError={onImageError} resizeMode="contain" source={{ uri: state.src }} style={styles.mediaImage} testID={`media-${slug}-image`} />
     </Pressable>
   )
 }
@@ -198,14 +234,15 @@ function Media({ path }: { path: string }) {
 
 function AssistantBubble({ item }: { item: AssistantItem }) {
   const { colors } = useHermesTheme()
-  const segments = useMemo(() => (item.text ? parseMediaSegments(item.text) : []), [item.text])
+  const streaming = Boolean(item.streaming)
+  const segments = useMemo(() => (item.text ? parseMediaSegments(item.text, { markdown: true, streaming }) : []), [item.text, streaming])
 
   return (
     <View style={styles.assistant}>
       {item.reasoning ? <Reasoning streaming={Boolean(item.streaming) && !item.text} text={item.reasoning} /> : null}
       {segments.length ? (
         segments.map((segment, index) =>
-          segment.kind === 'text' ? <Markdown key={index} text={segment.text} /> : <Media key={index} path={segment.path} />
+          segment.kind === 'text' ? <Markdown key={index} text={segment.text} /> : <Media key={`${index}:${segment.path}`} path={segment.path} />
         )
       ) : item.streaming && !item.reasoning ? (
         <ActivityIndicator size={14} style={styles.typing} />
