@@ -9,6 +9,10 @@ import { type Harness, signedInHarness } from '../../test/harness'
 import { MemoryReviewScreen } from './memory-review-screen'
 
 jest.mock('../../modules/hermes-background', () => ({ flushCookies: jest.fn(), clearCookies: jest.fn() }))
+// Paper's menu popup opens through measurement and animation timers. With fake
+// timers, findBy* and waitFor advance them deterministically, so the popup
+// mounts in the test instead of racing the machine's load.
+jest.useFakeTimers()
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react')
 
@@ -84,9 +88,9 @@ it('approves one and shows the reply', async () => {
 it('approves all after the confirmation', async () => {
   await show()
   await fireEvent.press(screen.getByTestId('memory-menu'))
-  await fireEvent.press(await screen.findByTestId('approve-all'))
+  await fireEvent.press(screen.getByTestId('approve-all'))
 
-  expect(await screen.findByText('Approve 2 pending memories?')).toBeTruthy()
+  expect(screen.getByText('Approve 2 pending memories?')).toBeTruthy()
   expect(args).not.toContain('approve all')
 
   await fireEvent.press(screen.getByTestId('confirm-all'))

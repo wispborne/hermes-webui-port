@@ -106,7 +106,9 @@ const KIND_BY_EXT: Record<string, MediaKind> = {
   ogg: 'audio',
   opus: 'audio',
   png: 'image',
-  svg: 'image',
+  // Android's and iOS's `<Image>` can't decode an SVG, data or file: a frame
+  // would sit blank on the phone. The desktop renders SVGs; the phone chips them.
+  svg: 'file',
   wav: 'audio',
   webm: 'video',
   webp: 'image',
@@ -409,9 +411,15 @@ function appendSegment(segments: MediaSegment[], segment: MediaSegment): void {
 
 /** What kind of deliverable a path is, by extension (or by MIME for a `data:` value). */
 export function mediaKind(path: string): MediaKind {
-  const data = /^data:(image|video|audio)\//i.exec(path)
+  const data = /^data:(image|video|audio)\/([^;,]*)/i.exec(path)
 
   if (data?.[1]) {
+    // Same rule as the extension map: a `data:image/svg+xml` value draws a
+    // blank frame on the phone, so it is a chip.
+    if (data[2]?.toLowerCase() === 'svg+xml' || data[2]?.toLowerCase() === 'svg') {
+      return 'file'
+    }
+
     return data[1].toLowerCase() as MediaKind
   }
 

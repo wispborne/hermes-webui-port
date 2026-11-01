@@ -168,6 +168,9 @@ describe('what kind of deliverable a path is', () => {
   it('by extension', () => {
     expect(mediaKind('/tmp/a.png')).toBe('image')
     expect(mediaKind('/tmp/a.WebP')).toBe('image')
+    // `<Image>` on the phone can't decode an SVG: it chips instead of drawing a blank frame.
+    expect(mediaKind('/tmp/diagram.svg')).toBe('file')
+    expect(mediaKind('data:image/svg+xml;base64,PHN2Zz4=')).toBe('file')
     expect(mediaKind('/tmp/clip.mp4')).toBe('video')
     expect(mediaKind('/tmp/song.opus')).toBe('audio')
     expect(mediaKind('/tmp/my report.pdf')).toBe('file')

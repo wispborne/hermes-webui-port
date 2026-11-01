@@ -54,6 +54,24 @@ const comeBack = async () => {
   await h.context.connection.waitUntilOpen(3000)
 }
 
+/** Wait for the saved outbox to empty. An entry is deleted only after the
+ * gateway confirms the send, so the emptying trails the send round-trip. */
+const untilOutboxEmpty = async () => {
+  const deadline = Date.now() + 4000
+
+  for (;;) {
+    if ((await loadOutbox(h.db)).length === 0) {
+      return
+    }
+
+    if (Date.now() > deadline) {
+      throw new Error('Timed out waiting for the outbox to empty.')
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
+
 describe('opening a session', () => {
   it('shows the saved transcript at once, then the gateway rows', async () => {
     g.addSession('s1', [
@@ -148,7 +166,7 @@ describe('sending', () => {
 
     await until(() => texts(items('s1')).includes('assistant: Hello back'))
     expect(g.submitted).toEqual([{ storedId: 's1', text: 'Hello' }])
-    expect(await loadOutbox(h.db)).toEqual([])
+    await untilOutboxEmpty()
     expect(chatStore('s1').get().running).toBe(false)
   })
 
@@ -222,7 +240,7 @@ describe('the outbox', () => {
     await until(() => g.submitted.length === 2)
 
     expect(g.submitted.map(sent => sent.text)).toEqual(['first', 'second'])
-    expect(await loadOutbox(h.db)).toEqual([])
+    await untilOutboxEmpty()
   })
 
   it('creates a session started offline when the gateway is back', async () => {

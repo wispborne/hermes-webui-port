@@ -16,6 +16,7 @@
 - [x] 3.2 `MediaImage`: spinner frame while the read runs, the picture when it arrives, a chip with an alert icon when the read fails, and a tap switching between the frame and full width
 - [x] 3.3 `MediaChip`: an icon for the kind and the file name
 - [x] 3.4 Bubble tests in `mobile/src/components/chat/transcript-items.test.tsx`: the image renders with the fetched data URI, a missing file and an unreachable gateway render the chip, a non-image path renders the chip, a code block and a half-arrived path stay text, and a plain reply draws exactly as before
+- [x] 3.5 SVG is classed as a file, not an image: Android's and iOS's `Image` can't decode SVG, data or file, so a chip beats a blank frame. The web UI still renders SVGs.
 
 ## 4. Terms and protocol notes
 
@@ -25,7 +26,7 @@
 
 ## 5. Done
 
-- [x] 5.1 Type check and tests pass in `mobile/`
+- [x] 5.1 Type check and tests pass in `mobile/`. Along the way two pre-existing test flakes were fixed: the Memory review menu test now uses fake timers (Paper's menu popup opens through animation timers that starve on a loaded machine), and the outbox tests wait for a sent entry to be cleared instead of assuming it is gone the moment the gateway accepts the send.
 - [ ] 5.2 Emulator screenshots: a reply with a delivered image, the spinner frame while it loads, an expanded image, chips for a report and a sound, and the chip for a file the gateway doesn't have
 - [ ] 5.3 On the emulator against a real gateway: ask Hermes for a picture and a PDF, check the images render, tap to expand, and reopen the Session to see them read again
 - [ ] 5.4 The owner installs it on their phone and sees an image Hermes delivered
