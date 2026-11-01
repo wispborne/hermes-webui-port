@@ -4,11 +4,13 @@ import { SQLiteStorage } from 'expo-sqlite/kv-store'
  * Settings that belong to the app, not to one gateway: the last gateway URL
  * and the username, used to fill in Sign in, and the appearance. They are kept
  * when a gateway's data is deleted on sign-out. The password is never saved
- * here or anywhere.
+ * here: a remembered password lives in secure storage (saved-password.ts).
  */
 export interface AppSettings {
   gatewayUrl: string | null
   username: string | null
+  /** "Remember password" on Sign in. On unless the person turned it off. */
+  rememberPassword?: boolean
   /** "Keep connected" is on. */
   keepConnected?: boolean
   /** The notification and battery requests were explained and asked once. */
@@ -43,6 +45,7 @@ export function setSettingsStoreForTests(replacement: SettingsStore) {
 const KEYS = {
   gatewayUrl: 'gateway_url',
   username: 'username',
+  rememberPassword: 'remember_password',
   keepConnected: 'keep_connected',
   backgroundAsked: 'background_asked',
   colorMode: 'color_mode',
@@ -56,6 +59,7 @@ export function loadAppSettings(): AppSettings {
   return {
     gatewayUrl: read('gatewayUrl'),
     username: read('username'),
+    rememberPassword: read('rememberPassword') !== 'false',
     keepConnected: read('keepConnected') === 'true',
     backgroundAsked: read('backgroundAsked') === 'true',
     colorMode: COLOR_MODES.find(mode => mode === read('colorMode')) ?? 'system',

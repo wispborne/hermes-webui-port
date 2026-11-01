@@ -31,6 +31,8 @@
 //   a  start a turn on the "Weekly report" session that waits on an Approval
 //      (a session the phone hasn't opened, for the other-session alerts)
 //   t  time out every waiting Approval
+//   e  end every sign-in, as a gateway restart without a fixed signing secret
+//      does, and drop every WebSocket
 //   m  refill the pending memories shown on Memory review
 //   q  quit
 //
@@ -55,6 +57,8 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 let replayEpoch = id('epoch-')
 const signedOutCookies = new Set()
+// Sign-ins made before this time are refused (key e), as after a gateway restart without a fixed signing secret.
+let signInsValidFrom = 0
 
 // ---------------------------------------------------------------- saved data
 
@@ -784,7 +788,7 @@ function cookieValue(req) {
 const signedIn = req => {
   const token = cookieValue(req)
 
-  return Boolean(token?.startsWith('at-')) && !signedOutCookies.has(token)
+  return Boolean(token?.startsWith('at-')) && !signedOutCookies.has(token) && Number(token.split('-')[1]) >= signInsValidFrom
 }
 
 function sendJson(res, status, body, headers = {}) {
@@ -819,7 +823,7 @@ const server = http.createServer(async (req, res) => {
   console.log(route)
 
   // For scripted runs without a terminal: POST /demo/<key> does the same as the key.
-  const demoKey = /^\/demo\/([dlratm])$/.exec(url.pathname)
+  const demoKey = /^\/demo\/([dlratme])$/.exec(url.pathname)
 
   if (req.method === 'POST' && demoKey) {
     process.stdin.emit('data', demoKey[1])
@@ -842,7 +846,7 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 401, { detail: 'Invalid username or password' })
     }
 
-    const token = id('at-')
+    const token = id(`at-${Date.now()}-`)
 
     return sendJson(res, 200, { ok: true, next: '/' }, {
       'Set-Cookie': [
@@ -1002,6 +1006,11 @@ process.stdin.on('data', key => {
     case 'a':
       console.log('Starting a turn that waits on an Approval.')
       void runTurn(liveFor(reportSessionId), 'Please approve the cleanup.')
+      break
+    case 'e':
+      console.log('Ending every sign-in and dropping every WebSocket.')
+      signInsValidFrom = Date.now()
+      for (const client of clients) client.ws.terminate()
       break
     case 'm':
       console.log('Refilling the pending memories.')

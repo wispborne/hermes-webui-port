@@ -22,7 +22,9 @@ export const appStrings = {
     failedStatus: 'Sign-in failed. The gateway answered {status}.',
     sessionEnded: 'The gateway ended your sign-in. Sign in again.',
     showPassword: 'Show password',
-    hidePassword: 'Hide password'
+    hidePassword: 'Hide password',
+    rememberPassword: 'Remember password on this phone',
+    savedPasswordRefused: "The saved password didn't work, so the phone forgot it. Sign in again."
   },
   settings: {
     gateway: 'Gateway',

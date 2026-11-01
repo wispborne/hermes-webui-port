@@ -7,11 +7,13 @@ import { signInWithPassword } from '@/gateway/auth'
 import { createRest } from '@/gateway/rest'
 import { loadAppSettings, memorySettingsStore, saveAppSettings, setSettingsStoreForTests } from '@/storage/app-settings'
 import { prepareGatewayDatabase } from '@/storage/database'
+import { loadPassword, savePassword, setPasswordStoreForTests } from '@/storage/saved-password'
 import { $auth, $gateway, resetStartForTests, setGatewayDepsForTests, signIn, signOut, startApp } from '@/store/gateway'
 
 import { FakeGateway, loadRecording } from './fake-gateway'
 import { FakeRest } from './fake-rest'
 import { type MemoryDatabase, memoryDatabase } from './memory-database'
+import { memoryPasswordStore } from './memory-password-store'
 
 jest.mock('../modules/hermes-background', () => ({ flushCookies: jest.fn(), clearCookies: jest.fn() }))
 
@@ -20,6 +22,7 @@ const { clearCookies } = jest.requireMock('../modules/hermes-background') as { c
 let rest: FakeRest
 let gateway: FakeGateway
 let settings: ReturnType<typeof memorySettingsStore>
+let passwords: ReturnType<typeof memoryPasswordStore>
 /** Databases on the "phone", by gateway URL. */
 let files: Map<string, MemoryDatabase>
 
@@ -29,6 +32,8 @@ beforeEach(async () => {
   settings = memorySettingsStore()
   files = new Map()
   setSettingsStoreForTests(settings)
+  passwords = memoryPasswordStore()
+  setPasswordStoreForTests(passwords)
   setGatewayDepsForTests({
     fetchFn: rest.fetch,
     socketFactory: url => new NodeWebSocket(url) as unknown as WebSocket,
@@ -97,13 +102,90 @@ describe('signing in', () => {
     await expect(login('david', 'right-password')).resolves.toEqual({ kind: 'unreachable' })
   })
 
-  it('saves the URL and the username, and never the password', async () => {
+  it('saves the URL and the username, and never the password in the settings', async () => {
     await signIn(gateway.httpUrl, 'david', 'right-password')
 
     expect(loadAppSettings()).toMatchObject({ gatewayUrl: gateway.httpUrl, username: 'david' })
     expect([...settings.values.values()].join(' ')).not.toContain('right-password')
+    expect(passwords.values.size).toBe(0)
     expect($auth.get()).toEqual({ phase: 'signed-in', url: gateway.httpUrl, username: 'david' })
     await $gateway.get()?.connection.waitUntilOpen(2000)
+  })
+
+  it('keeps the password in secure storage when Remember is on', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: true })
+
+    expect(await loadPassword(gateway.httpUrl, 'david')).toBe('right-password')
+    expect([...settings.values.values()].join(' ')).not.toContain('right-password')
+    expect(loadAppSettings().rememberPassword).toBe(true)
+  })
+
+  it('hands the password back only for the same gateway and username', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: true })
+
+    expect(await loadPassword(gateway.httpUrl, 'someone-else')).toBeNull()
+    expect(await loadPassword('https://other.test', 'david')).toBeNull()
+  })
+
+  it('forgets a remembered password when Remember is turned off', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: true })
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: false })
+
+    expect(passwords.values.size).toBe(0)
+    expect(loadAppSettings().rememberPassword).toBe(false)
+  })
+})
+
+describe('signing in again with the remembered password', () => {
+  beforeEach(async () => {
+    saveAppSettings({ gatewayUrl: gateway.httpUrl, username: 'david' })
+    await savePassword(gateway.httpUrl, 'david', 'right-password')
+    rest.hasCookie = true
+    rest.sessionValid = false
+  })
+
+  it('signs in by itself at start when the gateway refuses the session', async () => {
+    await expect(startApp()).resolves.toEqual({ phase: 'signed-in', url: gateway.httpUrl, username: 'david' })
+    expect(rest.calls.filter(call => call.path === '/auth/password-login')).toHaveLength(1)
+    await $gateway.get()?.connection.waitUntilOpen(2000)
+  })
+
+  it('signs in by itself when the gateway ends the session while the app runs', async () => {
+    rest.sessionValid = true
+    await startApp()
+    await $gateway.get()?.connection.waitUntilOpen(2000)
+
+    rest.sessionValid = false
+    gateway.dropClients()
+
+    await gateway.waitFor(() => rest.calls.some(call => call.path === '/auth/password-login'))
+    await gateway.waitFor(() => $gateway.get()?.connection.$status.get() === 'open')
+    expect($auth.get()).toEqual({ phase: 'signed-in', url: gateway.httpUrl, username: 'david' })
+  })
+
+  it('forgets the password and says so when the gateway turns it down', async () => {
+    rest.users.set('david', 'changed-password')
+
+    await expect(startApp()).resolves.toEqual({ phase: 'signed-out', url: gateway.httpUrl, username: 'david', savedPasswordRefused: true })
+    expect(passwords.values.size).toBe(0)
+  })
+
+  it('keeps the password when the gateway is only too busy, and shows Sign in', async () => {
+    rest.loginStatus = 429
+
+    await expect(startApp()).resolves.toEqual({ phase: 'signed-out', url: gateway.httpUrl, username: 'david' })
+    expect(await loadPassword(gateway.httpUrl, 'david')).toBe('right-password')
+  })
+
+  it('tries once a minute at most, so a session the gateway keeps refusing ends at Sign in', async () => {
+    await startApp()
+    await $gateway.get()?.connection.waitUntilOpen(2000)
+
+    rest.sessionValid = false
+    gateway.dropClients()
+
+    await gateway.waitFor(() => $auth.get().phase === 'signed-out')
+    expect(rest.calls.filter(call => call.path === '/auth/password-login')).toHaveLength(1)
   })
 })
 
@@ -186,6 +268,13 @@ describe('signing out', () => {
     await signOut()
 
     expect(loadAppSettings()).toMatchObject({ colorMode: 'dark', themeName: 'everforest', accent: 'pink' })
+  })
+
+  it('forgets the remembered password', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: true })
+    await signOut()
+
+    expect(passwords.values.size).toBe(0)
   })
 
   it('starts with no saved data when signing in again', async () => {

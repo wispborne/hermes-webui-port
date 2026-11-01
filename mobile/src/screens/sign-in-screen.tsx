@@ -1,13 +1,14 @@
 import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Image, KeyboardAvoidingView, type TextInput as NativeTextInput, ScrollView, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Button, HelperText, Icon, Text, TextInput } from 'react-native-paper'
+import { ActivityIndicator, Button, HelperText, Icon, Switch, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { VersionBanner } from '@/components/version-banner'
 import type { SignInResult } from '@/gateway/auth'
 import { checkGateway, type GatewayCheck, normalizeGatewayUrl } from '@/gateway/status'
 import { t } from '@/i18n/t'
+import { loadAppSettings } from '@/storage/app-settings'
 import { $auth, signIn } from '@/store/gateway'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
@@ -37,8 +38,9 @@ function signInMessage(result: SignInResult): string | null {
 
 /**
  * Sign in: the gateway URL (checked the way the foundation's start screen
- * checked it), the username and the password. The password lives only in
- * this screen's state and the sign-in request.
+ * checked it), the username and the password. The password lives in this
+ * screen's state and the sign-in request, and in secure storage only when
+ * "Remember password" is on.
  *
  * The URL field shows the check inside it: a spinner while it runs, a tick
  * for a gateway, a retry button when the gateway can't be reached. The line
@@ -55,8 +57,9 @@ export function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const [checking, setChecking] = useState(false)
   const [check, setCheck] = useState<GatewayCheck | null>(null)
+  const [remember, setRemember] = useState(() => loadAppSettings().rememberPassword !== false)
   const [signingIn, setSigningIn] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(saved?.savedPasswordRefused ? t('app.signIn.savedPasswordRefused') : null)
   const usernameField = useRef<NativeTextInput>(null)
   const passwordField = useRef<NativeTextInput>(null)
 
@@ -101,7 +104,7 @@ export function SignInScreen() {
         return
       }
 
-      const result = await signIn(found.url, username.trim(), password)
+      const result = await signIn(found.url, username.trim(), password, { remember })
       const message = signInMessage(result)
 
       if (message) {
@@ -114,7 +117,7 @@ export function SignInScreen() {
     } finally {
       setSigningIn(false)
     }
-  }, [currentCheck, password, runCheck, username])
+  }, [currentCheck, password, remember, runCheck, username])
 
   const busy = checking || signingIn
   const canSubmit = !busy && url.trim() !== '' && username.trim() !== '' && password !== ''
@@ -197,6 +200,13 @@ export function SignInScreen() {
                 textContentType="password"
                 value={password}
               />
+            </View>
+
+            <View style={styles.remember}>
+              <Text style={styles.flex} variant="bodyMedium">
+                {t('app.signIn.rememberPassword')}
+              </Text>
+              <Switch accessibilityLabel={t('app.signIn.rememberPassword')} onValueChange={setRemember} testID="remember-password" value={remember} />
             </View>
 
             {error ? (
@@ -289,5 +299,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { alignItems: 'center', gap: space.step, marginBottom: space.screen },
   mark: { borderRadius: 14, height: 64, marginBottom: space.listGap, width: 64 },
+  remember: { alignItems: 'center', flexDirection: 'row', gap: space.listGap, paddingLeft: space.step },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: space.screen * 2 }
 })

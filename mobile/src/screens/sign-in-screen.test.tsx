@@ -4,18 +4,23 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { BUILT_FOR_HERMES_VERSION } from '@/gateway/built-for-version'
 import { memorySettingsStore, setSettingsStoreForTests } from '@/storage/app-settings'
+import { loadPassword, savePassword, setPasswordStoreForTests } from '@/storage/saved-password'
 import { $auth, $gateway, setGatewayDepsForTests } from '@/store/gateway'
 import { hermesTheme } from '@/theme/theme'
 
 import { FakeRest } from '../../test/fake-rest'
 import { memoryDatabase } from '../../test/memory-database'
+import { memoryPasswordStore } from '../../test/memory-password-store'
 import { SignInScreen } from './sign-in-screen'
 
 jest.mock('../../modules/hermes-background', () => ({ flushCookies: jest.fn(), clearCookies: jest.fn() }))
 
 let rest: FakeRest
+let passwords: ReturnType<typeof memoryPasswordStore>
 
 beforeEach(() => {
+  passwords = memoryPasswordStore()
+  setPasswordStoreForTests(passwords)
   rest = new FakeRest()
   rest.version = BUILT_FOR_HERMES_VERSION
   global.fetch = rest.fetch as typeof fetch
@@ -99,6 +104,32 @@ describe('SignInScreen', () => {
     await fireEvent.press(retry)
 
     expect(await screen.findByTestId('gateway-found')).toBeOnTheScreen()
+  })
+
+  it('remembers the password unless the switch is turned off', async () => {
+    await signInWith('right-password')
+    await screen.findByText(`Hermes ${BUILT_FOR_HERMES_VERSION}`)
+
+    expect(await loadPassword('https://hermes.test', 'david')).toBe('right-password')
+  })
+
+  it('forgets the password when the switch is off', async () => {
+    await savePassword('https://hermes.test', 'david', 'right-password')
+    await show()
+    await fireEvent(screen.getByTestId('remember-password'), 'valueChange', false)
+    await fireEvent.changeText(screen.getByTestId('password'), 'right-password')
+    await fireEvent.press(screen.getByTestId('sign-in'))
+
+    await screen.findByText(`Hermes ${BUILT_FOR_HERMES_VERSION}`)
+    expect($auth.get().phase).toBe('signed-in')
+    expect(passwords.values.size).toBe(0)
+  })
+
+  it('says when the saved password stopped working', async () => {
+    $auth.set({ phase: 'signed-out', url: 'https://hermes.test', username: 'david', savedPasswordRefused: true })
+    await show()
+
+    expect(screen.getByText("The saved password didn't work, so the phone forgot it. Sign in again.")).toBeOnTheScreen()
   })
 
   it('shows and hides the password', async () => {
