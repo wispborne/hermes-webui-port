@@ -235,19 +235,19 @@ function urlStatus({
   result: GatewayCheck | null
 }) {
   if (checking) {
-    return <TextInput.Icon forceTextInputFocus={false} icon={() => <ActivityIndicator size={18} />} importantForAccessibility="no" testID="gateway-checking" />
+    return <TextInput.Icon key="checking" forceTextInputFocus={false} icon={() => <ActivityIndicator size={18} />} importantForAccessibility="no" testID="gateway-checking" />
   }
 
   switch (result?.kind) {
     case undefined:
       return null
     case 'gateway':
-      return <TextInput.Icon color={colors.primary} forceTextInputFocus={false} icon="check-circle" importantForAccessibility="no" testID="gateway-found" />
+      return <TextInput.Icon key="found" color={colors.primary} forceTextInputFocus={false} icon="check-circle" importantForAccessibility="no" testID="gateway-found" />
     case 'unreachable':
-      return <TextInput.Icon accessibilityLabel={t('common.retry')} icon="refresh" onPress={onRetry} testID="gateway-retry" />
+      return <TextInput.Icon key="retry" accessibilityLabel={t('common.retry')} icon="refresh" onPress={onRetry} testID="gateway-retry" />
     case 'not-a-gateway':
     case 'invalid-url':
-      return <TextInput.Icon color={colors.error} forceTextInputFocus={false} icon="alert-circle" importantForAccessibility="no" />
+      return <TextInput.Icon key="problem" color={colors.error} forceTextInputFocus={false} icon="alert-circle" importantForAccessibility="no" />
   }
 }
 
