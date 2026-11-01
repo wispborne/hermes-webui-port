@@ -37,7 +37,7 @@ afterEach(() => {
 
 const metrics = { frame: { x: 0, y: 0, width: 400, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }
 
-async function signInWith(password: string) {
+async function show() {
   await render(
     <SafeAreaProvider initialMetrics={metrics}>
       <PaperProvider theme={hermesTheme('light')}>
@@ -45,19 +45,17 @@ async function signInWith(password: string) {
       </PaperProvider>
     </SafeAreaProvider>
   )
+}
+
+async function signInWith(password: string) {
+  await show()
   await fireEvent.changeText(screen.getByTestId('password'), password)
   await fireEvent.press(screen.getByTestId('sign-in'))
 }
 
 describe('SignInScreen', () => {
   it('fills in the saved URL and username', async () => {
-    await render(
-      <SafeAreaProvider initialMetrics={metrics}>
-        <PaperProvider theme={hermesTheme('light')}>
-          <SignInScreen />
-        </PaperProvider>
-      </SafeAreaProvider>
-    )
+    await show()
 
     expect(screen.getByTestId('gateway-url').props.value).toBe('https://hermes.test')
     expect(screen.getByTestId('username').props.value).toBe('david')
@@ -83,5 +81,38 @@ describe('SignInScreen', () => {
     await signInWith('right-password')
 
     expect(await screen.findByText("Can't reach the gateway. Is Tailscale connected?")).toBeOnTheScreen()
+  })
+
+  it('checks the saved gateway as it opens and shows its version under the URL', async () => {
+    await show()
+
+    expect(await screen.findByText(`Hermes ${BUILT_FOR_HERMES_VERSION}`)).toBeOnTheScreen()
+    expect(screen.getByTestId('gateway-found')).toBeOnTheScreen()
+  })
+
+  it('offers a retry in the URL field when the gateway is unreachable, and checks again', async () => {
+    rest.reachable = false
+    await show()
+    const retry = await screen.findByTestId('gateway-retry')
+
+    rest.reachable = true
+    await fireEvent.press(retry)
+
+    expect(await screen.findByTestId('gateway-found')).toBeOnTheScreen()
+  })
+
+  it('shows and hides the password', async () => {
+    await show()
+    await fireEvent.changeText(screen.getByTestId('password'), 'secret')
+
+    expect(screen.getByTestId('password').props.secureTextEntry).toBe(true)
+
+    await fireEvent.press(screen.getByLabelText('Show password'))
+
+    expect(screen.getByTestId('password').props.secureTextEntry).toBe(false)
+
+    await fireEvent.press(screen.getByLabelText('Hide password'))
+
+    expect(screen.getByTestId('password').props.secureTextEntry).toBe(true)
   })
 })

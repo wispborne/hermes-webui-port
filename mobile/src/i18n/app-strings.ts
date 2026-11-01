@@ -20,7 +20,9 @@ export const appStrings = {
     noPasswordSignIn: "This gateway doesn't sign in with a password. Its sign-in method isn't supported yet.",
     passwordStoreDown: "The gateway couldn't check the password right now. Try again shortly.",
     failedStatus: 'Sign-in failed. The gateway answered {status}.',
-    sessionEnded: 'The gateway ended your sign-in. Sign in again.'
+    sessionEnded: 'The gateway ended your sign-in. Sign in again.',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password'
   },
   settings: {
     gateway: 'Gateway',

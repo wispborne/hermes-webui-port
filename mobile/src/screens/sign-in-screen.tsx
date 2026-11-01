@@ -1,10 +1,9 @@
 import { useStore } from '@nanostores/react'
-import { useCallback, useState } from 'react'
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Button, Icon, Text, TextInput } from 'react-native-paper'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Image, KeyboardAvoidingView, type TextInput as NativeTextInput, ScrollView, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Button, HelperText, Icon, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { UnreachableMessage } from '@/components/unreachable-message'
 import { VersionBanner } from '@/components/version-banner'
 import type { SignInResult } from '@/gateway/auth'
 import { checkGateway, type GatewayCheck, normalizeGatewayUrl } from '@/gateway/status'
@@ -12,6 +11,10 @@ import { t } from '@/i18n/t'
 import { $auth, signIn } from '@/store/gateway'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
+
+// The desktop's brand mark (apps/desktop/public/nous-girl*.png), for light and dark mode.
+const BRAND_MARK = require('../../assets/brand-mark.png')
+const BRAND_MARK_DARK = require('../../assets/brand-mark-dark.png')
 
 function signInMessage(result: SignInResult): string | null {
   switch (result.kind) {
@@ -36,18 +39,26 @@ function signInMessage(result: SignInResult): string | null {
  * Sign in: the gateway URL (checked the way the foundation's start screen
  * checked it), the username and the password. The password lives only in
  * this screen's state and the sign-in request.
+ *
+ * The URL field shows the check inside it: a spinner while it runs, a tick
+ * for a gateway, a retry button when the gateway can't be reached. The line
+ * under it says the version or what went wrong, and is always there, so the
+ * fields below never move.
  */
 export function SignInScreen() {
-  const { colors } = useHermesTheme()
+  const { colors, dark } = useHermesTheme()
   const auth = useStore($auth)
   const saved = auth.phase === 'signed-out' ? auth : null
   const [url, setUrl] = useState(saved?.url ?? '')
   const [username, setUsername] = useState(saved?.username ?? '')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [checking, setChecking] = useState(false)
   const [check, setCheck] = useState<GatewayCheck | null>(null)
   const [signingIn, setSigningIn] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const usernameField = useRef<NativeTextInput>(null)
+  const passwordField = useRef<NativeTextInput>(null)
 
   const runCheck = useCallback(async (): Promise<GatewayCheck> => {
     setChecking(true)
@@ -61,6 +72,14 @@ export function SignInScreen() {
       setChecking(false)
     }
   }, [url])
+
+  // A saved URL is checked as the screen opens, so the version and the tick are there before the person types.
+  useEffect(() => {
+    if (saved?.url) {
+      void runCheck()
+    }
+    // Once, for the URL the screen opened with.
+  }, [])
 
   // The last check, if it was for the URL in the field now.
   const currentCheck = check && check.kind !== 'invalid-url' && check.url === normalizeGatewayUrl(url) ? check : null
@@ -99,114 +118,176 @@ export function SignInScreen() {
 
   const busy = checking || signingIn
   const canSubmit = !busy && url.trim() !== '' && username.trim() !== '' && password !== ''
+  const urlProblem = !checking && check !== null && check.kind !== 'gateway'
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.fill}>
+    <SafeAreaView edges={['top', 'bottom']} style={[styles.fill, { backgroundColor: colors.background }]}>
       {check?.kind === 'gateway' ? <VersionBanner gatewayVersion={check.version} /> : null}
       <KeyboardAvoidingView behavior="padding" style={styles.fill}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text variant="titleLarge">{t('settings.gateway.signIn')}</Text>
-          <Text style={{ color: colors.onSurfaceVariant }} variant="bodyMedium">
-            {t('app.signIn.intro')}
-          </Text>
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="url"
-            autoCorrect={false}
-            dense
-            inputMode="url"
-            label={t('settings.connections.urlTitle')}
-            mode="outlined"
-            onBlur={onUrlBlur}
-            onChangeText={setUrl}
-            placeholder={t('app.gatewayCheck.urlPlaceholder')}
-            returnKeyType="next"
-            testID="gateway-url"
-            value={url}
-          />
-          <View style={styles.check}>
-            {checking ? <ActivityIndicator size="small" /> : <CheckResult onRetry={runCheck} result={check} />}
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.column}>
+            <View style={styles.header}>
+              <Image accessibilityIgnoresInvertColors source={dark ? BRAND_MARK_DARK : BRAND_MARK} style={styles.mark} testID="brand-mark" />
+              <Text accessibilityRole="header" variant="headlineMedium">
+                {t('app.gatewayCheck.title')}
+              </Text>
+              <Text style={[styles.centered, { color: colors.onSurfaceVariant }]} variant="bodyMedium">
+                {t('app.signIn.intro')}
+              </Text>
+            </View>
+
+            <View>
+              <TextInput
+                autoCapitalize="none"
+                autoComplete="url"
+                autoCorrect={false}
+                error={urlProblem}
+                inputMode="url"
+                label={t('settings.connections.urlTitle')}
+                mode="outlined"
+                onBlur={onUrlBlur}
+                onChangeText={setUrl}
+                onSubmitEditing={() => usernameField.current?.focus()}
+                placeholder={t('app.gatewayCheck.urlPlaceholder')}
+                returnKeyType="next"
+                right={urlStatus({ checking, colors, onRetry: runCheck, result: check })}
+                submitBehavior="submit"
+                testID="gateway-url"
+                value={url}
+              />
+              <CheckLine checking={checking} result={check} />
+            </View>
+
+            <View style={styles.fields}>
+              <TextInput
+                autoCapitalize="none"
+                autoComplete="username"
+                autoCorrect={false}
+                label={t('settings.vault.identifierTypes.username')}
+                mode="outlined"
+                onChangeText={setUsername}
+                onSubmitEditing={() => passwordField.current?.focus()}
+                ref={usernameField}
+                returnKeyType="next"
+                submitBehavior="submit"
+                testID="username"
+                textContentType="username"
+                value={username}
+              />
+              <TextInput
+                autoCapitalize="none"
+                autoComplete="current-password"
+                autoCorrect={false}
+                label={t('settings.vault.passwordField')}
+                mode="outlined"
+                onChangeText={setPassword}
+                onSubmitEditing={canSubmit ? submit : undefined}
+                ref={passwordField}
+                returnKeyType="go"
+                right={
+                  <TextInput.Icon
+                    accessibilityLabel={showPassword ? t('app.signIn.hidePassword') : t('app.signIn.showPassword')}
+                    icon={showPassword ? 'eye-off' : 'eye'}
+                    onPress={() => setShowPassword(!showPassword)}
+                    testID="show-password"
+                  />
+                }
+                secureTextEntry={!showPassword}
+                testID="password"
+                textContentType="password"
+                value={password}
+              />
+            </View>
+
+            {error ? (
+              <View style={[styles.error, { backgroundColor: colors.errorContainer }]}>
+                <Icon color={colors.error} size={18} source="alert-circle" />
+                <Text accessibilityRole="alert" style={[styles.flex, { color: colors.onErrorContainer }]} testID="sign-in-error" variant="bodyMedium">
+                  {error}
+                </Text>
+              </View>
+            ) : null}
+
+            <Button contentStyle={styles.buttonContent} disabled={!canSubmit} loading={signingIn} mode="contained" onPress={submit} testID="sign-in">
+              {signingIn ? t('app.signIn.signingIn') : t('settings.gateway.signIn')}
+            </Button>
           </View>
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="username"
-            autoCorrect={false}
-            dense
-            label={t('settings.vault.identifierTypes.username')}
-            mode="outlined"
-            onChangeText={setUsername}
-            returnKeyType="next"
-            testID="username"
-            textContentType="username"
-            value={username}
-          />
-          <TextInput
-            autoCapitalize="none"
-            autoComplete="current-password"
-            autoCorrect={false}
-            dense
-            label={t('settings.vault.passwordField')}
-            mode="outlined"
-            onChangeText={setPassword}
-            onSubmitEditing={canSubmit ? submit : undefined}
-            returnKeyType="go"
-            secureTextEntry
-            testID="password"
-            textContentType="password"
-            value={password}
-          />
-          {error ? (
-            <Text accessibilityRole="alert" style={{ color: colors.error }} testID="sign-in-error" variant="bodyMedium">
-              {error}
-            </Text>
-          ) : null}
-          <Button compact disabled={!canSubmit} loading={signingIn} mode="contained" onPress={submit} style={styles.button} testID="sign-in">
-            {signingIn ? t('app.signIn.signingIn') : t('settings.gateway.signIn')}
-          </Button>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
 }
 
-function CheckResult({ onRetry, result }: { onRetry: () => void; result: GatewayCheck | null }) {
-  const { colors } = useHermesTheme()
+/**
+ * The end of the URL field: what the check found, or a retry when the gateway
+ * couldn't be reached. A function, not a component: Paper only lays out a
+ * `right` element as an icon when it is a `TextInput.Icon` itself.
+ */
+function urlStatus({
+  checking,
+  colors,
+  onRetry,
+  result
+}: {
+  checking: boolean
+  colors: { error: string; primary: string }
+  onRetry: () => void
+  result: GatewayCheck | null
+}) {
+  if (checking) {
+    return <TextInput.Icon forceTextInputFocus={false} icon={() => <ActivityIndicator size={18} />} importantForAccessibility="no" testID="gateway-checking" />
+  }
 
   switch (result?.kind) {
     case undefined:
       return null
-
     case 'gateway':
-      return (
-        <View style={styles.row}>
-          <Icon color={colors.primary} size={18} source="check-circle" />
-          <Text variant="bodyMedium">{t('app.gatewayCheck.version', { version: result.version })}</Text>
-        </View>
-      )
-
+      return <TextInput.Icon color={colors.primary} forceTextInputFocus={false} icon="check-circle" importantForAccessibility="no" testID="gateway-found" />
     case 'unreachable':
-      return <UnreachableMessage onRetry={onRetry} />
-
+      return <TextInput.Icon accessibilityLabel={t('common.retry')} icon="refresh" onPress={onRetry} testID="gateway-retry" />
     case 'not-a-gateway':
-      return (
-        <Text style={{ color: colors.error }} variant="bodyMedium">
-          {t('app.gatewayCheck.notAGateway')}
-        </Text>
-      )
-
     case 'invalid-url':
-      return (
-        <Text style={{ color: colors.error }} variant="bodyMedium">
-          {t('app.gatewayCheck.invalidUrl')}
-        </Text>
-      )
+      return <TextInput.Icon color={colors.error} forceTextInputFocus={false} icon="alert-circle" importantForAccessibility="no" />
   }
 }
 
+/** The line under the URL field. Empty until the first check, but always there. */
+function CheckLine({ checking, result }: { checking: boolean; result: GatewayCheck | null }) {
+  const message = (() => {
+    if (checking) {
+      return t('app.gatewayCheck.checking')
+    }
+
+    switch (result?.kind) {
+      case undefined:
+        return ''
+      case 'gateway':
+        return t('app.gatewayCheck.version', { version: result.version })
+      case 'unreachable':
+        return t('app.gatewayCheck.unreachable')
+      case 'not-a-gateway':
+        return t('app.gatewayCheck.notAGateway')
+      case 'invalid-url':
+        return t('app.gatewayCheck.invalidUrl')
+    }
+  })()
+
+  return (
+    <HelperText type={!checking && result && result.kind !== 'gateway' ? 'error' : 'info'} visible>
+      {message}
+    </HelperText>
+  )
+}
+
 const styles = StyleSheet.create({
-  button: { alignSelf: 'flex-start' },
-  check: { justifyContent: 'center', minHeight: 24 },
-  content: { gap: space.listGap, padding: space.screen },
+  buttonContent: { height: 48 },
+  centered: { textAlign: 'center' },
+  column: { alignSelf: 'center', gap: space.screen, maxWidth: 440, width: '100%' },
+  error: { alignItems: 'center', borderRadius: 8, flexDirection: 'row', gap: space.listGap, padding: space.screen },
+  fields: { gap: space.screen },
   fill: { flex: 1 },
-  row: { alignItems: 'center', flexDirection: 'row', gap: space.listGap }
+  flex: { flex: 1 },
+  header: { alignItems: 'center', gap: space.step, marginBottom: space.screen },
+  mark: { borderRadius: 14, height: 64, marginBottom: space.listGap, width: 64 },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: space.screen * 2 }
 })
