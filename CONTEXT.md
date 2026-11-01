@@ -48,6 +48,10 @@ _Avoid_: Regenerate, rerun
 Ending a running turn early, at the person's request.
 _Avoid_: Interrupt, cancel, abort
 
+**Deliverable**:
+A file Hermes sends as part of a turn, written into the message text as a `MEDIA:` directive with the path on the gateway. The phone shows an image in place of the directive and every other deliverable as a small chip.
+_Avoid_: Attachment, artifact, media file
+
 ### Hermes asking the person
 
 **Approval**:

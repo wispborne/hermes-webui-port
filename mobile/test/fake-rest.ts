@@ -15,10 +15,15 @@ type Handler = (call: FakeRestCall, query: URLSearchParams) => { status?: number
 const json = (status: number, body?: unknown) =>
   new Response(body === undefined ? '' : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
+/** A real 1x1 transparent PNG, for file reads in tests. */
+export const SAMPLE_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAX+XDSwAAAABJRU5ErkJggg=='
+
 export class FakeRest {
   /** Accounts on the gateway. */
   users = new Map([['david', 'right-password']])
   providers: unknown[] = [{ name: 'basic', display_name: 'Password', supports_password: true }]
+  /** Files `GET /api/fs/read-data-url` can read: gateway path to data URL. Anything else is a 404. */
+  fsFiles = new Map<string, string>()
   /** False makes every call fail as if Tailscale were off. */
   reachable = true
   /** The phone holds a session cookie. */
@@ -72,6 +77,13 @@ export class FakeRest {
 
       case 'GET /api/auth/providers':
         return this.providers.length ? json(200, { providers: this.providers }) : json(503, { detail: 'no providers' })
+
+      case 'GET /api/fs/read-data-url': {
+        const file = url.searchParams.get('path')
+        const dataUrl = file === null ? undefined : this.fsFiles.get(file)
+
+        return dataUrl ? json(200, { dataUrl }) : json(404, { detail: `No file at ${file}` })
+      }
 
       case 'POST /auth/password-login': {
         if (this.loginStatus !== null) {

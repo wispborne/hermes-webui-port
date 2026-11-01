@@ -1,9 +1,12 @@
-import { memo, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { memo, useEffect, useMemo, useState } from 'react'
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Button, Icon, Text } from 'react-native-paper'
 
 import type { AssistantItem, ChatItem, NoteItem, ToolItem, UserItem } from '@/chat/items'
+import { type MediaKind, mediaKind, mediaName, parseMediaSegments } from '@/chat/media'
+import { loadMediaDataUrl } from '@/gateway/media-api'
 import { t } from '@/i18n/t'
+import { $gateway } from '@/store/gateway'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
 
@@ -18,6 +21,7 @@ export interface OutboxActions {
 
 function UserBubble({ actions, item }: { actions: OutboxActions; item: UserItem }) {
   const { colors } = useHermesTheme()
+  const segments = useMemo(() => parseMediaSegments(item.text), [item.text])
   const waiting = item.state === 'waiting' && (actions.offline || item.sendFailed)
 
   return (
@@ -29,9 +33,15 @@ function UserBubble({ actions, item }: { actions: OutboxActions; item: UserItem 
           item.state === 'waiting' || item.state === 'old' ? styles.faded : null
         ]}
       >
-        <Text selectable variant="bodyMedium">
-          {item.text}
-        </Text>
+        {segments.map((segment, index) =>
+          segment.kind === 'text' ? (
+            <Text key={index} selectable variant="bodyMedium">
+              {segment.text}
+            </Text>
+          ) : (
+            <Media key={index} path={segment.path} />
+          )
+        )}
       </View>
       {item.state === 'queued' ? <Label icon="clock" text={t('app.chat.queued')} /> : null}
       {waiting && item.outboxId ? (
@@ -91,13 +101,115 @@ function Reasoning({ streaming, text }: { streaming: boolean; text: string }) {
   )
 }
 
+/** The file name, made safe for a testID. */
+const mediaSlug = (path: string) => mediaName(path).toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+const CHIP_ICON: Record<MediaKind, string> = {
+  audio: 'music-note',
+  file: 'file-document',
+  image: 'image',
+  video: 'movie'
+}
+
+/** A delivered file that isn't an image: a small muted chip with the kind's icon and the file name. */
+function MediaChip({ alert = false, path }: { alert?: boolean; path: string }) {
+  const { colors } = useHermesTheme()
+
+  return (
+    <View style={[styles.mediaChip, { borderColor: colors.outline }]} testID={`media-${mediaSlug(path)}-chip`}>
+      <Icon color={alert ? colors.error : colors.onSurfaceVariant} size={16} source={alert ? 'alert-circle' : CHIP_ICON[mediaKind(path)]} />
+      <Text numberOfLines={1} style={[styles.flex, { color: colors.onSurfaceVariant }]} variant="bodySmall">
+        {mediaName(path)}
+      </Text>
+    </View>
+  )
+}
+
+/**
+ * A delivered image. The bytes are read from the Gateway; the frame shows a
+ * spinner while that runs, and a fallback chip when the file is missing,
+ * unreadable, or the Gateway can't be reached. Tapping the image switches
+ * between a fixed frame and full width.
+ */
+function MediaImage({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const slug = mediaSlug(path)
+
+  useEffect(() => {
+    const rest = $gateway.get()?.rest
+
+    if (!rest) {
+      setFailed(true)
+
+      return
+    }
+
+    let onScreen = true
+
+    loadMediaDataUrl(rest, path)
+      .then(dataUrl => {
+        if (onScreen) {
+          setSrc(dataUrl)
+        }
+      })
+      .catch(() => {
+        if (onScreen) {
+          setFailed(true)
+        }
+      })
+
+    return () => {
+      onScreen = false
+    }
+  }, [path])
+
+  if (failed) {
+    return <MediaChip alert path={path} />
+  }
+
+  if (!src) {
+    return (
+      <View style={styles.mediaPlaceholder} testID={`media-${slug}-loading`}>
+        <ActivityIndicator size={18} />
+      </View>
+    )
+  }
+
+  return (
+    <Pressable
+      accessibilityLabel={mediaName(path)}
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={() => setExpanded(!expanded)}
+      style={expanded ? styles.mediaExpanded : styles.mediaFrame}
+      testID={`media-${slug}`}
+    >
+      <Image resizeMode="contain" source={{ uri: src }} style={styles.mediaImage} testID={`media-${slug}-image`} />
+    </Pressable>
+  )
+}
+
+/** One MEDIA directive: an image inline, everything else a chip. */
+function Media({ path }: { path: string }) {
+  return mediaKind(path) === 'image' ? <MediaImage path={path} /> : <MediaChip path={path} />
+}
+
 function AssistantBubble({ item }: { item: AssistantItem }) {
   const { colors } = useHermesTheme()
+  const segments = useMemo(() => (item.text ? parseMediaSegments(item.text) : []), [item.text])
 
   return (
     <View style={styles.assistant}>
       {item.reasoning ? <Reasoning streaming={Boolean(item.streaming) && !item.text} text={item.reasoning} /> : null}
-      {item.text ? <Markdown text={item.text} /> : item.streaming && !item.reasoning ? <ActivityIndicator size={14} style={styles.typing} /> : null}
+      {segments.length ? (
+        segments.map((segment, index) =>
+          segment.kind === 'text' ? <Markdown key={index} text={segment.text} /> : <Media key={index} path={segment.path} />
+        )
+      ) : item.streaming && !item.reasoning ? (
+        <ActivityIndicator size={14} style={styles.typing} />
+      ) : null}
       {item.error ? (
         <View style={[styles.error, { backgroundColor: colors.errorContainer }]}>
           <Icon color={colors.error} size={16} source="alert-circle" />
@@ -208,6 +320,21 @@ const styles = StyleSheet.create({
   faded: { opacity: 0.7 },
   flex: { flex: 1 },
   label: { alignItems: 'center', flexDirection: 'row', gap: space.step },
+  mediaChip: {
+    alignItems: 'center',
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: space.step,
+    marginVertical: space.step,
+    maxWidth: 260,
+    paddingVertical: space.step,
+    paddingHorizontal: space.listGap
+  },
+  mediaExpanded: { borderRadius: 8, height: 420, marginVertical: space.step, overflow: 'hidden', width: '100%' },
+  mediaFrame: { alignSelf: 'flex-start', borderRadius: 8, height: 260, marginVertical: space.step, maxWidth: '100%', overflow: 'hidden', width: 300 },
+  mediaImage: { flex: 1 },
+  mediaPlaceholder: { alignItems: 'center', alignSelf: 'flex-start', borderRadius: 8, height: 120, justifyContent: 'center', marginVertical: space.step, width: 220 },
   mono: { fontFamily: 'monospace', fontSize: 12, lineHeight: 16, padding: space.listGap },
   monoBlock: { gap: 2 },
   monoScroll: { borderRadius: 6, maxHeight: 240 },
