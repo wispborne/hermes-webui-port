@@ -39,12 +39,12 @@ import {
   freshWsUrl,
   GatewayAuthError,
   isSameOrigin,
-  isSignedIn,
   loadGateway,
   loginInPopup,
   normalizeBase,
   resolveToken,
   saveGateway,
+  sessionState,
   type StoredGateway,
   tokenWsUrl
 } from './gateway'
@@ -127,8 +127,11 @@ async function connectionConfig(stored: StoredGateway = loadGateway()): Promise<
     profile: null,
     remoteAuthMode: authMode,
     // Report the real session state. A false "connected" would hide the
-    // sign-in button and leave the user stuck on a dead connection.
-    remoteOauthConnected: authMode === 'oauth' ? await isSignedIn() : false,
+    // sign-in button and leave the user stuck on a dead connection. But a
+    // gateway that is down or still starting hasn't signed us out: calling
+    // that "not connected" shows "sign-in required", and signing in can't
+    // work until the gateway is back. Then the page shows Retry instead.
+    remoteOauthConnected: authMode === 'oauth' ? (await sessionState()) !== 'signed-out' : false,
     remoteTokenPreview: stored.token ? `...${stored.token.slice(-4)}` : null,
     remoteTokenSet: authMode === 'token',
     // Browser storage is never encrypted at rest. Saying so up front keeps the

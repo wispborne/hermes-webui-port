@@ -197,13 +197,14 @@ export async function freshWsUrl(): Promise<string> {
 }
 
 /**
- * True when the gateway currently accepts us. A token counts as signed in;
- * cookie mode asks `/api/auth/me`. Any failure reports false so the UI offers
- * a sign-in path instead of claiming a session that does not work.
+ * What the gateway says about our session. A token counts as signed in;
+ * cookie mode asks `/api/auth/me`. Only a 401 or 403 means signed out. A
+ * gateway that is down, still starting (Caddy answers 502) or can't be
+ * reached says nothing about the session, so that is `unknown`.
  */
-export async function isSignedIn(base: string = baseUrl()): Promise<boolean> {
+export async function sessionState(base: string = baseUrl()): Promise<'signed-in' | 'signed-out' | 'unknown'> {
   if (resolveToken()) {
-    return true
+    return 'signed-in'
   }
 
   try {
@@ -212,10 +213,19 @@ export async function isSignedIn(base: string = baseUrl()): Promise<boolean> {
       signal: AbortSignal.timeout(6_000)
     })
 
-    return res.ok
+    if (res.ok) {
+      return 'signed-in'
+    }
+
+    return res.status === 401 || res.status === 403 ? 'signed-out' : 'unknown'
   } catch {
-    return false
+    return 'unknown'
   }
+}
+
+/** True only when the gateway accepts us now. The sign-in window waits for this. */
+export async function isSignedIn(base: string = baseUrl()): Promise<boolean> {
+  return (await sessionState(base)) === 'signed-in'
 }
 
 export interface GatewayStatus {
