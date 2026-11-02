@@ -1,13 +1,13 @@
 import { useStore } from '@nanostores/react'
 import { FlashList, type FlashListRef } from '@shopify/flash-list'
 import { router } from 'expo-router'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { KeyboardAvoidingView, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Appbar, Button, IconButton, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { type DisplayItem, displayItems } from '@/chat/activity'
-import { failedMessage } from '@/chat/items'
+import { turnEnds } from '@/chat/turns'
 import { askBackgroundPermissions } from '@/background/permission-dialogs'
 import { $onScreen } from '@/background/wiring'
 import { PromptCards } from '@/components/chat/prompt-cards'
@@ -87,7 +87,16 @@ export function SessionScreen({ id }: SessionScreenProps) {
     [key, status]
   )
 
-  const canRetry = !chat.running && failedMessage(chat.items) !== null
+  // Each finished turn's last reply gets Copy; the last one also gets Retry.
+  const ends = useMemo(() => turnEnds(shown, chat.running), [shown, chat.running])
+  const lastEnd = useMemo(() => {
+    const key = chat.running ? undefined : [...ends.keys()].at(-1)
+    const at = shown.findIndex(item => item.key === key)
+
+    // Only when that reply answers the last message sent.
+    return key && shown.findLastIndex(item => item.kind === 'user') < at ? key : null
+  }, [chat.running, ends, shown])
+  const retry = useCallback(() => void retryTurn(key).then(() => list.current?.scrollToEnd({ animated: true })), [key])
   const row = rows.find(found => found.id === chat.storedId)
   const title = chat.title ?? (row ? sessionHeading(row) : id === 'new' ? t('sidebar.nav.new-session') : '')
   const canSend = !answering && draft.trim() !== ''
@@ -139,16 +148,6 @@ export function SessionScreen({ id }: SessionScreenProps) {
                       {chat.status ?? t('assistant.thread.thinking')}
                     </Text>
                   </View>
-                ) : canRetry ? (
-                  <Button
-                    compact
-                    icon="refresh"
-                    onPress={() => void retryTurn(key).then(() => list.current?.scrollToEnd({ animated: true }))}
-                    style={styles.retry}
-                    testID="retry"
-                  >
-                    {t('common.retry')}
-                  </Button>
                 ) : (
                   <View style={styles.footerSpace} />
                 )
@@ -161,7 +160,9 @@ export function SessionScreen({ id }: SessionScreenProps) {
                 ) : null
               }
               maintainVisibleContentPosition={{ startRenderingFromBottom: true, autoscrollToBottomThreshold: 0.2 }}
-              renderItem={({ item }) => <TranscriptItem actions={actions} item={item} />}
+              renderItem={({ item }) => (
+                <TranscriptItem actions={actions} item={item} onRetry={item.key === lastEnd ? retry : undefined} turnText={ends.get(item.key)} />
+              )}
             />
           )}
         </View>
@@ -237,7 +238,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, maxHeight: 160 },
   // On Android, Paper gives a multiline box without a label no top or bottom padding, so the text sat at the top.
   inputText: { paddingBottom: INPUT_TEXT_PADDING, paddingTop: INPUT_TEXT_PADDING },
-  retry: { alignSelf: 'flex-start', marginBottom: space.listGap, marginHorizontal: space.screen - space.step },
   status: { alignItems: 'center', flexDirection: 'row', gap: space.listGap, paddingHorizontal: space.screen, paddingVertical: space.listGap },
   title: { fontSize: 16 }
 })

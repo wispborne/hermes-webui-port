@@ -1,7 +1,7 @@
 import longReply from '../../test/fixtures/long-reply.json'
 
 import type { AssistantItem, ToolItem } from './items'
-import { failedMessage, itemsFromRows } from './items'
+import { itemsFromRows, lastTurnMessage } from './items'
 import { appendReasoning, appendReply, applyEvent, type StreamState, withInflight } from './stream'
 
 const empty: StreamState = { items: [], running: false, status: null, title: null }
@@ -222,21 +222,29 @@ describe('a streamed turn', () => {
   })
 })
 
-describe('failedMessage', () => {
-  it('gives the message whose turn failed, while that turn is the last thing in the session', () => {
-    const items = itemsFromRows([
-      { role: 'user', content: 'Plan the beds', row_id: 1 },
-      { role: 'assistant', content: 'Six beds.', row_id: 2 },
-      { role: 'user', content: 'And the roses?', row_id: 3 }
-    ])
+describe('lastTurnMessage', () => {
+  const items = itemsFromRows([
+    { role: 'user', content: 'Plan the beds', row_id: 1 },
+    { role: 'assistant', content: 'Six beds.', row_id: 2 },
+    { role: 'user', content: 'And the roses?', row_id: 3 }
+  ])
+
+  it('gives the message of the last turn once it has ended, failed or not', () => {
     const failed = play([['message.start'], ['message.complete', { text: '', status: 'error', error: 'The provider answered 500.' }]], {
       ...empty,
       items
     })
+    const answered = play([['message.start'], ['message.delta', { text: 'Water them.' }], ['message.complete', { text: 'Water them.', status: 'complete' }]], {
+      ...empty,
+      items
+    })
 
-    expect(failedMessage(failed.items)).toBe('And the roses?')
-    expect(failedMessage(items)).toBeNull()
-    expect(failedMessage([...failed.items, { kind: 'user', key: 'u4', text: 'Anyone?' }])).toBeNull()
+    expect(lastTurnMessage(failed.items)).toBe('And the roses?')
+    expect(lastTurnMessage(answered.items)).toBe('And the roses?')
+  })
+
+  it('gives nothing while the last message has no answer yet', () => {
+    expect(lastTurnMessage(items)).toBeNull()
   })
 })
 

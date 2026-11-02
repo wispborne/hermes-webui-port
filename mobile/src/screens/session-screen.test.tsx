@@ -17,6 +17,7 @@ jest.mock('../../modules/hermes-background', () => ({ flushCookies: jest.fn(), c
 jest.mock('../background/permission-dialogs', () => ({ askBackgroundPermissions: jest.fn() }))
 jest.mock('../background/wiring', () => ({ $onScreen: jest.requireActual<typeof import('nanostores')>('nanostores').atom(null) }))
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), canGoBack: () => true, replace: jest.fn() } }))
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }))
 
 const metrics = { frame: { x: 0, y: 0, width: 400, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }
 
@@ -81,5 +82,31 @@ describe('the message box while a Question is open', () => {
 
     expect(promptsFor('s1').question?.answers.q0).toBe('staging')
     expect(screen.getByTestId('message-box').props.value).toBe('')
+  })
+})
+
+describe('Copy and Retry under replies', () => {
+  it("puts Copy under each finished turn's reply, and Retry only under the last", async () => {
+    g.reply('s1', 'Run it once a day.')
+    await waitFor(() => expect(screen.getAllByTestId('copy-reply')).toHaveLength(1))
+    expect(screen.getAllByTestId('retry')).toHaveLength(1)
+
+    fireEvent.changeText(screen.getByTestId('message-box'), 'And then?')
+    await waitFor(() => expect(screen.getByTestId('send')).toBeTruthy())
+    fireEvent.press(screen.getByTestId('send'))
+    await waitFor(() => expect(g.submitted).toHaveLength(1))
+    g.reply('s1', 'Water the roses.')
+
+    await waitFor(() => expect(screen.getAllByTestId('copy-reply')).toHaveLength(2))
+    expect(screen.getAllByTestId('retry')).toHaveLength(1)
+  })
+
+  it('shows neither while the turn is running', async () => {
+    g.emit('s1', 'message.start')
+    g.emit('s1', 'message.delta', { text: 'Half' })
+    await waitFor(() => expect(screen.getByTestId('stop')).toBeTruthy())
+
+    expect(screen.queryByTestId('copy-reply')).toBeNull()
+    expect(screen.queryByTestId('retry')).toBeNull()
   })
 })

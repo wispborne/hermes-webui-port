@@ -19,7 +19,7 @@ import { JsonRpcGatewayError } from '@hermes/shared/json-rpc-channel'
 import type { GatewayEvent } from '@hermes/shared/json-rpc-gateway'
 import { atom, type WritableAtom } from 'nanostores'
 
-import { type ChatItem, failedMessage, gatewayText, itemsFromRows, newKey, type UserItem } from '@/chat/items'
+import { type ChatItem, gatewayText, itemsFromRows, lastTurnMessage, newKey, type UserItem } from '@/chat/items'
 import { appendReasoning, appendReply, applyEvent, type StreamState, withInflight } from '@/chat/stream'
 import {
   type CreateAnswer,
@@ -592,13 +592,12 @@ export function sendMessage(key: string, text: string) {
 }
 
 /**
- * Retry: sends the message whose turn failed again. When it's sent, the
- * gateway drops the failed turn first, if that message is still the session's
- * last (see `retryCut`). Otherwise it goes as a new message and the failed
- * turn stays.
+ * Retry: sends the message the last turn answered again. When it's sent, the
+ * gateway drops that turn first, if its message is still the session's last
+ * (see `retryCut`). Otherwise it goes as a new message and the old turn stays.
  */
 export async function retryTurn(key: string) {
-  const text = failedMessage(chatStore(key).get().items)
+  const text = lastTurnMessage(chatStore(key).get().items)
 
   if (text !== null) {
     await queueMessage(key, text, true)
@@ -654,8 +653,8 @@ export function confirmOldOutboxMessage(key: string, outboxId: string) {
 }
 
 /**
- * The `prompt.submit` fields that drop the failed turn a Retry repeats. The
- * failed message must be the session's last saved user message, with the
+ * The `prompt.submit` fields that drop the turn a Retry repeats. Its
+ * message must be the session's last saved user message, with the
  * same text. Anything else gives null, and the Retry goes without a cut: a
  * cut placed by guess could delete turns.
  */
@@ -681,18 +680,18 @@ async function retryCut(gateway: GatewayContext, runtimeId: string, text: string
   return {
     confirm_truncate: true,
     truncate_before_row_id: last.row_id,
-    // The failed message was the session's first: the cut leaves it empty.
+    // The message was the session's first: the cut leaves it empty.
     ...(users.length === 1 ? { confirm_empty_truncate: true } : {})
   }
 }
 
-/** After a Retry's cut: the failed turn goes from the screen too. It's everything from its message up to the Retry. */
-function dropFailedTurn(key: string, outboxId: string) {
+/** After a Retry's cut: the old turn goes from the screen too. It's everything from its message up to the Retry. */
+function dropRetriedTurn(key: string, outboxId: string) {
   update(key, state => {
     const retry = state.items.findIndex(item => item.kind === 'user' && item.outboxId === outboxId)
-    const failed = state.items.findLastIndex((item, index) => index < retry && item.kind === 'user')
+    const old = state.items.findLastIndex((item, index) => index < retry && item.kind === 'user')
 
-    return failed < 0 ? state : { ...state, items: [...state.items.slice(0, failed), ...state.items.slice(retry)] }
+    return old < 0 ? state : { ...state, items: [...state.items.slice(0, old), ...state.items.slice(retry)] }
   })
 }
 
@@ -789,9 +788,9 @@ async function sendOutbox() {
         key = await createSession(key, gateway)
       }
 
-      // A Retry has the same text as the failed message, so this check can't
+      // A Retry has the same text as the message it repeats, so this check can't
       // tell them apart. It's sent again instead: its cut drops a copy that
-      // did arrive, along with the failed turn.
+      // did arrive, along with the old turn.
       if (entry.state === 'uncertain' && !entry.retry) {
         if (await wasDelivered(entry, key, gateway)) {
           await removeFromOutbox(gateway.db, entry.id)
@@ -852,7 +851,7 @@ async function submit(key: string, entry: OutboxEntry, gateway: GatewayContext, 
   await removeFromOutbox(gateway.db, entry.id)
 
   if (cut) {
-    dropFailedTurn(key, entry.id)
+    dropRetriedTurn(key, entry.id)
   }
 
   setOutboxItem(key, entry.id, item => ({ ...item, outboxId: undefined, state: answer?.status === 'queued' ? 'queued' : undefined }))

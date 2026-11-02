@@ -265,6 +265,18 @@ describe('Retry', () => {
     await until(() => texts(items('s1')).join('|') === 'user: Plan the beds|assistant: Six beds.|user: And the roses?')
   })
 
+  it('replaces a reply that finished, too', async () => {
+    g.addSession('s1', [['user', 'Plan the beds'], ['assistant', 'Six beds.']])
+    await openChat('s1')
+    const row = rowOf('Plan the beds')
+
+    await retryTurn('s1')
+    await until(() => g.submitted.length === 1)
+
+    expect(g.submitParams[0]).toMatchObject({ text: 'Plan the beds', confirm_truncate: true, confirm_empty_truncate: true, truncate_before_row_id: row })
+    await until(() => texts(items('s1')).join('|') === 'user: Plan the beds')
+  })
+
   it("confirms the empty transcript when the failed message was the session's first", async () => {
     await failedTurn([], 'Plan the beds')
 

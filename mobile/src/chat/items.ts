@@ -67,13 +67,11 @@ let nextKey = 0
 export const newKey = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(nextKey++).toString(36)}`
 
 /**
- * The text of the message whose turn failed, while that failed turn is the
- * last thing in the session. Retry sends it again.
+ * The text of the message the session's last turn answered, once that turn
+ * has ended, failed or not. Retry sends it again.
  */
-export function failedMessage(items: ChatItem[]): string | null {
-  const last = items.at(-1)
-
-  if (last?.kind !== 'assistant' || !last.error) {
+export function lastTurnMessage(items: ChatItem[]): string | null {
+  if (!items.length || items.at(-1)?.kind === 'user') {
     return null
   }
 

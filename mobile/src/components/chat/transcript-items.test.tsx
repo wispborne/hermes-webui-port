@@ -17,6 +17,7 @@ import { SAMPLE_DATA_URL } from '../../../test/fake-rest'
 import { type Harness, signedInHarness, until } from '../../../test/harness'
 
 jest.mock('../../../modules/hermes-background', () => ({ flushCookies: jest.fn(), clearCookies: jest.fn() }))
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }))
 
 const actions: OutboxActions = { offline: false, onCancel: jest.fn(), onSendNow: jest.fn() }
 const metrics = { frame: { x: 0, y: 0, width: 400, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }
@@ -48,11 +49,11 @@ beforeEach(() => {
 const reply = (text: string, extra: Record<string, unknown> = {}): AssistantItem => ({ kind: 'assistant', key: 'reply-1', text, ...extra })
 const mine = (text: string): UserItem => ({ kind: 'user', key: 'user-1', text })
 
-async function show(item: DisplayItem) {
+async function show(item: DisplayItem, turn: { turnText?: string; onRetry?: () => void } = {}) {
   await render(
     <SafeAreaProvider initialMetrics={metrics}>
       <PaperProvider theme={hermesTheme('light')}>
-        <TranscriptItem actions={actions} item={item} />
+        <TranscriptItem actions={actions} item={item} {...turn} />
       </PaperProvider>
     </SafeAreaProvider>
   )
@@ -270,5 +271,40 @@ describe('a stopped reply', () => {
     await show(reply('Done.'))
 
     expect(screen.queryByText('Stopped')).toBeNull()
+  })
+})
+
+describe("a turn's last reply", () => {
+  it('copies the whole reply with Copy', async () => {
+    const { setStringAsync } = jest.requireMock<{ setStringAsync: jest.Mock }>('expo-clipboard')
+    await show(reply('Run it once a day.'), { turnText: 'Here is what I found.\n\nRun it once a day.' })
+
+    fireEvent.press(screen.getByTestId('copy-reply'))
+
+    expect(setStringAsync).toHaveBeenCalledWith('Here is what I found.\n\nRun it once a day.')
+    expect(await screen.findByLabelText('Copied')).toBeTruthy()
+  })
+
+  it('offers Retry only when given one', async () => {
+    const onRetry = jest.fn()
+    await show(reply('Done.'), { turnText: 'Done.', onRetry })
+
+    fireEvent.press(screen.getByTestId('retry'))
+
+    expect(onRetry).toHaveBeenCalled()
+  })
+
+  it('has no buttons when it is not the end of a turn', async () => {
+    await show(reply('Here is what I found.'))
+
+    expect(screen.queryByTestId('copy-reply')).toBeNull()
+    expect(screen.queryByTestId('retry')).toBeNull()
+  })
+
+  it('has no Copy for a failed reply with no text, but can be retried', async () => {
+    await show(reply('', { error: 'The provider answered 500.' }), { turnText: '', onRetry: jest.fn() })
+
+    expect(screen.queryByTestId('copy-reply')).toBeNull()
+    expect(screen.getByTestId('retry')).toBeTruthy()
   })
 })

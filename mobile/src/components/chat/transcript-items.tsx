@@ -1,7 +1,8 @@
 import { useStore } from '@nanostores/react'
 import { memo, useEffect, useMemo, useState } from 'react'
+import * as Clipboard from 'expo-clipboard'
 import { Image, Pressable, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Button, Icon, Text } from 'react-native-paper'
+import { ActivityIndicator, Button, Icon, IconButton, Text } from 'react-native-paper'
 
 import type { DisplayItem } from '@/chat/activity'
 import type { AssistantItem, NoteItem, UserItem } from '@/chat/items'
@@ -229,7 +230,53 @@ function Media({ path }: { path: string }) {
   return mediaKind(path) === 'image' ? <MediaImage path={path} /> : <MediaChip path={path} />
 }
 
-function AssistantBubble({ item }: { item: AssistantItem }) {
+/** How long Copy shows its tick after copying. */
+const COPIED_MS = 1500
+
+/** Under a turn's last reply: Copy, for all the turn's reply text, and Retry for the session's last turn. */
+function TurnActions({ onRetry, text }: { onRetry?: () => void; text: string }) {
+  const { colors } = useHermesTheme()
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!copied) {
+      return
+    }
+
+    const timer = setTimeout(() => setCopied(false), COPIED_MS)
+
+    return () => clearTimeout(timer)
+  }, [copied])
+
+  return (
+    <View style={styles.turnActions}>
+      {text ? (
+        <IconButton
+          accessibilityLabel={t(copied ? 'common.copied' : 'common.copy')}
+          icon={copied ? 'check' : 'content-copy'}
+          iconColor={colors.onSurfaceVariant}
+          onPress={() => void Clipboard.setStringAsync(text).then(() => setCopied(true))}
+          size={18}
+          style={styles.turnAction}
+          testID="copy-reply"
+        />
+      ) : null}
+      {onRetry ? (
+        <IconButton
+          accessibilityLabel={t('common.retry')}
+          icon="refresh"
+          iconColor={colors.onSurfaceVariant}
+          onPress={onRetry}
+          size={18}
+          style={styles.turnAction}
+          testID="retry"
+        />
+      ) : null}
+    </View>
+  )
+}
+
+function AssistantBubble({ item, onRetry, turnText }: { item: AssistantItem; onRetry?: () => void; turnText?: string }) {
   const { colors } = useHermesTheme()
   const streaming = Boolean(item.streaming)
   const segments = useMemo(() => (item.text ? parseMediaSegments(item.text, { markdown: true, streaming }) : []), [item.text, streaming])
@@ -253,6 +300,7 @@ function AssistantBubble({ item }: { item: AssistantItem }) {
         </View>
       ) : null}
       {item.stopped ? <Label icon="stop-circle-outline" text={t('app.chat.stopped')} /> : null}
+      {turnText !== undefined ? <TurnActions onRetry={onRetry} text={turnText} /> : null}
     </View>
   )
 }
@@ -270,13 +318,22 @@ function Note({ item }: { item: NoteItem }) {
   )
 }
 
+interface TranscriptItemProps {
+  actions: OutboxActions
+  item: DisplayItem
+  /** Set on a turn's last reply: the turn's reply text, for Copy. */
+  turnText?: string
+  /** Set on the session's last turn once it has ended. */
+  onRetry?: () => void
+}
+
 /** One transcript item. Items are memoized, so only the one that changed redraws. */
-export const TranscriptItem = memo(function TranscriptItem({ actions, item }: { actions: OutboxActions; item: DisplayItem }) {
+export const TranscriptItem = memo(function TranscriptItem({ actions, item, onRetry, turnText }: TranscriptItemProps) {
   switch (item.kind) {
     case 'user':
       return <UserBubble actions={actions} item={item} />
     case 'assistant':
-      return <AssistantBubble item={item} />
+      return <AssistantBubble item={item} onRetry={onRetry} turnText={turnText} />
     case 'activity':
       return <ActivityBlock item={item} />
     case 'note':
@@ -310,6 +367,9 @@ const styles = StyleSheet.create({
   mediaPlaceholder: { alignItems: 'center', alignSelf: 'flex-start', borderRadius: 8, height: 120, justifyContent: 'center', marginVertical: space.step, width: 220 },
   note: { alignItems: 'center', flexDirection: 'row', gap: space.step * 2, paddingHorizontal: space.screen, paddingVertical: space.step },
   outboxRow: { alignItems: 'center', flexDirection: 'row', gap: space.step },
+  // Paper's IconButton has a 6 dp margin; the first button lines up with the reply's text.
+  turnAction: { margin: 0 },
+  turnActions: { flexDirection: 'row', gap: space.step, marginLeft: -8, marginTop: space.step },
   typing: { alignSelf: 'flex-start', marginVertical: space.step },
   userBubble: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, maxWidth: '85%', paddingHorizontal: space.screen, paddingVertical: space.listGap },
   userRow: { alignItems: 'flex-end', gap: 2, paddingHorizontal: space.screen, paddingVertical: space.step }
