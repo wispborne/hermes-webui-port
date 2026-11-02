@@ -1,3 +1,4 @@
+import { looksLikeSlashCommand } from '@hermes/shared/slash'
 import { useStore } from '@nanostores/react'
 import { FlashList, type FlashListRef } from '@shopify/flash-list'
 import { router } from 'expo-router'
@@ -15,6 +16,7 @@ import { $onScreen } from '@/background/wiring'
 import { AttachDialog, type AttachSource, PendingAttachments } from '@/components/chat/composer-attachments'
 import { ModelPicker } from '@/components/chat/model-picker'
 import { PromptCards } from '@/components/chat/prompt-cards'
+import { SlashSuggestions } from '@/components/chat/slash-suggestions'
 import { type OutboxActions, TranscriptItem } from '@/components/chat/transcript-items'
 import { OfflineBanner } from '@/components/offline-banner'
 import { sessionHeading } from '@/components/session-list-row'
@@ -38,6 +40,7 @@ import { loadAppSettings } from '@/storage/app-settings'
 import { $prompts } from '@/store/prompts'
 import { learnSessionModel } from '@/store/models'
 import { $sessionRows } from '@/store/sessions'
+import { runSlashCommand } from '@/store/slash'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
 
@@ -142,10 +145,34 @@ export function SessionScreen({ id }: SessionScreenProps) {
     discardAttachment(attachment)
   }
 
+  const runCommand = async (text: string) => {
+    const outcome = await runSlashCommand(key, text)
+
+    if (outcome.kind === 'new-session') {
+      router.replace({ pathname: '/session/[id]', params: { id: 'new' } })
+    } else if (outcome.kind === 'pick-model') {
+      setModelOpen(true)
+    } else if (outcome.kind === 'prefill') {
+      setDraft(outcome.text)
+    }
+
+    follow()
+  }
+
   const send = () => {
     const text = draft.trim()
 
-    if (text || pending.length) {
+    if (looksLikeSlashCommand(text)) {
+      // As on the desktop, a command doesn't go with photos or files.
+      if (pending.length) {
+        setNotice(t('desktop.slashCommandIgnoredBody'))
+
+        return
+      }
+
+      setDraft('')
+      void runCommand(text).catch((error: unknown) => console.warn('Could not run the command', error))
+    } else if (text || pending.length) {
       setDraft('')
       setPending([])
       void sendMessage(key, text, pending).then(follow)
@@ -228,6 +255,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
           )}
         </View>
         <PromptCards sessionKey={key} />
+        <SlashSuggestions draft={draft} onChoose={setDraft} sessionKey={key} />
         <PendingAttachments attachments={pending} onRemove={remove} />
         <View style={[styles.composer, { borderColor: colors.outline }]}>
           <IconButton

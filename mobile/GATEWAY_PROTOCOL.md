@@ -690,7 +690,24 @@ The desktop's model menu is the model (`apps/desktop/src/app/shell/model-catalog
 - **A new session:** pass `model` and `provider` to `session.create`. The desktop sends them only when the person picked a model; otherwise the gateway uses the profile's default.
 - **What the session uses:** the `info` in the `session.create` and `session.resume` answers has `model` and `provider`, and every `session.info` event carries them again, including after a switch that waited for the next turn.
 
-## 16. Not covered here
+## 16. Slash commands
+
+The desktop's `apps/desktop/src/app/session/hooks/use-prompt-actions/slash.ts` is the model. `@hermes/shared/slash` has the parser (`parseSlashCommand`, `looksLikeSlashCommand`) and `parseCommandDispatch`.
+
+- **Suggestions:** `complete.slash` with `{text, session_id?}` while the message box starts with `/`. Each item has `text`, `display` and `meta` (the description). Past the command's name, `replace_from` says where the item's `text` goes in what was typed, for an argument.
+- **On the phone:** `/new` (and `/reset`, `/clear`) start a new session, `/model` with nothing after it opens the model list, and `/stop` stops the turn. Nothing is sent.
+- **A session the gateway has:** `slash.exec` with `{session_id, command: "<name> <arg>"}`, without the `/`. A plain answer has `output` and maybe `warning`. If `slash.exec` fails, send `command.dispatch` with `{session_id, name, arg}` instead.
+- **A new session:** `command.dispatch` with `{name, arg}` and no session.
+- **Answers that say what to do** (from either method, by `type`):
+  - `exec` or `plugin`: show `output`.
+  - `alias`: run `/<target> <arg>` instead.
+  - `send` or `skill`: send `message` as the person's message, but show `display` (what was typed). `message` can be a skill's instructions, which the desktop never shows. `send` can have a `notice` to show first.
+  - `prefill`: put `message` in the message box to edit, and show `notice`.
+- A command doesn't go with photos or files. The desktop refuses the send.
+
+Output shows in the transcript as a note under the command. Notes are the phone's own: they aren't in the gateway's transcript.
+
+## 17. Not covered here
 
 - The canonical protocol (`hermes-gateway-v1`, `session.mutate`, `execution_generation`). The desktop uses it only on its private local connection.
 - Profiles beyond the default one. Most methods take an optional `profile`, and REST routes take `?profile=`.

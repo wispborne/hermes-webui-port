@@ -341,6 +341,20 @@ function AssistantBubble({ item, onRetry, turnText }: { item: AssistantItem; onR
 function Note({ item }: { item: NoteItem }) {
   const { colors } = useHermesTheme()
 
+  if (item.command) {
+    // A slash command's output: the command, then its output as the gateway wrote it.
+    return (
+      <View style={[styles.commandNote, { backgroundColor: colors.surfaceVariant }]} testID="command-output">
+        <Text style={[styles.commandName, { color: item.tone === 'error' ? colors.error : colors.onSurfaceVariant }]} variant="labelMedium">
+          {item.command}
+        </Text>
+        <Text selectable style={[styles.commandText, { color: item.tone === 'error' ? colors.error : colors.onSurface }]}>
+          {item.text}
+        </Text>
+      </View>
+    )
+  }
+
   return (
     <View style={styles.note}>
       <Icon color={item.tone === 'error' ? colors.error : colors.onSurfaceVariant} size={14} source={item.tone === 'error' ? 'alert-circle' : 'information'} />
@@ -398,6 +412,9 @@ const styles = StyleSheet.create({
   mediaFrameLoading: { height: 260 },
   mediaImage: { flex: 1 },
   mediaPlaceholder: { alignItems: 'center', alignSelf: 'flex-start', borderRadius: 8, height: 120, justifyContent: 'center', marginVertical: space.step, width: 220 },
+  commandName: { fontFamily: 'monospace' },
+  commandNote: { borderRadius: 8, gap: space.step, marginHorizontal: space.screen, marginVertical: space.step, padding: space.listGap },
+  commandText: { fontFamily: 'monospace', fontSize: 12, lineHeight: 17 },
   note: { alignItems: 'center', flexDirection: 'row', gap: space.step * 2, paddingHorizontal: space.screen, paddingVertical: space.step },
   outboxRow: { alignItems: 'center', flexDirection: 'row', gap: space.step },
   sentImage: { borderRadius: 8, height: 160, marginVertical: space.step, width: 160 },

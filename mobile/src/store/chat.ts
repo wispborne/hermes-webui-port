@@ -173,8 +173,8 @@ let resuming = 0
 export const isResuming = () => resuming > 0
 
 /** Adds a note to a session's transcript, such as the timed-out note. */
-export function addNote(key: string, text: string, tone: 'error' | 'info' = 'info') {
-  update(key, state => ({ ...state, items: [...state.items, { kind: 'note', key: newKey('note'), text, tone }] }))
+export function addNote(key: string, text: string, tone: 'error' | 'info' = 'info', command?: string) {
+  update(key, state => ({ ...state, items: [...state.items, { kind: 'note', key: newKey('note'), text, tone, ...(command ? { command } : {}) }] }))
   void persist(key)
 }
 
@@ -591,8 +591,9 @@ export async function loadEarlier(key: string) {
  * Sends a message. It's saved in the outbox first and shown at once; the
  * outbox sends it now if the gateway can be reached, or when it can.
  */
-export function sendMessage(key: string, text: string, attachments: Attachment[] = []) {
-  return queueMessage(key, text, false, attachments)
+/** `shown` is what the message shows instead of `text`, such as the skill command that `text` came from. */
+export function sendMessage(key: string, text: string, attachments: Attachment[] = [], shown?: string) {
+  return queueMessage(key, text, false, attachments, shown)
 }
 
 /**
@@ -612,7 +613,7 @@ export async function retryTurn(key: string) {
   }
 }
 
-async function queueMessage(key: string, text: string, retry: boolean, attachments: Attachment[] = []) {
+async function queueMessage(key: string, text: string, retry: boolean, attachments: Attachment[] = [], shown?: string) {
   const gateway = gatewayOrThrow()
   const entry: OutboxEntry = {
     id: newKey('out'),
@@ -632,7 +633,8 @@ async function queueMessage(key: string, text: string, retry: boolean, attachmen
       {
         kind: 'user',
         key: `outbox-${entry.id}`,
-        text,
+        text: shown ?? text,
+        ...(shown !== undefined && shown !== text ? { sentText: text } : {}),
         outboxId: entry.id,
         state: 'waiting',
         ...(attachments.length ? { attachments } : {}),

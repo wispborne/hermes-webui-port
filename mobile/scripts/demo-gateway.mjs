@@ -397,6 +397,17 @@ const MODEL_PROVIDERS = [
   { slug: 'openrouter', name: 'OpenRouter', authenticated: true, models: ['openai/gpt-5', 'openai/gpt-5-mini', 'google/gemini-2.5-pro', 'meta/llama-old'], unavailable_models: ['meta/llama-old'] },
   { slug: 'openai', name: 'OpenAI', authenticated: false, models: ['gpt-5'] }
 ]
+// What complete.slash offers: name, description, kind.
+const SLASH_COMMANDS = [
+  ['help', 'List the commands', 'command'],
+  ['status', 'Show the session', 'command'],
+  ['title', 'Rename the session', 'command'],
+  ['undo', 'Take back the last message', 'command'],
+  ['memory', 'Pending memories', 'command'],
+  ['model', 'Switch the model', 'command'],
+  ['new', 'Start a new session', 'command'],
+  ['work', 'Plan a task and do it', 'skill']
+]
 const DEFAULT_MODEL = { model: 'claude-sonnet-4-5', provider: 'anthropic' }
 const EXPENSIVE_MODELS = new Set(['claude-opus-4-1'])
 
@@ -961,6 +972,50 @@ function handleRpc(client, frame) {
       const entry = live.get(params.session_id)
 
       return reply({ approvals: [...(entry?.pending.values() ?? [])].filter(p => p.method === 'approval').map(p => p.params) })
+    }
+
+    case 'complete.slash': {
+      // Commands by name for "/he"; past the name, no argument suggestions.
+      const typed = String(params.text ?? '')
+
+      if (/\s/.test(typed)) {
+        return reply({ items: [], replace_from: typed.length })
+      }
+
+      const items = SLASH_COMMANDS.filter(([name]) => name.startsWith(typed.slice(1).toLowerCase())).map(([name, meta, kind]) => ({ text: `/${name}`, display: `/${name}`, meta, kind }))
+
+      return reply({ items, replace_from: 0 })
+    }
+
+    case 'slash.exec': {
+      const entry = live.get(params.session_id)
+      const [name, ...rest] = String(params.command ?? '').trim().split(/\s+/)
+      const arg = rest.join(' ')
+      console.log(`slash.exec /${name} ${arg}`)
+
+      switch (name) {
+        case 'help':
+          return reply({ output: SLASH_COMMANDS.map(([command, meta]) => `/${command.padEnd(10)} ${meta}`).join('\n') })
+        case 'status':
+          return reply({ output: `Session ${entry?.storedId ?? '?'}\nModel: ${entry?.model.model ?? '?'}\nRunning: ${entry?.running ? 'yes' : 'no'}` })
+        case 'title':
+          if (entry && arg) {
+            sessions.get(entry.storedId).title = arg
+            emit(entry, 'session.title', { title: arg })
+          }
+
+          return reply(arg ? { output: `Title set to "${arg}".` } : { output: 'Usage: /title <new title>', warning: 'No title given.' })
+        case 'work':
+          return reply({ type: 'skill', name: 'work', display: `/work ${arg}`.trim(), message: `[The work skill's instructions]\n\nTask: ${arg || 'none given'}` })
+        case 'undo': {
+          const rows = transcripts.get(entry?.storedId) ?? []
+          const lastUser = [...rows].reverse().find(row => row.role === 'user')
+
+          return reply({ type: 'prefill', message: lastUser?.content ?? '', notice: 'Removed the last turn. Edit the message and send it again.' })
+        }
+        default:
+          return fail(4018, `unknown command: /${name}`)
+      }
     }
 
     case 'command.dispatch': {

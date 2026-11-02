@@ -224,11 +224,16 @@
     "stop": "Stop"
   },
   "desktop": {
+    "emptySlashCommand": "empty slash command",
     "modelSwitchConfirmLabel": "Switch anyway",
     "modelSwitchConfirmTitle": "Switch to {model}?",
     "modelSwitchConfirmTitleFallback": "Switch models?",
     "modelSwitchFailed": "Model switch failed",
-    "modelSwitchKeepLabel": "Keep current model"
+    "modelSwitchKeepLabel": "Keep current model",
+    "sessionUnavailable": "Session unavailable",
+    "slashCommandIgnoredBody": "Slash commands cannot be combined with attachments. Remove the attachment or send the command separately.",
+    "slashCommandIgnoredTitle": "Command not sent",
+    "warningLine": "warning: {message}"
   },
   "modelPicker": {
     "title": "Switch model",

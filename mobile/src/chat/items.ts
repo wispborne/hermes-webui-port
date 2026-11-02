@@ -25,6 +25,8 @@ export interface UserItem {
   attachments?: Attachment[]
   /** Sending failed with the gateway reachable, for example because the session was deleted. */
   sendFailed?: boolean
+  /** What went to Hermes, when it isn't `text`: a skill command shows "/work fix the leak" and sends the skill's instructions. */
+  sentText?: string
 }
 
 export interface AssistantItem {
@@ -63,6 +65,8 @@ export interface NoteItem {
   key: string
   text: string
   tone?: 'error' | 'info'
+  /** A slash command's output: the command, such as "/help", shown above `text`. */
+  command?: string
 }
 
 export type ChatItem = UserItem | AssistantItem | ToolItem | NoteItem
@@ -83,7 +87,7 @@ export function lastTurnMessage(items: ChatItem[]): string | null {
 
   const asked = items.findLast(item => item.kind === 'user')
 
-  return asked ? asked.text : null
+  return asked ? (asked.sentText ?? asked.text) : null
 }
 
 /** Text from a gateway field that may be a string, a list of parts, or something else. */

@@ -70,6 +70,10 @@ export const appStrings = {
     result: 'Result',
     changes: 'Changes'
   },
+  slash: {
+    noOutput: '{command}: no output',
+    skillEmpty: '{command}: the skill sent nothing to run.'
+  },
   approval: {
     // The desktop's line (assistant.approval.timedOutSystemLine) goes on to
     // point at desktop Settings, which the app doesn't have.
