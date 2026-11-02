@@ -1,3 +1,4 @@
+import type { NotificationKind } from '@/storage/app-settings'
 import type { ApprovalCard, QuestionCard, SessionPrompts } from '@/store/prompts'
 
 import { type NotificationContent, type NotificationContext, Notifications } from './notifications'
@@ -22,12 +23,15 @@ const question: QuestionCard = {
 
 const prompts = (approvals: ApprovalCard[], q: QuestionCard | null = null): SessionPrompts => ({ approvals, question: q })
 
-function setup() {
+function setup(off: NotificationKind[] = []) {
   const shown = new Map<string, NotificationContent>()
-  const notifications = new Notifications({
-    show: (id, content) => void shown.set(id, content),
-    dismiss: id => void shown.delete(id)
-  })
+  const notifications = new Notifications(
+    {
+      show: (id, content) => void shown.set(id, content),
+      dismiss: id => void shown.delete(id)
+    },
+    kind => !off.includes(kind)
+  )
 
   return { notifications, shown }
 }
@@ -106,6 +110,26 @@ describe('notifications', () => {
 
     notifications.turnEnded('s1', true, offScreen)
     expect(shown.get('finished:s1')).toMatchObject({ title: 'Turn failed' })
+  })
+})
+
+describe('notification choices', () => {
+  it('raises only the kinds the person left on', () => {
+    const { notifications, shown } = setup(['approval', 'turnDone'])
+
+    notifications.promptsChanged('s1', prompts([approval('a1')], question), offScreen)
+    notifications.turnEnded('s1', false, offScreen)
+    expect([...shown.keys()]).toEqual(['question:req-q'])
+
+    notifications.turnEnded('s1', true, offScreen)
+    expect(shown.get('finished:s1')).toMatchObject({ title: 'Turn failed' })
+  })
+
+  it('leaves out "Input needed" for watched sessions when input is off', () => {
+    const { notifications, shown } = setup(['input'])
+
+    notifications.sessionWaiting('s9', 'Garden')
+    expect(shown.size).toBe(0)
   })
 })
 

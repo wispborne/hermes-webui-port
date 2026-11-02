@@ -676,6 +676,26 @@
       "vault": "Passwords & Logins",
       "plugins": "Plugins"
     },
+    "notifications": {
+      "kinds": {
+        "approval": {
+          "label": "Approval needed",
+          "description": "A command is waiting for you to approve or reject it."
+        },
+        "input": {
+          "label": "Input needed",
+          "description": "Hermes asked a question or needs a password or secret."
+        },
+        "turnDone": {
+          "label": "Response ready",
+          "description": "A turn finished while Hermes was in the background."
+        },
+        "turnError": {
+          "label": "Turn failed",
+          "description": "Background turn errors."
+        }
+      }
+    },
     "sections": {
       "model": "Model",
       "chat": "Chat",

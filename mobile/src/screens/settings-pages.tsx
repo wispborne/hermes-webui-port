@@ -17,6 +17,7 @@ import { BUILT_FOR_HERMES_VERSION } from '@/gateway/built-for-version'
 import { checkGateway } from '@/gateway/status'
 import { t } from '@/i18n/t'
 import { $auth, $gateway, signOut } from '@/store/gateway'
+import { loadAppSettings, NOTIFICATION_KINDS, saveAppSettings } from '@/storage/app-settings'
 import { space } from '@/theme/compact'
 
 export function AppearancePage() {
@@ -39,6 +40,7 @@ function toggleKeepConnected(on: boolean) {
 export function NotificationsPage() {
   const keepConnected = useStore($keepConnected)
   const batteryRestricted = useStore($batteryRestricted)
+  const [notify, setNotify] = useState(() => loadAppSettings().notify ?? {})
 
   return (
     <SettingsPage title={t('settings.nav.notifications')}>
@@ -57,6 +59,26 @@ export function NotificationsPage() {
           title={t('app.background.batteryTitle')}
         />
       ) : null}
+      <List.Subheader>{t('app.background.notifyAbout')}</List.Subheader>
+      {NOTIFICATION_KINDS.map(kind => {
+        const on = notify[kind] !== false
+        const toggle = () => {
+          const next = { ...notify, [kind]: !on }
+          saveAppSettings({ notify: next })
+          setNotify(next)
+        }
+
+        return (
+          <List.Item
+            description={t(`settings.notifications.kinds.${kind}.description`)}
+            descriptionNumberOfLines={2}
+            key={kind}
+            onPress={toggle}
+            right={() => <Switch onValueChange={toggle} testID={`notify-${kind}`} value={on} />}
+            title={t(`settings.notifications.kinds.${kind}.label`)}
+          />
+        )
+      })}
     </SettingsPage>
   )
 }

@@ -23,7 +23,14 @@ export interface AppSettings {
   accent?: string | null
   /** Sessions: scheduled job deliveries are left out of the list. */
   hideScheduled?: boolean
+  /** Notifications: the kinds turned off. Every kind is on unless turned off. */
+  notify?: Partial<Record<NotificationKind, boolean>>
 }
+
+/** The notifications the phone raises, named as the desktop's settings name them. */
+export type NotificationKind = 'approval' | 'input' | 'turnDone' | 'turnError'
+
+export const NOTIFICATION_KINDS: readonly NotificationKind[] = ['approval', 'input', 'turnDone', 'turnError']
 
 export type ColorMode = 'light' | 'dark' | 'system'
 
@@ -53,7 +60,8 @@ const KEYS = {
   colorMode: 'color_mode',
   themeName: 'theme_name',
   accent: 'accent',
-  hideScheduled: 'hide_scheduled'
+  hideScheduled: 'hide_scheduled',
+  notify: 'notify_off'
 } as const
 
 export function loadAppSettings(): AppSettings {
@@ -68,12 +76,19 @@ export function loadAppSettings(): AppSettings {
     colorMode: COLOR_MODES.find(mode => mode === read('colorMode')) ?? 'system',
     themeName: read('themeName'),
     accent: read('accent'),
-    hideScheduled: read('hideScheduled') === 'true'
+    hideScheduled: read('hideScheduled') === 'true',
+    notify: Object.fromEntries((read('notify') ?? '').split(',').filter(kind => NOTIFICATION_KINDS.includes(kind as NotificationKind)).map(kind => [kind, false]))
   }
 }
 
 export function saveAppSettings(settings: Partial<AppSettings>) {
-  for (const [name, value] of Object.entries(settings) as [keyof AppSettings, string | boolean | null | undefined][]) {
+  for (const [name, setting] of Object.entries(settings) as [keyof AppSettings, AppSettings[keyof AppSettings]][]) {
+    // The kinds turned off are kept as a list, such as "turnDone,turnError".
+    const value =
+      typeof setting === 'object' && setting !== null
+        ? NOTIFICATION_KINDS.filter(kind => (setting as Record<string, boolean>)[kind] === false).join(',')
+        : setting
+
     if (value === undefined) {
       continue
     }

@@ -99,7 +99,8 @@ export const appStrings = {
     batteryWhy:
       'To stay connected while the phone is idle, Android has to let Hermes run without battery restrictions. On the next screen, choose Allow.',
     batteryDeclined: 'Battery restrictions are on, so the connection may drop while the phone is idle.',
-    notNow: 'Not now'
+    notNow: 'Not now',
+    notifyAbout: 'Notify me about'
   },
   connection: {
     connecting: 'Connecting to the gateway…'

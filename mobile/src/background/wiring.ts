@@ -95,7 +95,7 @@ const notifier = {
   }
 }
 
-const notifications = new Notifications(notifier)
+const notifications = new Notifications(notifier, kind => loadAppSettings().notify?.[kind] !== false)
 
 function context(key: string) {
   const chat = chatStore(key).get()

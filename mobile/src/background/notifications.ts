@@ -9,9 +9,11 @@
 // - "Input needed — {session}", without buttons, for a session the phone isn't
 //   attached to that has been waiting (see watch.ts). Removed when it stops
 //   waiting or is opened.
-// Nothing is raised for the session on screen.
+// Nothing is raised for the session on screen, or for a kind the person
+// turned off in Settings > Notifications.
 
 import { t } from '@/i18n/t'
+import type { NotificationKind } from '@/storage/app-settings'
 import type { SessionPrompts } from '@/store/prompts'
 
 export const CHANNELS = { needsInput: 'needs-input', finished: 'finished' } as const
@@ -51,7 +53,11 @@ export class Notifications {
   /** Notification ids shown for each session's cards, with whether they had Run and Reject buttons. */
   private readonly shown = new Map<string, Map<string, boolean>>()
 
-  constructor(private readonly notifier: Notifier) {}
+  constructor(
+    private readonly notifier: Notifier,
+    /** Whether the person wants this kind of notification. */
+    private readonly wants: (kind: NotificationKind) => boolean = () => true
+  ) {}
 
   /** Shows or removes the card notifications of one session. */
   promptsChanged(key: string, prompts: SessionPrompts, context: NotificationContext) {
@@ -62,7 +68,7 @@ export class Notifications {
       const url = sessionUrl(context.storedId)
       const approval = prompts.approvals[0]
 
-      if (approval) {
+      if (approval && this.wants('approval')) {
         wanted.set(`approval:${approval.approvalId}`, {
           title: named('approvalTitleNamed', 'approvalTitle', context.title),
           body: approval.command || approval.description,
@@ -73,7 +79,7 @@ export class Notifications {
         })
       }
 
-      if (prompts.question) {
+      if (prompts.question && this.wants('input')) {
         wanted.set(`question:${prompts.question.requestId}`, {
           title: named('inputTitleNamed', 'inputTitle', context.title),
           body: prompts.question.questions[0]?.question ?? t('notifications.native.inputBody'),
@@ -104,7 +110,7 @@ export class Notifications {
 
   /** A turn ended. Raises "Hermes finished" only when the app isn't on screen. */
   turnEnded(key: string, failed: boolean, context: NotificationContext) {
-    if (context.appActive || !context.storedId) {
+    if (context.appActive || !context.storedId || !this.wants(failed ? 'turnError' : 'turnDone')) {
       return
     }
 
@@ -127,6 +133,10 @@ export class Notifications {
 
   /** A session the phone isn't attached to has been waiting. Tapping it opens the session. */
   sessionWaiting(storedId: string, title: string | null) {
+    if (!this.wants('input')) {
+      return
+    }
+
     const url = sessionUrl(storedId)
 
     this.notifier.show(`waiting:${storedId}`, {
