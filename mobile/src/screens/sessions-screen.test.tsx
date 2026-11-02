@@ -6,6 +6,7 @@ import type { ReactElement } from 'react'
 import { PaperProvider } from 'react-native-paper'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
+import { loadAppSettings } from '@/storage/app-settings'
 import { hermesTheme } from '@/theme/theme'
 
 import type { FakeRestCall } from '../../test/fake-rest'
@@ -28,6 +29,7 @@ const metrics = { frame: { x: 0, y: 0, width: 400, height: 800 }, insets: { top:
 interface Row {
   id: string
   title: string | null
+  preview?: string
   pinned: boolean
   archived?: boolean
   last_active: number
@@ -101,6 +103,10 @@ describe('the Sessions screen', () => {
     expect(router.push).not.toHaveBeenCalled()
   })
 
+  it('has no Hide scheduled chip when no session is a scheduled delivery', () => {
+    expect(screen.queryByTestId('hide-scheduled')).toBeNull()
+  })
+
   it('pins a session, which then shows first with a pin', async () => {
     longPress('s3')
     fireEvent.press(await screen.findByText('Pin'))
@@ -158,6 +164,42 @@ describe('the Sessions screen', () => {
     fireEvent.press(await screen.findByText('Pin'))
 
     expect(await screen.findByText("Couldn't pin the session.")).toBeTruthy()
+  })
+})
+
+describe('scheduled job deliveries', () => {
+  beforeEach(async () => {
+    rows.push({
+      id: 'c1',
+      title: null,
+      preview: '[Cron delivery: USC daily digest] **USC digest — Friday**',
+      pinned: false,
+      last_active: 50,
+      started_at: 1,
+      message_count: 1,
+      source: 'gui'
+    })
+    await show(<SessionsScreen />)
+    await screen.findByTestId('session-row-c1')
+  })
+
+  it('shows the job name with a clock, and the message without Markdown marks', () => {
+    expect(screen.getByText('USC daily digest')).toBeTruthy()
+    expect(screen.getByText('USC digest — Friday')).toBeTruthy()
+    expect(screen.getByTestId('scheduled-c1')).toBeTruthy()
+  })
+
+  it('hides them with the Hide scheduled chip, and remembers the choice', async () => {
+    fireEvent.press(screen.getByTestId('hide-scheduled'))
+
+    await waitFor(() => expect(screen.queryByTestId('session-row-c1')).toBeNull())
+    expect(rowOrder()).toEqual(['s1', 's2', 's3'])
+    expect(loadAppSettings().hideScheduled).toBe(true)
+
+    fireEvent.press(screen.getByTestId('hide-scheduled'))
+
+    await screen.findByTestId('session-row-c1')
+    expect(loadAppSettings().hideScheduled).toBe(false)
   })
 })
 

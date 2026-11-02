@@ -21,6 +21,8 @@ export interface AppSettings {
   themeName?: string | null
   /** Appearance: a desktop accent swatch id, or null for the theme's own accent. */
   accent?: string | null
+  /** Sessions: scheduled job deliveries are left out of the list. */
+  hideScheduled?: boolean
 }
 
 export type ColorMode = 'light' | 'dark' | 'system'
@@ -50,7 +52,8 @@ const KEYS = {
   backgroundAsked: 'background_asked',
   colorMode: 'color_mode',
   themeName: 'theme_name',
-  accent: 'accent'
+  accent: 'accent',
+  hideScheduled: 'hide_scheduled'
 } as const
 
 export function loadAppSettings(): AppSettings {
@@ -64,7 +67,8 @@ export function loadAppSettings(): AppSettings {
     backgroundAsked: read('backgroundAsked') === 'true',
     colorMode: COLOR_MODES.find(mode => mode === read('colorMode')) ?? 'system',
     themeName: read('themeName'),
-    accent: read('accent')
+    accent: read('accent'),
+    hideScheduled: read('hideScheduled') === 'true'
   }
 }
 

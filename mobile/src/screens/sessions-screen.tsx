@@ -2,7 +2,7 @@ import { useStore } from '@nanostores/react'
 import { router, useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Appbar, Badge, FAB, Searchbar, Text } from 'react-native-paper'
+import { ActivityIndicator, Appbar, Badge, Chip, FAB, Searchbar, Text } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { OfflineBanner } from '@/components/offline-banner'
@@ -11,6 +11,8 @@ import { SessionListRow } from '@/components/session-list-row'
 import type { SessionRow } from '@/gateway/sessions-api'
 import { useConnectionStatus } from '@/hooks/use-connection-status'
 import { t } from '@/i18n/t'
+import { describeSession } from '@/lib/session-text'
+import { loadAppSettings, saveAppSettings } from '@/storage/app-settings'
 import { $gateway } from '@/store/gateway'
 import { $pendingMemoryCount, keepMemoryCountCurrent } from '@/store/memory-review'
 import {
@@ -108,8 +110,22 @@ export function SessionsScreen() {
   }, [])
 
   const open = useCallback((row: SessionRow) => router.push({ pathname: '/session/[id]', params: { id: row.id } }), [])
-  const ordered = useMemo(() => orderSessions(rows, markers), [rows, markers])
+  const [hideScheduled, setHideScheduled] = useState(() => loadAppSettings().hideScheduled === true)
+  const anyScheduled = useMemo(() => rows.some(row => describeSession(row).scheduled), [rows])
+  // Hiding scheduled deliveries never hides one that needs input.
+  const ordered = useMemo(
+    () =>
+      orderSessions(rows, markers).filter(
+        row => !hideScheduled || markers[row.id] === 'needs-input' || !describeSession(row).scheduled
+      ),
+    [hideScheduled, rows, markers]
+  )
   const shown = result ? result.rows : ordered
+
+  const toggleScheduled = () => {
+    saveAppSettings({ hideScheduled: !hideScheduled })
+    setHideScheduled(!hideScheduled)
+  }
   const [menu, setMenu] = useState<SessionRow | null>(null)
   const openMenu = useCallback((row: SessionRow) => setMenu(row), [])
   const searchingText = query.trim()
@@ -153,6 +169,20 @@ export function SessionsScreen() {
           testID="session-search"
           value={query}
         />
+        {!result && (anyScheduled || hideScheduled) ? (
+          <Chip
+            compact
+            icon={hideScheduled ? 'check' : 'clock-outline'}
+            mode="outlined"
+            onPress={toggleScheduled}
+            selected={hideScheduled}
+            showSelectedOverlay
+            style={styles.chip}
+            testID="hide-scheduled"
+          >
+            {t('app.sessions.hideScheduled')}
+          </Chip>
+        ) : null}
         {result?.savedOnly ? (
           <Text style={[styles.note, { color: colors.onSurfaceVariant }]} testID="saved-only-note" variant="bodySmall">
             {t('app.sessions.savedOnlySearch')}
@@ -192,6 +222,7 @@ const FAB_CLEARANCE = 56 + space.screen * 2
 
 const styles = StyleSheet.create({
   badge: { position: 'absolute', right: 6, top: 6 },
+  chip: { alignSelf: 'flex-start', marginTop: space.step },
   empty: { padding: space.screen },
   fab: { bottom: space.screen * 2, position: 'absolute', right: space.screen },
   fill: { flex: 1 },

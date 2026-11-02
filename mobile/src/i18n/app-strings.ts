@@ -46,7 +46,9 @@ export const appStrings = {
     undo: 'Undo',
     archiveFailed: "Couldn't archive the session.",
     unarchiveFailed: "Couldn't unarchive the session.",
-    noArchived: 'No archived sessions.'
+    noArchived: 'No archived sessions.',
+    scheduled: 'Scheduled',
+    hideScheduled: 'Hide scheduled'
   },
   chat: {
     queued: 'Queued',

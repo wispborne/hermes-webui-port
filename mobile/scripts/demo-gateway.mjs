@@ -283,6 +283,17 @@ addSession({
   ]
 })
 
+// Scheduled job deliveries: no title, and a preview that starts with the
+// delivery line, as the real gateway lists them.
+for (const [job, message, ageMinutes] of [
+  ['USC daily digest', '**USC digest — Sunday**\n- 3 new issues\n- 1 release', 60 * 3],
+  ['morning-briefing', '## Morning Brief — Sunday\nRain after 3 pm.', 60 * 9]
+]) {
+  const text = `[Cron delivery: ${job}] ${message}`
+
+  addSession({ title: null, preview: text, ageMinutes, messages: [['assistant', text]] })
+}
+
 // ---------------------------------------------------------------- live sessions
 
 /** runtime id -> { runtimeId, storedId, seq, events, running, status, clients:Set, pending:Map, cancel } */

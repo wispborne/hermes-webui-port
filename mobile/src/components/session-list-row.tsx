@@ -5,12 +5,13 @@ import { ActivityIndicator, Icon, Text } from 'react-native-paper'
 import type { SessionMarker, SessionRow } from '@/gateway/sessions-api'
 import { t } from '@/i18n/t'
 import { relativeTime } from '@/lib/relative-time'
+import { describeSession } from '@/lib/session-text'
 import { ROW_HEIGHT, space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
 
-/** The row's heading: the title, or the start of the preview when there is none yet. */
+/** The row's heading: the title, a scheduled job's name, or the start of the first message. */
 export function sessionHeading(row: SessionRow): string {
-  return row.title ?? row.preview?.split('\n')[0]?.slice(0, 80) ?? t('sidebar.row.untitledPlaceholder')
+  return describeSession(row).heading
 }
 
 interface Props {
@@ -24,8 +25,7 @@ interface Props {
 /** One session in the list: title, preview, when it was last active, and its marker. */
 export const SessionListRow = memo(function SessionListRow({ marker, onLongPress, onPress, row }: Props) {
   const { colors } = useHermesTheme()
-  const heading = sessionHeading(row)
-  const preview = row.title ? row.preview : null
+  const { heading, preview, scheduled } = describeSession(row)
 
   return (
     <Pressable
@@ -38,6 +38,11 @@ export const SessionListRow = memo(function SessionListRow({ marker, onLongPress
     >
       <View style={styles.text}>
         <View style={styles.heading}>
+          {scheduled ? (
+            <View accessibilityLabel={t('app.sessions.scheduled')} testID={`scheduled-${row.id}`}>
+              <Icon color={colors.onSurfaceVariant} size={14} source="clock-outline" />
+            </View>
+          ) : null}
           {row.pinned ? (
             <View accessibilityLabel={t('app.sessions.pinned')} testID={`pinned-${row.id}`}>
               <Icon color={colors.onSurfaceVariant} size={14} source="pin" />
