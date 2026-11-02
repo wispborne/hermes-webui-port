@@ -2,7 +2,8 @@
 // works out Android's version number from the version.
 //
 // APP_VARIANT=development (set by `npm run android`) makes "Hermes Dev", with
-// its own app ID, so it installs next to the release app instead of replacing it.
+// its own app ID, so it installs next to the release app instead of replacing it,
+// and an amber icon, so the two can be told apart.
 
 import type { ConfigContext, ExpoConfig } from 'expo/config'
 
@@ -49,7 +50,13 @@ export function configFor(config: ExpoConfig, variant: string | undefined): Expo
     ...config,
     name: `${config.name} Dev`,
     scheme: `${config.scheme}-dev`,
-    android: { ...config.android, versionCode, package: `${config.android?.package}${DEV_SUFFIX}` },
+    icon: './assets/icon-dev.png',
+    android: {
+      ...config.android,
+      versionCode,
+      package: `${config.android?.package}${DEV_SUFFIX}`,
+      adaptiveIcon: { ...config.android?.adaptiveIcon, backgroundColor: '#FFD666', backgroundImage: './assets/android-icon-background-dev.png' }
+    },
     ios: { ...config.ios, bundleIdentifier: `${config.ios?.bundleIdentifier}${DEV_SUFFIX}` }
   }
 }

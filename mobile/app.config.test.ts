@@ -46,6 +46,9 @@ describe('configFor', () => {
     expect(config.name).toBe('Hermes Dev')
     expect(config.android?.package).toBe('com.wispborne.hermes.dev')
     expect(config.scheme).toBe('hermes-dev')
+    expect(config.icon).toBe('./assets/icon-dev.png')
+    expect(config.android?.adaptiveIcon?.backgroundImage).toBe('./assets/android-icon-background-dev.png')
+    expect(config.android?.adaptiveIcon?.foregroundImage).toBe(base.android?.adaptiveIcon?.foregroundImage)
     expect(config.android?.versionCode).toBe(versionCodeFor(base.version!))
   })
 
