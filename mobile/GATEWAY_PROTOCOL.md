@@ -350,6 +350,14 @@ While any client is attached, the server never unloads the session. The mobile a
 
 `session.title` (read or set the title), `session.archive`, `session.delete`, `session.history` (the saved transcript, with row ids).
 
+**Rename, pin and delete over REST**, as the desktop's session list does (`apps/desktop/src/api/sessions.ts`):
+
+1. `GET /api/sessions/<stored id>/mutation-snapshot` answers `{session_id, exists, runtime_revision, runtime_generation}`.
+2. `PATCH /api/sessions/<stored id>` with `{title}` or `{pinned}` renames or pins. `DELETE /api/sessions/<stored id>` deletes.
+3. Send `request_id` (a new UUID), `expected_revision` (the snapshot's `runtime_revision`) and `expected_generation` (its `runtime_generation`) with the edit: in the JSON body for PATCH, in the query for DELETE. The gateway refuses the edit with `revision_conflict` if the session changed since the snapshot.
+
+`createSessionMutationClient` in `apps/shared/src/session-http-mutations.ts` does steps 1 and 3. A gateway with no snapshot route answers it 404, and takes the edit without the three fields. The list rows carry `pinned`.
+
 ## 7. Sending a message
 
 ```json

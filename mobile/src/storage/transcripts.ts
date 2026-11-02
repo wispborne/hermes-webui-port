@@ -96,3 +96,11 @@ export async function markOpened(db: GatewayDatabase, sessionId: string, now = D
 
   return dropped
 }
+
+/** Forgets a session's saved transcript, after the session was deleted. */
+export async function deleteTranscript(db: GatewayDatabase, sessionId: string) {
+  await db.withExclusiveTransactionAsync(async txn => {
+    await txn.runAsync('DELETE FROM messages WHERE session_id = ?', sessionId)
+    await txn.runAsync('DELETE FROM opened_sessions WHERE session_id = ?', sessionId)
+  })
+}

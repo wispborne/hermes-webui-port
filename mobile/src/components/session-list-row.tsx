@@ -17,10 +17,12 @@ interface Props {
   row: SessionRow
   marker: SessionMarker | null
   onPress: (row: SessionRow) => void
+  /** Opens the session's actions. */
+  onLongPress?: (row: SessionRow) => void
 }
 
 /** One session in the list: title, preview, when it was last active, and its marker. */
-export const SessionListRow = memo(function SessionListRow({ marker, onPress, row }: Props) {
+export const SessionListRow = memo(function SessionListRow({ marker, onLongPress, onPress, row }: Props) {
   const { colors } = useHermesTheme()
   const heading = sessionHeading(row)
   const preview = row.title ? row.preview : null
@@ -29,14 +31,22 @@ export const SessionListRow = memo(function SessionListRow({ marker, onPress, ro
     <Pressable
       accessibilityRole="button"
       android_ripple={{ color: colors.surfaceVariant }}
+      onLongPress={onLongPress ? () => onLongPress(row) : undefined}
       onPress={() => onPress(row)}
       style={styles.row}
       testID={`session-row-${row.id}`}
     >
       <View style={styles.text}>
-        <Text numberOfLines={1} variant="titleMedium">
-          {heading}
-        </Text>
+        <View style={styles.heading}>
+          {row.pinned ? (
+            <View accessibilityLabel={t('app.sessions.pinned')} testID={`pinned-${row.id}`}>
+              <Icon color={colors.onSurfaceVariant} size={14} source="pin" />
+            </View>
+          ) : null}
+          <Text numberOfLines={1} style={styles.flex} variant="titleMedium">
+            {heading}
+          </Text>
+        </View>
         {preview ? (
           <Text numberOfLines={1} style={{ color: colors.onSurfaceVariant }} variant="bodySmall">
             {preview}
@@ -76,6 +86,8 @@ function MarkerIcon({ marker }: { marker: SessionMarker | null }) {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  heading: { alignItems: 'center', flexDirection: 'row', gap: space.step },
   noMarker: { height: 16 },
   row: {
     alignItems: 'center',

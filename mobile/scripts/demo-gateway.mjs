@@ -41,6 +41,9 @@
 // `/memory` through command.dispatch answers with the same text as hermes-agent
 // v0.22.5, from a few made-up pending memories. Approve and reject remove them.
 //
+// PATCH /api/sessions/<id> renames and pins a session, and DELETE deletes it,
+// after GET /api/sessions/<id>/mutation-snapshot, as the desktop does.
+//
 // prompt.submit with `confirm_truncate` and `truncate_before_row_id` drops that
 // user row and everything after it before the turn runs, as Retry does.
 // session.history lists the saved rows with their row ids.
@@ -1027,6 +1030,62 @@ const server = http.createServer(async (req, res) => {
       messages: page,
       pagination: { limit, offset, order: 'latest', returned: page.length }
     })
+  }
+
+  // Renaming, pinning and deleting a session, fenced by its revision as the
+  // real gateway does: read the snapshot, then send its revision back.
+  const snapshot = /^\/api\/sessions\/([^/]+)\/mutation-snapshot$/.exec(url.pathname)
+
+  if (req.method === 'GET' && snapshot) {
+    const session = sessions.get(decodeURIComponent(snapshot[1]))
+
+    return sendJson(res, 200, { session_id: snapshot[1], exists: Boolean(session), runtime_revision: session?.revision ?? 0, runtime_generation: session ? 0 : null })
+  }
+
+  const edited = /^\/api\/sessions\/([^/]+)$/.exec(url.pathname)
+
+  if ((req.method === 'PATCH' || req.method === 'DELETE') && edited) {
+    const storedId = decodeURIComponent(edited[1])
+    const session = sessions.get(storedId)
+    const body = req.method === 'PATCH' ? await readBody(req) : Object.fromEntries(url.searchParams)
+
+    if (!session) {
+      return sendJson(res, 404, { detail: 'not_found' })
+    }
+
+    if (body.expected_revision !== undefined && Number(body.expected_revision) !== (session.revision ?? 0)) {
+      return sendJson(res, 409, { detail: 'revision_conflict' })
+    }
+
+    if (req.method === 'DELETE') {
+      sessions.delete(storedId)
+      transcripts.delete(storedId)
+
+      for (const [runtimeId, entry] of live) {
+        if (entry.storedId === storedId) {
+          live.delete(runtimeId)
+        }
+      }
+
+      console.log(`deleted ${storedId}`)
+      broadcast('sessions.changed')
+
+      return sendJson(res, 200, { ok: true })
+    }
+
+    if (typeof body.title === 'string') {
+      session.title = body.title.trim() || null
+    }
+
+    if (typeof body.pinned === 'boolean') {
+      session.pinned = body.pinned
+    }
+
+    session.revision = (session.revision ?? 0) + 1
+    console.log(`edited ${storedId}: ${JSON.stringify({ title: session.title, pinned: session.pinned })}`)
+    broadcast('sessions.changed')
+
+    return sendJson(res, 200, { ok: true, title: session.title })
   }
 
   sendJson(res, 404, { detail: `no route for ${route}` })

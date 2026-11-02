@@ -75,3 +75,8 @@ export async function moveOutboxSession(db: GatewayDatabase, fromKey: string, to
 export async function markInterruptedSends(db: GatewayDatabase) {
   await db.runAsync("UPDATE outbox SET state = 'uncertain' WHERE state = 'sending'")
 }
+
+/** Drops the messages waiting for a session that was deleted. */
+export async function removeSessionFromOutbox(db: GatewayDatabase, sessionKey: string) {
+  await db.runAsync('DELETE FROM outbox WHERE session_key = ?', sessionKey)
+}

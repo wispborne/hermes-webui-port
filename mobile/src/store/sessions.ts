@@ -6,13 +6,18 @@ import { atom, computed, type ReadableAtom } from 'nanostores'
 
 import { isUnreachableError } from '@/gateway/rest'
 import {
+  deleteSessionOnGateway,
   loadMarkers,
   loadSessionPage,
+  renameSessionOnGateway,
   type SessionMarker,
   type SessionRow,
-  searchSessions
+  searchSessions,
+  setSessionPinnedOnGateway
 } from '@/gateway/sessions-api'
+import { removeSessionFromOutbox } from '@/storage/outbox'
 import { loadSavedRows, saveFirstPage, saveNextPage, searchSavedRows } from '@/storage/session-rows'
+import { deleteTranscript } from '@/storage/transcripts'
 
 import { $appActive } from './app-state'
 import { $gateway, type GatewayContext, onGatewayChange } from './gateway'
@@ -139,6 +144,62 @@ export async function loadMoreSessions(gateway: GatewayContext | null = $gateway
   } finally {
     loadingMore = false
   }
+}
+
+// ------------------------------------------------------------ editing
+
+function connectedGateway(): GatewayContext {
+  const gateway = $gateway.get()
+
+  if (!gateway) {
+    throw new Error('Not signed in to a gateway')
+  }
+
+  return gateway
+}
+
+function changeRow(id: string, change: (row: SessionRow) => SessionRow) {
+  $sessionRows.set($sessionRows.get().map(row => (row.id === id ? change(row) : row)))
+}
+
+/** Renames a session on the gateway. An empty title clears it. Throws when the gateway refuses. */
+export async function renameSession(id: string, title: string) {
+  const gateway = connectedGateway()
+  const trimmed = title.trim()
+
+  await renameSessionOnGateway(gateway.rest, id, trimmed)
+  changeRow(id, row => ({ ...row, title: trimmed || null }))
+  await reloadSessions(gateway)
+}
+
+/** Pins or unpins a session on the gateway. Throws when the gateway refuses. */
+export async function setSessionPinned(id: string, pinned: boolean) {
+  const gateway = connectedGateway()
+
+  await setSessionPinnedOnGateway(gateway.rest, id, pinned)
+  changeRow(id, row => ({ ...row, pinned }))
+  await reloadSessions(gateway)
+}
+
+/** Deletes a session on the gateway, and what the phone saved of it. Throws when the gateway refuses. */
+export async function deleteSession(id: string) {
+  const gateway = connectedGateway()
+
+  await deleteSessionOnGateway(gateway.rest, id)
+  $sessionRows.set($sessionRows.get().filter(row => row.id !== id))
+  await deleteTranscript(gateway.db, id)
+  await removeSessionFromOutbox(gateway.db, id)
+  await reloadSessions(gateway)
+}
+
+/** The list as it's shown: sessions that need input first, then pinned ones, then the rest in the gateway's order. */
+export function orderSessions(rows: SessionRow[], markers: Record<string, SessionMarker>): SessionRow[] {
+  const rank = (row: SessionRow) => (markers[row.id] === 'needs-input' ? 0 : row.pinned ? 1 : 2)
+
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => rank(a.row) - rank(b.row) || a.index - b.index)
+    .map(({ row }) => row)
 }
 
 /** Reloads the Running and Needs input markers. Needs the WebSocket. */

@@ -5,13 +5,19 @@ import {
   $markers,
   $sessionRows,
   keepSessionsCurrent,
+  deleteSession,
   loadMoreSessions,
+  orderSessions,
   reloadMarkers,
   reloadSessions,
+  renameSession,
   searchForSessions,
   setLocalMarker,
+  setSessionPinned,
   showSavedSessions
 } from '@/store/sessions'
+import { loadSavedRows } from '@/storage/session-rows'
+import { loadTranscript, saveTranscript } from '@/storage/transcripts'
 
 import { event } from './fake-gateway'
 import { type Harness, signedInHarness, until } from './harness'
@@ -250,3 +256,91 @@ describe('search', () => {
     expect(ids(found.rows)).toEqual(['s5', 's10'])
   })
 })
+
+describe('renaming, pinning and deleting', () => {
+  let revision: number
+  let edits: { method: string; id: string; body: unknown; query: Record<string, string> }[]
+
+  beforeEach(async () => {
+    revision = 3
+    edits = []
+    h.rest.route('GET', /^\/api\/sessions\/[^/]+\/mutation-snapshot$/, call => ({
+      body: { session_id: call.path.split('/')[3], exists: true, runtime_revision: revision, runtime_generation: 0 }
+    }))
+    const edit = (call: { method: string; path: string; body: unknown }, query: URLSearchParams) => {
+      const id = call.path.split('/')[3]
+      edits.push({ method: call.method, id, body: call.body, query: Object.fromEntries(query) })
+      const index = gatewayRows.findIndex(row => row.id === id)
+
+      if (call.method === 'DELETE') {
+        gatewayRows.splice(index, 1)
+      } else {
+        Object.assign(gatewayRows[index], call.body as object)
+      }
+
+      revision += 1
+
+      return { body: { ok: true } }
+    }
+    h.rest.route('PATCH', /^\/api\/sessions\/[^/]+$/, edit)
+    h.rest.route('DELETE', /^\/api\/sessions\/[^/]+$/, edit)
+    await reloadSessions()
+  })
+
+  it('renames a session with the revision its snapshot gave', async () => {
+    await renameSession('s2', '  Garden beds  ')
+
+    expect(edits).toEqual([
+      { method: 'PATCH', id: 's2', body: { title: 'Garden beds', request_id: expect.any(String), expected_revision: 3, expected_generation: 0 }, query: {} }
+    ])
+    expect($sessionRows.get().find(row => row.id === 's2')?.title).toBe('Garden beds')
+  })
+
+  it('pins a session, and the list and the saved list show it pinned', async () => {
+    await setSessionPinned('s7', true)
+
+    expect(edits[0]).toMatchObject({ method: 'PATCH', id: 's7', body: { pinned: true, expected_revision: 3 } })
+    expect($sessionRows.get().find(row => row.id === 's7')?.pinned).toBe(true)
+    expect((await loadSavedRows(h.db)).find(row => row.id === 's7')?.pinned).toBe(true)
+  })
+
+  it('deletes a session, with its revision in the query, and forgets what the phone saved of it', async () => {
+    await saveTranscript(h.db, 's3', { items: [{ kind: 'user', key: 'u', text: 'Hi' }], hasEarlier: false, gatewayRows: 1 })
+
+    await deleteSession('s3')
+
+    expect(edits).toEqual([
+      { method: 'DELETE', id: 's3', body: undefined, query: { request_id: expect.any(String), expected_revision: '3', expected_generation: '0' } }
+    ])
+    expect(ids($sessionRows.get())).not.toContain('s3')
+    expect(await loadTranscript(h.db, 's3')).toBeNull()
+    expect(ids(await loadSavedRows(h.db))).not.toContain('s3')
+  })
+
+  it('edits without a revision on a gateway that has no snapshot route', async () => {
+    h.rest.route('GET', /^\/api\/sessions\/[^/]+\/mutation-snapshot$/, () => ({ status: 404, body: { detail: 'Not Found' } }))
+
+    await renameSession('s2', 'Garden beds')
+
+    expect(edits).toEqual([{ method: 'PATCH', id: 's2', body: { title: 'Garden beds' }, query: {} }])
+  })
+
+  it('keeps the row as it was when the gateway refuses the edit', async () => {
+    h.rest.route('PATCH', /^\/api\/sessions\/[^/]+$/, () => ({ status: 409, body: { detail: 'revision_conflict' } }))
+
+    await expect(renameSession('s2', 'Garden beds')).rejects.toThrow('revision_conflict')
+    expect($sessionRows.get().find(row => row.id === 's2')?.title).toBe('Session 2')
+  })
+})
+
+describe('the list order', () => {
+  it('puts sessions that need input first, then pinned ones, and keeps the rest in order', () => {
+    const rows = [1, 2, 3, 4, 5].map(n => ({ ...gatewayRowAsSession(n), pinned: n === 4 }))
+
+    expect(ids(orderSessions(rows, { s5: 'needs-input', s2: 'running' }))).toEqual(['s5', 's4', 's1', 's2', 's3'])
+  })
+})
+
+function gatewayRowAsSession(n: number): SessionRow {
+  return { id: `s${n}`, title: `Session ${n}`, preview: null, startedAt: n, lastActive: n, messageCount: 1, source: 'gui', pinned: false }
+}

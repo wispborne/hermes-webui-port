@@ -10,6 +10,7 @@ interface SavedRow {
   last_active: number
   message_count: number
   source: string | null
+  pinned: number
 }
 
 const fromSaved = (row: SavedRow): SessionRow => ({
@@ -19,7 +20,8 @@ const fromSaved = (row: SavedRow): SessionRow => ({
   startedAt: row.started_at,
   lastActive: row.last_active,
   messageCount: row.message_count,
-  source: row.source
+  source: row.source,
+  pinned: row.pinned === 1
 })
 
 async function writeRows(db: GatewayDatabase, rows: SessionRow[], firstPosition: number) {
@@ -27,8 +29,8 @@ async function writeRows(db: GatewayDatabase, rows: SessionRow[], firstPosition:
 
   for (const [index, row] of rows.entries()) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO sessions (id, title, preview, started_at, last_active, message_count, source, position, saved_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO sessions (id, title, preview, started_at, last_active, message_count, source, pinned, position, saved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       row.id,
       row.title,
       row.preview,
@@ -36,6 +38,7 @@ async function writeRows(db: GatewayDatabase, rows: SessionRow[], firstPosition:
       row.lastActive,
       row.messageCount,
       row.source,
+      row.pinned ? 1 : 0,
       firstPosition + index,
       savedAt
     )

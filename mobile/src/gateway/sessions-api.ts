@@ -1,8 +1,13 @@
 // The gateway calls behind the Sessions screen.
 
 import type { JsonRpcGatewayClient } from '@hermes/shared/json-rpc-gateway'
+import {
+  createSessionMutationClient,
+  type SessionMutationIdentity,
+  type SessionMutationSnapshot
+} from '@hermes/shared/session-http-mutations'
 
-import type { GatewayRest } from './rest'
+import { GatewayHttpError, type GatewayRest } from './rest'
 
 /** One saved session, as the Sessions screen shows it. Times are Unix seconds. */
 export interface SessionRow {
@@ -13,6 +18,7 @@ export interface SessionRow {
   lastActive: number
   messageCount: number
   source: string | null
+  pinned: boolean
 }
 
 /** What a row shows about the session's live state. */
@@ -29,6 +35,7 @@ interface GatewaySessionRow {
   message_count?: number | null
   source?: string | null
   hidden?: boolean | null
+  pinned?: boolean | null
 }
 
 export interface SessionPage {
@@ -44,7 +51,8 @@ const toRow = (row: GatewaySessionRow): SessionRow => ({
   startedAt: row.started_at ?? 0,
   lastActive: row.last_active ?? row.started_at ?? 0,
   messageCount: row.message_count ?? 0,
-  source: row.source ?? null
+  source: row.source ?? null,
+  pinned: row.pinned === true
 })
 
 /**
@@ -97,7 +105,8 @@ export async function searchSessions(rest: GatewayRest, query: string): Promise<
       startedAt: hit.session_started ?? 0,
       lastActive: hit.last_active ?? hit.session_started ?? 0,
       messageCount: 0,
-      source: hit.source ?? null
+      source: hit.source ?? null,
+      pinned: false
     })
   }
 
@@ -140,4 +149,49 @@ export async function loadMarkers(client: JsonRpcGatewayClient): Promise<Record<
   }
 
   return markers
+}
+
+// ------------------------------------------------------------ editing
+
+const mutate = createSessionMutationClient()
+
+/** The gateway has no `mutation-snapshot` route. Older gateways take edits without a revision. */
+class NoSnapshotRoute extends Error {}
+
+/**
+ * Sends an edit to a session the way the desktop does: reads the session's
+ * revision from its snapshot, then sends the edit with it, so the gateway
+ * refuses it if the session changed in between.
+ */
+async function editSession<T>(rest: GatewayRest, id: string, method: 'PATCH' | 'DELETE', payload: Record<string, unknown>): Promise<T> {
+  const path = `/api/sessions/${encodeURIComponent(id)}`
+  const send = (identity: Partial<SessionMutationIdentity>) =>
+    method === 'DELETE' ? rest.request<T>(path, { method, query: identity }) : rest.request<T>(path, { method, body: { ...payload, ...identity } })
+  const read = () =>
+    rest.get<SessionMutationSnapshot>(`${path}/mutation-snapshot`).catch((error: unknown) => {
+      throw error instanceof GatewayHttpError && error.status === 404 ? new NoSnapshotRoute() : error
+    })
+
+  try {
+    return await mutate(JSON.stringify([rest.baseUrl, id, method, payload]), read, send)
+  } catch (error) {
+    if (error instanceof NoSnapshotRoute) {
+      return send({})
+    }
+
+    throw error
+  }
+}
+
+/** Renames a session. An empty title clears it. */
+export function renameSessionOnGateway(rest: GatewayRest, id: string, title: string) {
+  return editSession<unknown>(rest, id, 'PATCH', { title })
+}
+
+export function setSessionPinnedOnGateway(rest: GatewayRest, id: string, pinned: boolean) {
+  return editSession<unknown>(rest, id, 'PATCH', { pinned })
+}
+
+export function deleteSessionOnGateway(rest: GatewayRest, id: string) {
+  return editSession<unknown>(rest, id, 'DELETE', {})
 }

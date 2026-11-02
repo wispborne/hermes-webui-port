@@ -1,12 +1,12 @@
 import { useStore } from '@nanostores/react'
 import { router, useFocusEffect } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Appbar, Badge, FAB, Searchbar, Text } from 'react-native-paper'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { FlatList, Keyboard, RefreshControl, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Appbar, Badge, Button, Dialog, FAB, List, Portal, Searchbar, Snackbar, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { OfflineBanner } from '@/components/offline-banner'
-import { SessionListRow } from '@/components/session-list-row'
+import { SessionListRow, sessionHeading } from '@/components/session-list-row'
 import type { SessionRow } from '@/gateway/sessions-api'
 import { useConnectionStatus } from '@/hooks/use-connection-status'
 import { t } from '@/i18n/t'
@@ -16,12 +16,16 @@ import {
   $hasMoreSessions,
   $markers,
   $sessionRows,
+  deleteSession,
   keepSessionsCurrent,
   loadMoreSessions,
+  orderSessions,
   reloadMarkers,
   reloadSessions,
+  renameSession,
   type SearchResult,
-  searchForSessions
+  searchForSessions,
+  setSessionPinned
 } from '@/store/sessions'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
@@ -106,8 +110,38 @@ export function SessionsScreen() {
   }, [])
 
   const open = useCallback((row: SessionRow) => router.push({ pathname: '/session/[id]', params: { id: row.id } }), [])
+  const ordered = useMemo(() => orderSessions(rows, markers), [rows, markers])
+  const shown = result ? result.rows : ordered
+  const [menu, setMenu] = useState<SessionRow | null>(null)
+  const openMenu = useCallback((row: SessionRow) => setMenu(row), [])
+  const [renaming, setRenaming] = useState<{ row: SessionRow; title: string } | null>(null)
+  const [deleting, setDeleting] = useState<SessionRow | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
+  const dialogOpen = menu !== null || renaming !== null || deleting !== null
 
-  const shown = result ? result.rows : rows
+  // A closing dialog hands focus to the search box, which opens the keyboard. Close it again.
+  useEffect(() => {
+    if (!dialogOpen) {
+      Keyboard.dismiss()
+    }
+  }, [dialogOpen])
+
+  /** Runs an edit from the menu or a dialog. A refused edit leaves the row as it was and says so. */
+  const edit = async (action: () => Promise<void>, failure: string) => {
+    setBusy(true)
+
+    try {
+      await action()
+    } catch (error) {
+      console.warn('Could not change the session', error)
+      setFailed(failure)
+    } finally {
+      setBusy(false)
+      setRenaming(null)
+      setDeleting(null)
+    }
+  }
   const searchingText = query.trim()
 
   return (
@@ -168,8 +202,92 @@ export function SessionsScreen() {
         onEndReached={result ? undefined : () => void loadMoreSessions()}
         onEndReachedThreshold={0.5}
         refreshControl={<RefreshControl onRefresh={refresh} refreshing={refreshing} />}
-        renderItem={({ item }) => <SessionListRow marker={markers[item.id] ?? null} onPress={open} row={item} />}
+        renderItem={({ item }) => <SessionListRow marker={markers[item.id] ?? null} onLongPress={openMenu} onPress={open} row={item} />}
       />
+      <Portal>
+        <Dialog onDismiss={() => setMenu(null)} visible={menu !== null}>
+          <Dialog.Title numberOfLines={1}>{menu ? sessionHeading(menu) : ''}</Dialog.Title>
+          <Dialog.Content style={styles.actions}>
+            <List.Item
+              left={props => <List.Icon {...props} icon="pencil" />}
+              onPress={() => {
+                setRenaming(menu && { row: menu, title: menu.title ?? '' })
+                setMenu(null)
+              }}
+              title={t('sidebar.row.rename')}
+            />
+            <List.Item
+              left={props => <List.Icon {...props} icon={menu?.pinned ? 'pin-off' : 'pin'} />}
+              onPress={() => {
+                const row = menu
+                setMenu(null)
+
+                if (row) {
+                  void edit(() => setSessionPinned(row.id, !row.pinned), t(row.pinned ? 'app.sessions.unpinFailed' : 'app.sessions.pinFailed'))
+                }
+              }}
+              title={t(menu?.pinned ? 'sidebar.row.unpin' : 'sidebar.row.pin')}
+            />
+            <List.Item
+              left={props => <List.Icon {...props} color={colors.error} icon="delete" />}
+              onPress={() => {
+                setDeleting(menu)
+                setMenu(null)
+              }}
+              title={t('common.delete')}
+              titleStyle={{ color: colors.error }}
+            />
+          </Dialog.Content>
+        </Dialog>
+        <Dialog onDismiss={() => setRenaming(null)} visible={renaming !== null}>
+          <Dialog.Title>{t('sidebar.row.renameTitle')}</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              autoFocus
+              mode="outlined"
+              onChangeText={title => setRenaming(current => current && { ...current, title })}
+              placeholder={renaming ? sessionHeading(renaming.row) : undefined}
+              testID="rename-input"
+              value={renaming?.title ?? ''}
+            />
+            <Text style={[styles.note, { color: colors.onSurfaceVariant }]} variant="bodySmall">
+              {t('sidebar.row.renameDesc')}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setRenaming(null)}>{t('common.cancel')}</Button>
+            <Button
+              disabled={busy}
+              loading={busy}
+              onPress={() => renaming && void edit(() => renameSession(renaming.row.id, renaming.title), t('app.sessions.renameFailed'))}
+              testID="rename-save"
+            >
+              {t('common.save')}
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+        <Dialog onDismiss={() => setDeleting(null)} visible={deleting !== null}>
+          <Dialog.Title>{t('sidebar.row.deleteTitle')}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">{deleting ? t('sidebar.row.deleteDesc', { title: sessionHeading(deleting) }) : ''}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDeleting(null)}>{t('common.cancel')}</Button>
+            <Button
+              disabled={busy}
+              loading={busy}
+              onPress={() => deleting && void edit(() => deleteSession(deleting.id), t('app.sessions.deleteFailed'))}
+              testID="delete-confirm"
+              textColor={colors.error}
+            >
+              {t('common.delete')}
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+      <Snackbar duration={4000} onDismiss={() => setFailed(null)} visible={failed !== null}>
+        {failed ?? ''}
+      </Snackbar>
       <FAB
         icon="plus"
         label={t('sidebar.nav.new-session')}
@@ -183,6 +301,7 @@ export function SessionsScreen() {
 }
 
 const styles = StyleSheet.create({
+  actions: { paddingHorizontal: space.step },
   badge: { position: 'absolute', right: 6, top: 6 },
   empty: { padding: space.screen },
   fab: { bottom: space.screen * 2, position: 'absolute', right: space.screen },

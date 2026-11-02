@@ -36,7 +36,12 @@ export const appStrings = {
     signOutOffline: "Signed out on this phone. The gateway couldn't be reached, so its session ends on its own when it expires."
   },
   sessions: {
-    savedOnlySearch: 'Only sessions saved on this phone were searched.'
+    savedOnlySearch: 'Only sessions saved on this phone were searched.',
+    pinned: 'Pinned',
+    renameFailed: "Couldn't rename the session.",
+    pinFailed: "Couldn't pin the session.",
+    unpinFailed: "Couldn't unpin the session.",
+    deleteFailed: "Couldn't delete the session."
   },
   chat: {
     queued: 'Queued',
