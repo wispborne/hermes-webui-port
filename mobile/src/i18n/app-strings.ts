@@ -45,6 +45,7 @@ export const appStrings = {
     sendNow: 'Send now',
     discard: 'Discard',
     stopped: 'Stopped',
+    answerAbove: 'Answer the question above',
     notSaved: "This session isn't saved on this phone. It loads when the gateway can be reached.",
     arguments: 'Arguments',
     result: 'Result',

@@ -29,7 +29,7 @@ import {
   stopTurn
 } from '@/store/chat'
 import { loadAppSettings } from '@/storage/app-settings'
-import { $prompts, sendAnswers, setAnswer, showQuestion } from '@/store/prompts'
+import { $prompts } from '@/store/prompts'
 import { $sessionRows } from '@/store/sessions'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
@@ -39,7 +39,7 @@ export interface SessionScreenProps {
   id: string
 }
 
-/** A session: its transcript, and the message box with Send, or Stop while a turn runs. */
+/** A session: its transcript, and the message box with Send, and Stop while a turn runs. */
 export function SessionScreen({ id }: SessionScreenProps) {
   const { colors } = useHermesTheme()
   const [key] = useState(() => (id === 'new' ? newLocalKey() : id))
@@ -47,13 +47,8 @@ export function SessionScreen({ id }: SessionScreenProps) {
   const rows = useStore($sessionRows)
   const status = useConnectionStatus()
   const [draft, setDraft] = useState('')
-  const question = useStore($prompts)[key]?.question ?? null
-  const asked = question?.questions[question.index]
-  // While a Question is open, the message box types its free-text answer.
-  const answering = Boolean(asked && !asked.multi_select)
-  const answerText = asked && typeof question?.answers[asked.qid] === 'string' && !(asked.choices ?? []).includes(question.answers[asked.qid] as string)
-    ? (question.answers[asked.qid] as string)
-    : ''
+  // While a Question is open, it's answered in its card, and the message box waits.
+  const answering = Boolean(useStore($prompts)[key]?.question)
   const list = useRef<FlashListRef<DisplayItem>>(null)
   const shownBefore = useRef<ReadonlyMap<string, DisplayItem>>(new Map())
   const shown = useMemo(() => {
@@ -95,13 +90,9 @@ export function SessionScreen({ id }: SessionScreenProps) {
   const canRetry = !chat.running && failedMessage(chat.items) !== null
   const row = rows.find(found => found.id === chat.storedId)
   const title = chat.title ?? (row ? sessionHeading(row) : id === 'new' ? t('sidebar.nav.new-session') : '')
-  const canSend = answering ? answerText.trim() !== '' : draft.trim() !== ''
+  const canSend = !answering && draft.trim() !== ''
 
   const send = () => {
-    if (answering && question) {
-      return question.index === question.questions.length - 1 ? sendAnswers(key) : showQuestion(key, question.index + 1)
-    }
-
     const text = draft.trim()
 
     if (text) {
@@ -180,17 +171,18 @@ export function SessionScreen({ id }: SessionScreenProps) {
             autoFocus={id === 'new'}
             contentStyle={styles.inputText}
             dense
+            editable={!answering}
             mode="outlined"
             multiline
-            onChangeText={answering ? text => setAnswer(key, text) : setDraft}
+            onChangeText={setDraft}
             placeholder={
-              answering ? t('assistant.clarify.placeholder') : chat.items.length ? t('composer.placeholderFollowUp') : t('composer.message')
+              answering ? t('app.chat.answerAbove') : chat.items.length ? t('composer.placeholderFollowUp') : t('composer.message')
             }
             style={styles.input}
             testID="message-box"
-            value={answering ? answerText : draft}
+            value={draft}
           />
-          {chat.running && !canSend && !answering ? (
+          {chat.running ? (
             <IconButton
               accessibilityLabel={t('composer.stop')}
               containerColor={colors.errorContainer}
@@ -201,7 +193,8 @@ export function SessionScreen({ id }: SessionScreenProps) {
               style={styles.composerButton}
               testID="stop"
             />
-          ) : (
+          ) : null}
+          {!chat.running || canSend ? (
             <IconButton
               accessibilityLabel={t('composer.send')}
               disabled={!canSend}
@@ -211,7 +204,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
               style={styles.composerButton}
               testID="send"
             />
-          )}
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
