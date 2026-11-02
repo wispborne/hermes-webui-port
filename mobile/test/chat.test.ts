@@ -177,6 +177,21 @@ describe('sending', () => {
     await until(() => g.submitted.length === 1 && texts(items('s1')).includes('user: And then? (queued)'))
   })
 
+  it('keeps the running reply in one piece above a message sent during it', async () => {
+    g.onSubmit = () => ({ status: 'queued' })
+    g.emit('s1', 'message.start')
+    g.emit('s1', 'message.delta', { text: 'Here is ' })
+    await until(() => texts(items('s1')).at(-1) === 'assistant: Here is ')
+
+    await sendMessage('s1', 'And then?')
+    await until(() => g.submitted.length === 1)
+    g.emit('s1', 'message.delta', { text: 'the plan.' })
+    g.emit('s1', 'message.complete', { text: 'Here is the plan.', status: 'complete' })
+    await until(() => !chatStore('s1').get().running)
+
+    expect(texts(items('s1')).slice(-2)).toEqual(['assistant: Here is the plan.', 'user: And then? (queued)'])
+  })
+
   it('stops a running turn', async () => {
     g.emit('s1', 'message.start')
     g.emit('s1', 'message.delta', { text: 'Half' })

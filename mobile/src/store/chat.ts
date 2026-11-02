@@ -594,7 +594,10 @@ export async function sendMessage(key: string, text: string) {
   await addToOutbox(gateway.db, entry)
   update(key, state => ({
     ...state,
-    items: [...state.items, { kind: 'user', key: `outbox-${entry.id}`, text, outboxId: entry.id, state: 'waiting' }]
+    items: [
+      ...state.items,
+      { kind: 'user', key: `outbox-${entry.id}`, text, outboxId: entry.id, state: 'waiting', ...(state.running ? { duringTurn: true } : {}) }
+    ]
   }))
 
   void processOutbox()

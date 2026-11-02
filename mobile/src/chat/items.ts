@@ -13,6 +13,11 @@ export interface UserItem {
    * - `old`: in the outbox for more than 24 hours; asks before it's sent
    */
   state?: 'queued' | 'waiting' | 'old'
+  /**
+   * Sent while a turn was running, and no turn has started for it yet. The
+   * running turn's reply and tool rows are drawn above it.
+   */
+  duringTurn?: boolean
   outboxId?: string
   /** Sending failed with the gateway reachable, for example because the session was deleted. */
   sendFailed?: boolean

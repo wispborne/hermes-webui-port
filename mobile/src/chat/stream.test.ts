@@ -163,6 +163,36 @@ describe('a streamed turn', () => {
     expect(play([['message.start']], start).items[0]).toMatchObject({ state: undefined })
   })
 
+  it('keeps the running reply above a message sent during the turn', () => {
+    const middle = play([['message.start'], ['message.delta', { text: 'Here is ' }]])
+    const sent: StreamState = {
+      ...middle,
+      items: [...middle.items, { kind: 'user', key: 'u2', text: 'And then?', state: 'queued', duringTurn: true }]
+    }
+    const done = play(
+      [
+        ['message.delta', { text: 'the plan.' }],
+        ['tool.start', { tool_id: 't1', name: 'read_file' }],
+        ['tool.complete', { tool_id: 't1', name: 'read_file' }],
+        ['message.delta', { text: 'Done.' }],
+        ['message.complete', { text: 'Done.', status: 'complete' }]
+      ],
+      sent
+    )
+
+    expect(summary(done)).toEqual([
+      { reply: 'Here is the plan.' },
+      { tool: 'read_file', running: false, summary: undefined },
+      { reply: 'Done.' },
+      { user: 'And then?' }
+    ])
+
+    const next = play([['message.start'], ['message.delta', { text: 'Then water them.' }]], done)
+
+    expect(next.items.at(-2)).toMatchObject({ kind: 'user', state: undefined, duringTurn: undefined })
+    expect(summary(next).at(-1)).toEqual({ reply: 'Then water them.', streaming: true })
+  })
+
   it('rebuilds the reply in progress after opening a running session', () => {
     const start: StreamState = { ...empty, items: itemsFromRows([{ role: 'user', content: 'Earlier', row_id: 1 }]) }
     const state = withInflight(start, { user: 'Plan the beds', assistant: 'You need six' })

@@ -4,7 +4,7 @@
 // for tool.*, status.ts for status.update). Kept as plain functions so they
 // can be tested without a screen.
 
-import { type AssistantItem, type ChatItem, gatewayText, newKey, type ToolItem } from './items'
+import { type AssistantItem, type ChatItem, gatewayText, newKey, type ToolItem, type UserItem } from './items'
 
 export interface StreamState {
   items: ChatItem[]
@@ -50,6 +50,34 @@ function sealStreaming(items: ChatItem[]): ChatItem[] {
   return replaceAt(items, index, { ...bubble, streaming: false })
 }
 
+/** Where the messages sent during the running turn start. They stay at the end. */
+function sentDuringTurnStart(items: ChatItem[]): number {
+  let start = items.length
+
+  while (start > 0 && items[start - 1].kind === 'user' && (items[start - 1] as UserItem).duringTurn) {
+    start -= 1
+  }
+
+  return start
+}
+
+/**
+ * Applies a change to the items above the messages sent during the running
+ * turn, so the turn's reply and tool rows are drawn above those messages.
+ */
+function aboveSentDuringTurn(state: StreamState, change: (state: StreamState) => StreamState): StreamState {
+  const start = sentDuringTurnStart(state.items)
+
+  if (start === state.items.length) {
+    return change(state)
+  }
+
+  const above = { ...state, items: state.items.slice(0, start) }
+  const next = change(above)
+
+  return next === above ? state : { ...next, items: [...next.items, ...state.items.slice(start)] }
+}
+
 function withStreaming(items: ChatItem[]): [ChatItem[], number] {
   const index = streamingIndex(items)
 
@@ -66,10 +94,12 @@ export function appendReply(state: StreamState, delta: string): StreamState {
     return state
   }
 
-  const [items, index] = withStreaming(state.items)
-  const bubble = items[index] as AssistantItem
+  return aboveSentDuringTurn(state, current => {
+    const [items, index] = withStreaming(current.items)
+    const bubble = items[index] as AssistantItem
 
-  return { ...state, items: replaceAt(items, index, { ...bubble, text: bubble.text + delta }) }
+    return { ...current, items: replaceAt(items, index, { ...bubble, text: bubble.text + delta }) }
+  })
 }
 
 export function appendReasoning(state: StreamState, delta: string, replace = false): StreamState {
@@ -77,13 +107,15 @@ export function appendReasoning(state: StreamState, delta: string, replace = fal
     return state
   }
 
-  const [items, index] = withStreaming(state.items)
-  const bubble = items[index] as AssistantItem
+  return aboveSentDuringTurn(state, current => {
+    const [items, index] = withStreaming(current.items)
+    const bubble = items[index] as AssistantItem
 
-  return {
-    ...state,
-    items: replaceAt(items, index, { ...bubble, reasoning: replace ? delta : (bubble.reasoning ?? '') + delta })
-  }
+    return {
+      ...current,
+      items: replaceAt(items, index, { ...bubble, reasoning: replace ? delta : (bubble.reasoning ?? '') + delta })
+    }
+  })
 }
 
 function upsertTool(items: ChatItem[], toolId: string, update: (tool: ToolItem | null) => ToolItem): ChatItem[] {
@@ -109,15 +141,23 @@ const optionalText = (value: unknown) => {
  * `appendReply` and `appendReasoning`, batched once per frame.
  */
 export function applyEvent(state: StreamState, type: string, payload: Payload): StreamState {
+  if (type === 'message.start') {
+    const sealed = aboveSentDuringTurn(state, current => ({ ...current, items: sealStreaming(current.items) }))
+    // The oldest message waiting for a turn is the one this turn answers.
+    const index = sealed.items.findIndex(item => item.kind === 'user' && (item.state === 'queued' || item.duringTurn))
+    const answered = sealed.items[index] as UserItem | undefined
+    const items = answered
+      ? replaceAt(sealed.items, index, { ...answered, state: answered.state === 'queued' ? undefined : answered.state, duringTurn: undefined })
+      : sealed.items
+
+    return { ...sealed, items, running: true, status: null }
+  }
+
+  return aboveSentDuringTurn(state, current => applyTurnEvent(current, type, payload))
+}
+
+function applyTurnEvent(state: StreamState, type: string, payload: Payload): StreamState {
   switch (type) {
-    case 'message.start': {
-      // The oldest queued message is the one this turn answers.
-      const queued = state.items.findIndex(item => item.kind === 'user' && item.state === 'queued')
-      const items = queued >= 0 ? replaceAt(state.items, queued, { ...state.items[queued], state: undefined } as ChatItem) : state.items
-
-      return { ...state, items: sealStreaming(items), running: true, status: null }
-    }
-
     case 'message.interim': {
       // Text written before a tool call, closed off as its own bubble.
       const interim = text(payload?.text)
