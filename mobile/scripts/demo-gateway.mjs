@@ -41,7 +41,7 @@
 // `/memory` through command.dispatch answers with the same text as hermes-agent
 // v0.22.5, from a few made-up pending memories. Approve and reject remove them.
 //
-// PATCH /api/sessions/<id> renames and pins a session, and DELETE deletes it,
+// PATCH /api/sessions/<id> renames, pins and archives a session, and DELETE deletes it,
 // after GET /api/sessions/<id>/mutation-snapshot, as the desktop does.
 //
 // prompt.submit with `confirm_truncate` and `truncate_before_row_id` drops that
@@ -914,9 +914,10 @@ async function readBody(req) {
 
 function listRows(query) {
   const exclude = (query.get('exclude_sources') ?? '').split(',').filter(Boolean)
+  const archived = query.get('archived') ?? 'exclude'
 
   return [...sessions.values()]
-    .filter(row => !exclude.includes(row.source) && !row.archived)
+    .filter(row => !exclude.includes(row.source) && (archived === 'include' || Boolean(row.archived) === (archived === 'only')))
     .map(row => ({ ...row, is_active: [...live.values()].some(entry => entry.storedId === row.id && entry.running) }))
     .sort((a, b) => b.last_active - a.last_active)
 }
@@ -1081,8 +1082,12 @@ const server = http.createServer(async (req, res) => {
       session.pinned = body.pinned
     }
 
+    if (typeof body.archived === 'boolean') {
+      session.archived = body.archived
+    }
+
     session.revision = (session.revision ?? 0) + 1
-    console.log(`edited ${storedId}: ${JSON.stringify({ title: session.title, pinned: session.pinned })}`)
+    console.log(`edited ${storedId}: ${JSON.stringify({ title: session.title, pinned: session.pinned, archived: session.archived })}`)
     broadcast('sessions.changed')
 
     return sendJson(res, 200, { ok: true, title: session.title })

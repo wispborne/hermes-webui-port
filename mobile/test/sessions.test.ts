@@ -4,8 +4,9 @@ import {
   $hasMoreSessions,
   $markers,
   $sessionRows,
-  keepSessionsCurrent,
+  archiveSession,
   deleteSession,
+  keepSessionsCurrent,
   loadMoreSessions,
   orderSessions,
   reloadMarkers,
@@ -14,7 +15,8 @@ import {
   searchForSessions,
   setLocalMarker,
   setSessionPinned,
-  showSavedSessions
+  showSavedSessions,
+  unarchiveSession
 } from '@/store/sessions'
 import { loadSavedRows } from '@/storage/session-rows'
 import { loadTranscript, saveTranscript } from '@/storage/transcripts'
@@ -46,7 +48,10 @@ beforeEach(async () => {
     const limit = Number(query.get('limit'))
     const offset = Number(query.get('offset'))
 
-    return { body: { sessions: gatewayRows.slice(offset, offset + limit), total: gatewayRows.length, limit, offset } }
+    const archived = query.get('archived') === 'only'
+    const rows = gatewayRows.filter(row => Boolean((row as { archived?: boolean }).archived) === archived)
+
+    return { body: { sessions: rows.slice(offset, offset + limit), total: rows.length, limit, offset } }
   })
   $appActive.set(true)
 })
@@ -315,6 +320,20 @@ describe('renaming, pinning and deleting', () => {
     expect(ids($sessionRows.get())).not.toContain('s3')
     expect(await loadTranscript(h.db, 's3')).toBeNull()
     expect(ids(await loadSavedRows(h.db))).not.toContain('s3')
+  })
+
+  it('archives a session, unpinning it as the desktop does, and takes it out of the list', async () => {
+    await archiveSession('s4')
+
+    expect(edits[0]).toMatchObject({ method: 'PATCH', id: 's4', body: { archived: true, pinned: false, expected_revision: 3 } })
+    expect(ids($sessionRows.get())).not.toContain('s4')
+  })
+
+  it('unarchives a session', async () => {
+    await unarchiveSession('s4')
+
+    expect(edits[0]).toMatchObject({ method: 'PATCH', id: 's4', body: { archived: false } })
+    expect((edits[0].body as Record<string, unknown>).pinned).toBeUndefined()
   })
 
   it('edits without a revision on a gateway that has no snapshot route', async () => {

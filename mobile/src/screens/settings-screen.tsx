@@ -37,6 +37,7 @@ const SECTIONS: Section[] = [
     href: '/settings/notifications'
   },
   { id: 'gateways', label: () => t('settings.nav.gateway'), icon: 'server-network', href: '/settings/gateways' },
+  { id: 'archived', label: () => t('settings.nav.archivedChats'), icon: 'archive-outline', href: '/settings/archived' },
   { id: 'about', label: () => t('settings.nav.about'), icon: 'information-outline', href: '/settings/about' }
 ]
 

@@ -57,15 +57,16 @@ const toRow = (row: GatewaySessionRow): SessionRow => ({
 
 /**
  * One page of the default profile's sessions, most recently active first.
- * Cron and archived sessions are left out by the gateway, and hidden ones
- * here, as on the desktop.
+ * Cron sessions are left out by the gateway, and hidden ones here, as on the
+ * desktop. Archived sessions are left out, or are the only ones with
+ * `archived: 'only'`.
  */
-export async function loadSessionPage(rest: GatewayRest, offset = 0): Promise<SessionPage> {
+export async function loadSessionPage(rest: GatewayRest, offset = 0, archived: 'exclude' | 'only' = 'exclude'): Promise<SessionPage> {
   const answer = await rest.get<{ sessions?: GatewaySessionRow[]; total?: number } | null>('/api/profiles/sessions', {
     limit: SESSION_PAGE_SIZE,
     offset,
     min_messages: 0,
-    archived: 'exclude',
+    archived,
     order: 'recent',
     profile: 'default',
     exclude_sources: 'cron'
@@ -190,6 +191,11 @@ export function renameSessionOnGateway(rest: GatewayRest, id: string, title: str
 
 export function setSessionPinnedOnGateway(rest: GatewayRest, id: string, pinned: boolean) {
   return editSession<unknown>(rest, id, 'PATCH', { pinned })
+}
+
+/** Archiving also unpins, as on the desktop. */
+export function setSessionArchivedOnGateway(rest: GatewayRest, id: string, archived: boolean) {
+  return editSession<unknown>(rest, id, 'PATCH', { archived, ...(archived ? { pinned: false } : {}) })
 }
 
 export function deleteSessionOnGateway(rest: GatewayRest, id: string) {

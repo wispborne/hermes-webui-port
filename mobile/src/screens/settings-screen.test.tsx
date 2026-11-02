@@ -77,6 +77,7 @@ it('lists the sections in the web settings dialog order', async () => {
     'settings-memory',
     'settings-notifications',
     'settings-gateways',
+    'settings-archived',
     'settings-about'
   ])
   expect(screen.getByText('Memory & Context')).toBeTruthy()

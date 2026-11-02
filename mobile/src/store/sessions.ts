@@ -13,6 +13,7 @@ import {
   type SessionMarker,
   type SessionRow,
   searchSessions,
+  setSessionArchivedOnGateway,
   setSessionPinnedOnGateway
 } from '@/gateway/sessions-api'
 import { removeSessionFromOutbox } from '@/storage/outbox'
@@ -179,6 +180,28 @@ export async function setSessionPinned(id: string, pinned: boolean) {
   await setSessionPinnedOnGateway(gateway.rest, id, pinned)
   changeRow(id, row => ({ ...row, pinned }))
   await reloadSessions(gateway)
+}
+
+/** Archives a session on the gateway, which takes it out of the list. Throws when the gateway refuses. */
+export async function archiveSession(id: string) {
+  const gateway = connectedGateway()
+
+  await setSessionArchivedOnGateway(gateway.rest, id, true)
+  $sessionRows.set($sessionRows.get().filter(row => row.id !== id))
+  await reloadSessions(gateway)
+}
+
+/** Brings an archived session back to the list. Throws when the gateway refuses. */
+export async function unarchiveSession(id: string) {
+  const gateway = connectedGateway()
+
+  await setSessionArchivedOnGateway(gateway.rest, id, false)
+  await reloadSessions(gateway)
+}
+
+/** One page of archived sessions, for Archived Chats. */
+export function loadArchivedSessions(offset = 0) {
+  return loadSessionPage(connectedGateway().rest, offset, 'only')
 }
 
 /** Deletes a session on the gateway, and what the phone saved of it. Throws when the gateway refuses. */

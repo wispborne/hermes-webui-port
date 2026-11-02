@@ -41,7 +41,12 @@ export const appStrings = {
     renameFailed: "Couldn't rename the session.",
     pinFailed: "Couldn't pin the session.",
     unpinFailed: "Couldn't unpin the session.",
-    deleteFailed: "Couldn't delete the session."
+    deleteFailed: "Couldn't delete the session.",
+    archived: 'Session archived',
+    undo: 'Undo',
+    archiveFailed: "Couldn't archive the session.",
+    unarchiveFailed: "Couldn't unarchive the session.",
+    noArchived: 'No archived sessions.'
   },
   chat: {
     queued: 'Queued',
