@@ -1,7 +1,8 @@
 import { useStore } from '@nanostores/react'
+import { router } from 'expo-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Image, KeyboardAvoidingView, type TextInput as NativeTextInput, ScrollView, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Button, HelperText, Icon, Switch, Text, TextInput } from 'react-native-paper'
+import { ActivityIndicator, Appbar, Button, HelperText, Icon, List, Switch, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { VersionBanner } from '@/components/version-banner'
@@ -9,7 +10,7 @@ import type { SignInResult } from '@/gateway/auth'
 import { checkGateway, type GatewayCheck, normalizeGatewayUrl } from '@/gateway/status'
 import { t } from '@/i18n/t'
 import { loadAppSettings } from '@/storage/app-settings'
-import { $auth, signIn } from '@/store/gateway'
+import { $auth, signIn, switchGateway } from '@/store/gateway'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
 
@@ -46,17 +47,25 @@ function signInMessage(result: SignInResult): string | null {
  * for a gateway, a retry button when the gateway can't be reached. The line
  * under it says the version or what went wrong, and is always there, so the
  * fields below never move.
+ *
+ * `adding` is "Add a gateway" from Settings, while signed in to another: the
+ * fields start empty, Back leaves, and a sign-in opens the new gateway's sessions.
+ * Signed out, the other gateways on this phone are listed under the form.
  */
-export function SignInScreen() {
+export function SignInScreen({ adding = false }: { adding?: boolean }) {
   const { colors, dark } = useHermesTheme()
   const auth = useStore($auth)
-  const saved = auth.phase === 'signed-out' ? auth : null
+  const saved = auth.phase === 'signed-out' && !adding ? auth : null
+  const others = adding ? [] : (loadAppSettings().gateways ?? []).filter(entry => entry.url !== saved?.url)
+  const [switching, setSwitching] = useState<string | null>(null)
   const [url, setUrl] = useState(saved?.url ?? '')
   const [username, setUsername] = useState(saved?.username ?? '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [checking, setChecking] = useState(false)
   const [check, setCheck] = useState<GatewayCheck | null>(null)
+  /** The text the URL field had when `check` ran. */
+  const [checkedText, setCheckedText] = useState<string | null>(null)
   const [remember, setRemember] = useState(() => loadAppSettings().rememberPassword !== false)
   const [signingIn, setSigningIn] = useState(false)
   const [error, setError] = useState<string | null>(saved?.savedPasswordRefused ? t('app.signIn.savedPasswordRefused') : null)
@@ -69,6 +78,7 @@ export function SignInScreen() {
     try {
       const found = await checkGateway(url)
       setCheck(found)
+      setCheckedText(url)
 
       return found
     } finally {
@@ -111,6 +121,11 @@ export function SignInScreen() {
         setError(message)
       } else {
         setPassword('')
+
+        // Signed in already, so nothing routes away from this screen by itself.
+        if (adding) {
+          router.replace('/sessions')
+        }
       }
     } catch (failure) {
       setError(`${t('settings.gateway.signInFailed')}: ${String(failure)}`)
@@ -121,11 +136,18 @@ export function SignInScreen() {
 
   const busy = checking || signingIn
   const canSubmit = !busy && url.trim() !== '' && username.trim() !== '' && password !== ''
-  const urlProblem = !checking && check !== null && check.kind !== 'gateway'
+  // What the last check found, shown only while the field still has the address it checked.
+  const shownCheck = checkedText === url ? check : null
+  const urlProblem = !checking && shownCheck !== null && shownCheck.kind !== 'gateway'
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={[styles.fill, { backgroundColor: colors.background }]}>
-      {check?.kind === 'gateway' ? <VersionBanner gatewayVersion={check.version} /> : null}
+      {adding ? (
+        <View style={styles.back}>
+          <Appbar.BackAction onPress={() => router.back()} testID="add-gateway-back" />
+        </View>
+      ) : null}
+      {shownCheck?.kind === 'gateway' ? <VersionBanner gatewayVersion={shownCheck.version} /> : null}
       <KeyboardAvoidingView behavior="padding" style={styles.fill}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.column}>
@@ -153,12 +175,12 @@ export function SignInScreen() {
                 onSubmitEditing={() => usernameField.current?.focus()}
                 placeholder={t('app.gatewayCheck.urlPlaceholder')}
                 returnKeyType="next"
-                right={urlStatus({ checking, colors, onRetry: runCheck, result: check })}
+                right={urlStatus({ checking, colors, onRetry: runCheck, result: shownCheck })}
                 submitBehavior="submit"
                 testID="gateway-url"
                 value={url}
               />
-              <CheckLine checking={checking} result={check} />
+              <CheckLine checking={checking} result={shownCheck} />
             </View>
 
             <View style={styles.fields}>
@@ -221,6 +243,29 @@ export function SignInScreen() {
             <Button contentStyle={styles.buttonContent} disabled={!canSubmit} loading={signingIn} mode="contained" onPress={submit} testID="sign-in">
               {signingIn ? t('app.signIn.signingIn') : t('settings.gateway.signIn')}
             </Button>
+
+            {others.length ? (
+              <View testID="other-gateways">
+                <Text style={{ color: colors.onSurfaceVariant }} variant="labelLarge">
+                  {t('app.gateways.others')}
+                </Text>
+                {others.map(entry => (
+                  <List.Item
+                    description={entry.username ?? undefined}
+                    disabled={switching !== null}
+                    key={entry.url}
+                    left={props => <List.Icon {...props} icon="server-network" />}
+                    onPress={() => {
+                      setSwitching(entry.url)
+                      void switchGateway(entry.url).finally(() => setSwitching(null))
+                    }}
+                    right={props => (switching === entry.url ? <ActivityIndicator {...props} /> : null)}
+                    title={entry.url}
+                    titleNumberOfLines={1}
+                  />
+                ))}
+              </View>
+            ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -292,6 +337,7 @@ function CheckLine({ checking, result }: { checking: boolean; result: GatewayChe
 const styles = StyleSheet.create({
   buttonContent: { height: 48 },
   centered: { textAlign: 'center' },
+  back: { alignItems: 'flex-start', paddingHorizontal: space.step },
   column: { alignSelf: 'center', gap: space.screen, maxWidth: 440, width: '100%' },
   error: { alignItems: 'center', borderRadius: 8, flexDirection: 'row', gap: space.listGap, padding: space.screen },
   fields: { gap: space.screen },

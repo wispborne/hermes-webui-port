@@ -125,24 +125,24 @@ async function sessionEnded() {
   showSignIn(gatewayUrl, username)
 }
 
-/** When the app last signed in by itself. One try a minute stops a loop if the gateway takes the password but refuses the session. */
-let lastSignInAgain = 0
+/** When the app last signed in by itself, by gateway. One try a minute stops a loop if the gateway takes the password but refuses the session. */
+const lastSignInAgain = new Map<string, number>()
 const SIGN_IN_AGAIN_GAP_MS = 60_000
 
 /** Signs in with the remembered password, if there is one for this gateway and username. True when it worked. */
 async function signInAgain(url: string, username: string | null): Promise<boolean> {
   const password = username ? await loadPassword(url, username) : null
 
-  if (!username || !password || Date.now() - lastSignInAgain < SIGN_IN_AGAIN_GAP_MS) {
+  if (!username || !password || Date.now() - (lastSignInAgain.get(url) ?? 0) < SIGN_IN_AGAIN_GAP_MS) {
     return false
   }
 
-  lastSignInAgain = Date.now()
+  lastSignInAgain.set(url, Date.now())
   const result = await signIn(url, username, password, { remember: true })
 
   // The password changed on the gateway, or it no longer signs in with one: the saved password is no use.
   if (result.kind === 'wrong-password' || result.kind === 'no-password-sign-in') {
-    await forgetPassword()
+    await forgetPassword(url)
     $auth.set({ phase: 'signed-out', url, username, savedPasswordRefused: true })
   }
 
@@ -174,7 +174,7 @@ export function startApp(): Promise<AuthState> {
 /** Tests run the start check more than once. */
 export function resetStartForTests() {
   starting = null
-  lastSignInAgain = 0
+  lastSignInAgain.clear()
 }
 
 async function runStartCheck(): Promise<AuthState> {
@@ -186,17 +186,51 @@ async function runStartCheck(): Promise<AuthState> {
     return $auth.get()
   }
 
-  const check = await checkSignIn(restFor(gatewayUrl))
-
-  if (check.kind === 'signed-out') {
-    if (!(await signInAgain(gatewayUrl, username))) {
-      showSignIn(gatewayUrl, username)
-    }
-  } else {
-    await openGateway(gatewayUrl, username)
-  }
+  await openSaved(gatewayUrl, username)
 
   return $auth.get()
+}
+
+/**
+ * Opens a gateway signed in to before: `GET /api/auth/me` decides between
+ * signed in, signed out (sign in again with a remembered password, or show
+ * Sign in), and unreachable (opened offline).
+ */
+async function openSaved(url: string, username: string | null) {
+  const check = await checkSignIn(restFor(url))
+
+  if (check.kind === 'signed-out') {
+    if (!(await signInAgain(url, username))) {
+      showSignIn(url, username)
+    }
+  } else {
+    await openGateway(url, username)
+  }
+}
+
+/** Puts a gateway in the list of those on this phone, or updates its username. */
+function rememberGateway(url: string, username: string | null) {
+  const gateways = loadAppSettings().gateways ?? []
+  const found = gateways.some(entry => entry.url === url)
+
+  saveAppSettings({ gateways: found ? gateways.map(entry => (entry.url === url ? { url, username } : entry)) : [...gateways, { url, username }] })
+}
+
+/**
+ * Switches to another gateway on this phone. Its saved data opens, and its
+ * sign-in is checked as at start. The gateway left keeps its data and its
+ * remembered password.
+ */
+export async function switchGateway(url: string): Promise<void> {
+  const entry = loadAppSettings().gateways?.find(found => found.url === url)
+
+  if (!entry || $gateway.get()?.url === url) {
+    return
+  }
+
+  await closeGateway()
+  saveAppSettings({ gatewayUrl: url, username: entry.username })
+  await openSaved(url, entry.username)
 }
 
 /**
@@ -208,17 +242,11 @@ export async function signIn(url: string, username: string, password: string, { 
   const result = await signInWithPassword(restFor(url), username, password)
 
   if (result.kind === 'signed-in') {
-    const previous = loadAppSettings().gatewayUrl
-
     await closeGateway()
+    // First, while the settings still name the gateway in use: a phone set up before the list has only that one.
+    rememberGateway(url, username)
     saveAppSettings({ gatewayUrl: url, username, rememberPassword: remember })
-    await (remember ? savePassword(url, username, password) : forgetPassword())
-
-    // Only one gateway is kept on the phone.
-    if (previous && previous !== url) {
-      await deps.deleteDatabase(previous).catch(() => undefined)
-    }
-
+    await (remember ? savePassword(url, username, password) : forgetPassword(url))
     await openGateway(url, username)
   }
 
@@ -227,18 +255,21 @@ export async function signIn(url: string, username: string, password: string, { 
 
 /**
  * Ends the session on the gateway when it can be reached, clears the cookies,
- * and deletes everything saved for the gateway, the remembered password too.
- * The URL and username stay.
+ * and deletes everything saved for the gateway, the remembered password too,
+ * and takes it off the list of gateways on this phone. The URL and username
+ * stay on Sign in. Other gateways keep their data and passwords, but clearing
+ * the cookies ends their sign-ins too, so they sign in again when opened.
  */
 export async function signOut(): Promise<{ reachedGateway: boolean }> {
-  const { gatewayUrl, username } = loadAppSettings()
+  const { gatewayUrl, username, gateways = [] } = loadAppSettings()
   const gateway = await closeGateway()
-  await forgetPassword()
   const url = gateway?.url ?? gatewayUrl
   const result = url ? await signOutOfGateway(restFor(url)) : { reachedGateway: false }
 
   if (url) {
+    await forgetPassword(url)
     await deps.deleteDatabase(url)
+    saveAppSettings({ gateways: gateways.filter(entry => entry.url !== url) })
   }
 
   $auth.set({ phase: 'signed-out', url, username })

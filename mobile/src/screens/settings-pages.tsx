@@ -4,9 +4,10 @@
 
 import { useStore } from '@nanostores/react'
 import Constants from 'expo-constants'
-import { useEffect, useState } from 'react'
+import { router } from 'expo-router'
+import { useEffect, useMemo, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
-import { Button, List, Switch } from 'react-native-paper'
+import { ActivityIndicator, Button, List, Switch } from 'react-native-paper'
 
 import { askBackgroundPermissions } from '@/background/permission-dialogs'
 import { $batteryRestricted, $keepConnected, setKeepConnected } from '@/background/wiring'
@@ -16,9 +17,10 @@ import { checkSignIn } from '@/gateway/auth'
 import { BUILT_FOR_HERMES_VERSION } from '@/gateway/built-for-version'
 import { checkGateway } from '@/gateway/status'
 import { t } from '@/i18n/t'
-import { $auth, $gateway, signOut } from '@/store/gateway'
+import { $auth, $gateway, signOut, switchGateway } from '@/store/gateway'
 import { loadAppSettings, NOTIFICATION_KINDS, saveAppSettings } from '@/storage/app-settings'
 import { space } from '@/theme/compact'
+import { useHermesTheme } from '@/theme/use-hermes-theme'
 
 export function AppearancePage() {
   return (
@@ -90,6 +92,10 @@ export function GatewaysPage() {
   const url = auth.phase === 'signed-in' ? auth.url : null
   const [user, setUser] = useState<string | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [switching, setSwitching] = useState<string | null>(null)
+  const { colors } = useHermesTheme()
+  // Read again when the gateway changes, which is when the list can change.
+  const gateways = useMemo(() => loadAppSettings().gateways ?? [], [gateway])
 
   useEffect(() => {
     if (!gateway) {
@@ -116,6 +122,37 @@ export function GatewaysPage() {
     <SettingsPage title={t('settings.nav.gateway')}>
       <List.Item description={url ?? unknown} title={t('app.settings.gateway')} />
       <List.Item description={signedInAs} testID="signed-in-as" title={t('app.settings.signedInAs')} />
+      <List.Subheader>{t('app.gateways.onThisPhone')}</List.Subheader>
+      {gateways.map(entry => {
+        const inUse = entry.url === url
+
+        return (
+          <List.Item
+            description={inUse ? `${entry.username ?? ''} · ${t('app.gateways.inUse')}`.replace(/^ · /, '') : (entry.username ?? undefined)}
+            disabled={inUse || switching !== null}
+            key={entry.url}
+            left={props => <List.Icon {...props} icon="server-network" />}
+            onPress={() => {
+              setSwitching(entry.url)
+              void switchGateway(entry.url)
+                .then(() => router.replace('/sessions'))
+                .finally(() => setSwitching(null))
+            }}
+            right={props =>
+              switching === entry.url ? <ActivityIndicator {...props} /> : inUse ? <List.Icon {...props} color={colors.primary} icon="check" /> : null
+            }
+            testID={`gateway-${entry.url}`}
+            title={entry.url}
+            titleNumberOfLines={1}
+          />
+        )
+      })}
+      <List.Item
+        left={props => <List.Icon {...props} icon="plus" />}
+        onPress={() => router.push('/settings/add-gateway')}
+        testID="add-gateway"
+        title={t('app.gateways.add')}
+      />
       <View style={styles.actions}>
         <Button
           compact

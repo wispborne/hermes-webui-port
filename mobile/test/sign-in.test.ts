@@ -8,7 +8,7 @@ import { createRest } from '@/gateway/rest'
 import { loadAppSettings, memorySettingsStore, saveAppSettings, setSettingsStoreForTests } from '@/storage/app-settings'
 import { prepareGatewayDatabase } from '@/storage/database'
 import { loadPassword, savePassword, setPasswordStoreForTests } from '@/storage/saved-password'
-import { $auth, $gateway, resetStartForTests, setGatewayDepsForTests, signIn, signOut, startApp } from '@/store/gateway'
+import { $auth, $gateway, resetStartForTests, setGatewayDepsForTests, signIn, signOut, startApp, switchGateway } from '@/store/gateway'
 
 import { FakeGateway, loadRecording } from './fake-gateway'
 import { FakeRest } from './fake-rest'
@@ -284,5 +284,93 @@ describe('signing out', () => {
 
     const rows = await $gateway.get()!.db.getAllAsync("SELECT * FROM meta WHERE key = 'saved-by-test'")
     expect(rows).toEqual([])
+  })
+})
+
+describe('more than one gateway', () => {
+  // The same fake gateway under a second address: the phone keeps them apart by address.
+  const second = () => gateway.httpUrl.replace('127.0.0.1', 'localhost')
+
+  async function markSaved(label: string) {
+    await $gateway.get()!.db.runAsync("INSERT INTO meta (key, value) VALUES ('saved-by-test', ?)", label)
+  }
+
+  const saved = async () => (await $gateway.get()!.db.getAllAsync<{ value: string }>("SELECT value FROM meta WHERE key = 'saved-by-test'")).map(row => row.value)
+
+  it('keeps the first gateway and its data when signing in to a second', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password')
+    await markSaved('first')
+    await signIn(second(), 'david', 'right-password')
+
+    expect(files.has(gateway.httpUrl)).toBe(true)
+    expect(loadAppSettings().gateways).toEqual([
+      { url: gateway.httpUrl, username: 'david' },
+      { url: second(), username: 'david' }
+    ])
+    expect($auth.get()).toEqual({ phase: 'signed-in', url: second(), username: 'david' })
+  })
+
+  it('keeps the gateway a phone set up before the list was signed in to', async () => {
+    saveAppSettings({ gatewayUrl: gateway.httpUrl, username: 'david' })
+
+    await signIn(second(), 'david', 'right-password')
+
+    expect(loadAppSettings().gateways).toEqual([
+      { url: gateway.httpUrl, username: 'david' },
+      { url: second(), username: 'david' }
+    ])
+  })
+
+  it('switches back to a gateway, with its saved data, while the cookies still work', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password')
+    await markSaved('first')
+    await signIn(second(), 'david', 'right-password')
+
+    await switchGateway(gateway.httpUrl)
+
+    expect($auth.get()).toEqual({ phase: 'signed-in', url: gateway.httpUrl, username: 'david' })
+    expect(loadAppSettings()).toMatchObject({ gatewayUrl: gateway.httpUrl, username: 'david' })
+    expect(await saved()).toEqual(['first'])
+  })
+
+  it('remembers a password for each gateway', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: true })
+    await signIn(second(), 'david', 'right-password', { remember: true })
+
+    await expect(loadPassword(gateway.httpUrl, 'david')).resolves.toBe('right-password')
+    await expect(loadPassword(second(), 'david')).resolves.toBe('right-password')
+  })
+
+  it('signs in again by itself when switching to a gateway whose session ended', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: true })
+    await signIn(second(), 'david', 'right-password')
+    rest.hasCookie = false
+
+    await switchGateway(gateway.httpUrl)
+
+    expect($auth.get()).toEqual({ phase: 'signed-in', url: gateway.httpUrl, username: 'david' })
+  })
+
+  it('shows Sign in for that gateway when its session ended and no password is remembered', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password')
+    await signIn(second(), 'david', 'right-password')
+    rest.hasCookie = false
+
+    await switchGateway(gateway.httpUrl)
+
+    expect($auth.get()).toEqual({ phase: 'signed-out', url: gateway.httpUrl, username: 'david' })
+  })
+
+  it('signs out of the gateway in use only, and keeps the others', async () => {
+    await signIn(gateway.httpUrl, 'david', 'right-password', { remember: true })
+    await signIn(second(), 'david', 'right-password', { remember: true })
+
+    await signOut()
+
+    expect(loadAppSettings().gateways).toEqual([{ url: gateway.httpUrl, username: 'david' }])
+    expect(files.has(gateway.httpUrl)).toBe(true)
+    expect(files.has(second())).toBe(false)
+    await expect(loadPassword(gateway.httpUrl, 'david')).resolves.toBe('right-password')
+    await expect(loadPassword(second(), 'david')).resolves.toBeNull()
   })
 })

@@ -35,6 +35,12 @@ export const appStrings = {
     unknown: 'Unknown',
     signOutOffline: "Signed out on this phone. The gateway couldn't be reached, so its session ends on its own when it expires."
   },
+  gateways: {
+    onThisPhone: 'Gateways on this phone',
+    others: 'Or open a gateway you used before',
+    add: 'Add a gateway',
+    inUse: 'In use'
+  },
   sessions: {
     savedOnlySearch: 'Only sessions saved on this phone were searched.',
     pinned: 'Pinned',

@@ -25,6 +25,13 @@ export interface AppSettings {
   hideScheduled?: boolean
   /** Notifications: the kinds turned off. Every kind is on unless turned off. */
   notify?: Partial<Record<NotificationKind, boolean>>
+  /** The gateways signed in to on this phone, in the order they were added. `gatewayUrl` is the one in use. */
+  gateways?: SavedGateway[]
+}
+
+export interface SavedGateway {
+  url: string
+  username: string | null
 }
 
 /** The notifications the phone raises, named as the desktop's settings name them. */
@@ -61,15 +68,35 @@ const KEYS = {
   themeName: 'theme_name',
   accent: 'accent',
   hideScheduled: 'hide_scheduled',
-  notify: 'notify_off'
+  notify: 'notify_off',
+  gateways: 'gateways'
 } as const
+
+function readGateways(raw: string | null, gatewayUrl: string | null, username: string | null): SavedGateway[] {
+  try {
+    const list = raw ? (JSON.parse(raw) as unknown) : null
+
+    if (Array.isArray(list)) {
+      return list.filter((entry): entry is SavedGateway => typeof entry?.url === 'string').map(entry => ({ url: entry.url, username: entry.username ?? null }))
+    }
+  } catch {
+    // Unreadable: start again from the gateway in use.
+  }
+
+  // Saved before the phone kept more than one gateway.
+  return gatewayUrl ? [{ url: gatewayUrl, username }] : []
+}
 
 export function loadAppSettings(): AppSettings {
   const read = (name: keyof typeof KEYS) => settingsStore().getItemSync(KEYS[name])
 
+  const gatewayUrl = read('gatewayUrl')
+  const username = read('username')
+
   return {
-    gatewayUrl: read('gatewayUrl'),
-    username: read('username'),
+    gatewayUrl,
+    username,
+    gateways: readGateways(read('gateways'), gatewayUrl, username),
     rememberPassword: read('rememberPassword') !== 'false',
     keepConnected: read('keepConnected') === 'true',
     backgroundAsked: read('backgroundAsked') === 'true',
@@ -83,9 +110,10 @@ export function loadAppSettings(): AppSettings {
 
 export function saveAppSettings(settings: Partial<AppSettings>) {
   for (const [name, setting] of Object.entries(settings) as [keyof AppSettings, AppSettings[keyof AppSettings]][]) {
-    // The kinds turned off are kept as a list, such as "turnDone,turnError".
-    const value =
-      typeof setting === 'object' && setting !== null
+    // The gateways are kept as JSON, and the notification kinds turned off as a list, such as "turnDone,turnError".
+    const value = Array.isArray(setting)
+      ? JSON.stringify(setting)
+      : typeof setting === 'object' && setting !== null
         ? NOTIFICATION_KINDS.filter(kind => (setting as Record<string, boolean>)[kind] === false).join(',')
         : setting
 
