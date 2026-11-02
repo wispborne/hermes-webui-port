@@ -3,6 +3,7 @@
 // streamed events (see stream.ts).
 
 import type { Attachment } from './attachments'
+import type { TurnStats } from './turn-stats'
 
 export interface UserItem {
   kind: 'user'
@@ -41,6 +42,8 @@ export interface AssistantItem {
   stopped?: boolean
   /** Started because thinking came after text in the same turn. That text is in the reply before this one. */
   afterText?: boolean
+  /** How long the turn took and what it used. Set on a turn's last reply, when the phone watched the turn. */
+  stats?: TurnStats
   rowId?: number
 }
 

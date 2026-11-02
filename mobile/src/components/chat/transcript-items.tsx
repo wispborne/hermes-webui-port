@@ -7,6 +7,7 @@ import { ActivityIndicator, Button, Icon, IconButton, Text } from 'react-native-
 import type { DisplayItem } from '@/chat/activity'
 import type { Attachment } from '@/chat/attachments'
 import type { AssistantItem, NoteItem, UserItem } from '@/chat/items'
+import type { TurnStats } from '@/chat/turn-stats'
 import { type MediaKind, mediaKind, mediaName, parseMediaSegments } from '@/chat/media'
 import { loadMediaDataUrl, loadProxiedImage } from '@/gateway/media-api'
 import { t } from '@/i18n/t'
@@ -16,6 +17,7 @@ import { useHermesTheme } from '@/theme/use-hermes-theme'
 
 import { ActivityBlock } from './activity-block'
 import { Markdown } from './markdown'
+import { TurnStatsLine } from './turn-stats'
 
 export interface OutboxActions {
   /** True while the gateway can't be reached. Waiting messages then say "Waiting to send". */
@@ -266,8 +268,11 @@ function Media({ path }: { path: string }) {
 /** How long Copy shows its tick after copying. */
 const COPIED_MS = 1500
 
-/** Under a turn's last reply: Copy, for all the turn's reply text, and Retry for the session's last turn. */
-function TurnActions({ onRetry, text }: { onRetry?: () => void; text: string }) {
+/**
+ * Under a turn's last reply: Copy, for all the turn's reply text, Retry for
+ * the session's last turn, and the turn's stats when the phone watched it.
+ */
+function TurnActions({ onRetry, stats, text }: { onRetry?: () => void; stats?: TurnStats; text: string }) {
   const { colors } = useHermesTheme()
   const [copied, setCopied] = useState(false)
 
@@ -305,6 +310,7 @@ function TurnActions({ onRetry, text }: { onRetry?: () => void; text: string }) 
           testID="retry"
         />
       ) : null}
+      {stats ? <TurnStatsLine stats={stats} /> : null}
     </View>
   )
 }
@@ -333,7 +339,7 @@ function AssistantBubble({ item, onRetry, turnText }: { item: AssistantItem; onR
         </View>
       ) : null}
       {item.stopped ? <Label icon="stop-circle-outline" text={t('app.chat.stopped')} /> : null}
-      {turnText !== undefined ? <TurnActions onRetry={onRetry} text={turnText} /> : null}
+      {turnText !== undefined ? <TurnActions onRetry={onRetry} stats={item.stats} text={turnText} /> : null}
     </View>
   )
 }

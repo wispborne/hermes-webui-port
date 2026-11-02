@@ -307,4 +307,19 @@ describe("a turn's last reply", () => {
     expect(screen.queryByTestId('copy-reply')).toBeNull()
     expect(screen.getByTestId('retry')).toBeTruthy()
   })
+
+  it("shows the turn's time, tokens and speed, and every number when tapped", async () => {
+    const stats = { seconds: 18.2, output: 1240, tokensPerSecond: 41.6, input: 12_000, calls: 3, costUsd: 0.0042 }
+    await show(reply('Done.', { stats }), { turnText: 'Done.' })
+
+    expect(screen.getByText('18s · 1.2k tokens · 42 tokens/s')).toBeTruthy()
+
+    fireEvent.press(screen.getByTestId('turn-stats'))
+
+    expect(await screen.findByText('This turn')).toBeTruthy()
+    expect(screen.getByText('12,000')).toBeTruthy()
+    expect(screen.getByText('41.6 tokens/s')).toBeTruthy()
+    expect(screen.getByText('$0.0042')).toBeTruthy()
+    expect(screen.queryByText('Thinking tokens')).toBeNull()
+  })
 })

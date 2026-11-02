@@ -76,6 +76,22 @@ export const appStrings = {
     result: 'Result',
     changes: 'Changes'
   },
+  turnStats: {
+    title: 'This turn',
+    show: "Show this turn's stats",
+    time: 'Time',
+    speed: 'Speed',
+    tokensIn: 'Tokens in',
+    tokensOut: 'Tokens out',
+    thinking: 'Thinking tokens',
+    cached: 'Tokens in from cache',
+    calls: 'Model calls',
+    cost: 'Cost',
+    tokens: '{count} tokens',
+    perSecond: '{count} tokens/s',
+    speedNote: "Speed is tokens out per second, not counting time spent running tools.",
+    close: 'Close'
+  },
   slash: {
     noOutput: '{command}: no output',
     skillEmpty: '{command}: the skill sent nothing to run.'

@@ -5,6 +5,7 @@
 // can be tested without a screen.
 
 import { type AssistantItem, type ChatItem, gatewayText, newKey, type ToolItem, type UserItem } from './items'
+import { mergeTotals, NO_TOTALS, type SessionTotals, sessionTotals, type TurnClock, turnStats, withTurnStats } from './turn-stats'
 
 export interface StreamState {
   items: ChatItem[]
@@ -15,6 +16,10 @@ export interface StreamState {
   title: string | null
   /** The model the session uses, from the gateway's `session.info`. */
   model?: SessionModel | null
+  /** The session's running totals of tokens, calls and cost, from the gateway. */
+  totals?: SessionTotals | null
+  /** The running turn, measured for its stats. Null when the phone didn't see it start. */
+  turn?: TurnClock | null
 }
 
 export interface SessionModel {
@@ -174,7 +179,7 @@ const optionalText = (value: unknown) => {
  * events it doesn't know. `message.delta` and `reasoning.delta` go through
  * `appendReply` and `appendReasoning`, batched once per frame.
  */
-export function applyEvent(state: StreamState, type: string, payload: Payload): StreamState {
+export function applyEvent(state: StreamState, type: string, payload: Payload, now = Date.now()): StreamState {
   if (type === 'message.start') {
     const sealed = aboveSentDuringTurn(state, current => ({ ...current, items: sealStreaming(current.items) }))
     // The oldest message waiting for a turn is the one this turn answers.
@@ -184,13 +189,16 @@ export function applyEvent(state: StreamState, type: string, payload: Payload): 
       ? replaceAt(sealed.items, index, { ...answered, state: answered.state === 'queued' ? undefined : answered.state, duringTurn: undefined })
       : sealed.items
 
-    return { ...sealed, items, running: true, status: null }
+    // A session with no replies yet has used nothing, even when the gateway hasn't said so.
+    const before = state.totals ?? (items.some(item => item.kind !== 'user') ? null : NO_TOTALS)
+
+    return { ...sealed, items, running: true, status: null, turn: { startedAt: now, toolSeconds: 0, before } }
   }
 
-  return aboveSentDuringTurn(state, current => applyTurnEvent(current, type, payload))
+  return aboveSentDuringTurn(state, current => applyTurnEvent(current, type, payload, now))
 }
 
-function applyTurnEvent(state: StreamState, type: string, payload: Payload): StreamState {
+function applyTurnEvent(state: StreamState, type: string, payload: Payload, now: number): StreamState {
   switch (type) {
     case 'message.interim': {
       // Text written before a tool call, closed off as its own bubble.
@@ -219,9 +227,11 @@ function applyTurnEvent(state: StreamState, type: string, payload: Payload): Str
     case 'tool.complete': {
       const toolId = text(payload?.tool_id) || newKey('tool')
       const done = type === 'tool.complete'
+      const toolSeconds = done && state.turn && typeof payload?.duration_s === 'number' ? payload.duration_s : 0
 
       return {
         ...state,
+        ...(toolSeconds > 0 && state.turn ? { turn: { ...state.turn, toolSeconds: state.turn.toolSeconds + toolSeconds } } : {}),
         items: upsertTool(state.items, toolId, tool => ({
           kind: 'tool',
           key: tool?.key ?? newKey('tool'),
@@ -270,8 +280,20 @@ function applyTurnEvent(state: StreamState, type: string, payload: Payload): Str
             : [...items, { kind: 'assistant', key: newKey('reply'), text: '', stopped: true }]
       }
 
-      return { ...state, items, running: false, status: null }
+      // The totals after the turn: from this event, or from a `session.usage` sent during the turn.
+      const reported = sessionTotals(payload?.usage)
+      const totals = mergeTotals(state.totals, reported)
+      const after = reported ? totals : state.turn && state.totals !== state.turn.before ? (state.totals ?? null) : null
+
+      if (state.turn) {
+        items = withTurnStats(items, turnStats(state.turn, after, now))
+      }
+
+      return { ...state, items, running: false, status: null, totals, turn: null }
     }
+
+    case 'session.usage':
+      return { ...state, totals: mergeTotals(state.totals, sessionTotals(payload?.usage)) }
 
     case 'status.update':
       return { ...state, status: optionalText(payload?.text) ?? null }

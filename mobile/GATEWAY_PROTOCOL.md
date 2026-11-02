@@ -22,7 +22,10 @@ Where a fact comes from one file, the file is named so it can be checked again a
 12. [Keeping up with Hermes updates](#12-keeping-up-with-hermes-updates)
 13. [Pending memories](#13-pending-memories)
 14. [Files a Turn delivers](#14-files-a-turn-delivers)
-15. [Not covered here](#15-not-covered-here)
+15. [Choosing the model](#15-choosing-the-model)
+16. [Slash commands](#16-slash-commands)
+17. [A turn's stats](#17-a-turns-stats)
+18. [Not covered here](#18-not-covered-here)
 
 ## 1. Which protocol this is
 
@@ -707,7 +710,15 @@ The desktop's `apps/desktop/src/app/session/hooks/use-prompt-actions/slash.ts` i
 
 Output shows in the transcript as a note under the command. Notes are the phone's own: they aren't in the gateway's transcript.
 
-## 17. Not covered here
+## 17. A turn's stats
+
+The gateway sends no per-turn numbers. `usage` on `message.complete`, on `session.usage` and in a resume answer's `info` is the session's running totals: `input`, `output`, `reasoning`, `cache_read`, `calls` and `cost_usd`, among others. A turn's own numbers are the totals at its end minus the totals at its start. A session with no replies yet starts from zero.
+
+- The time is measured by the client, from `message.start` to `message.complete`. The desktop does the same for its "⏱ 18s".
+- `tool.complete` has `duration_s`. Taking it off the turn's time gives the time the model was writing, for tokens per second.
+- The gateway doesn't save any of this. A client only has stats for turns it watched, and has to keep them itself.
+
+## 18. Not covered here
 
 - The canonical protocol (`hermes-gateway-v1`, `session.mutate`, `execution_generation`). The desktop uses it only on its private local connection.
 - Profiles beyond the default one. Most methods take an optional `profile`, and REST routes take `?profile=`.

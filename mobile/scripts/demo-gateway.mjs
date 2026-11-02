@@ -539,6 +539,22 @@ async function streamReasoning(entry, text) {
   return true
 }
 
+/** Made-up running totals for the session, like the gateway's `Usage`: about four characters a token. */
+function addUsage(session, asked, answered) {
+  const usage = (session.usage ??= { input: 0, output: 0, reasoning: 0, calls: 0, cache_read: 0, cost_usd: 0 })
+  const input = 2400 + usage.output + Math.ceil(asked.length / 4)
+  const output = Math.ceil(answered.length / 4)
+
+  usage.cache_read += Math.max(0, input - 600)
+  usage.input += input
+  usage.output += output
+  usage.reasoning += Math.ceil(output / 5)
+  usage.calls += 1
+  usage.cost_usd = Math.round((usage.input * 3 + usage.output * 15) / 1000) / 1000
+
+  return { ...usage, total: usage.input + usage.output }
+}
+
 async function runTurn(entry, text) {
   const session = sessions.get(entry.storedId)
   saveRow(entry.storedId, 'user', text)
@@ -692,7 +708,7 @@ async function runTurn(entry, text) {
       saveRow(entry.storedId, 'assistant', finalText)
     }
 
-    emit(entry, 'message.complete', { text: finalText, status, error, reasoning: null, usage: null })
+    emit(entry, 'message.complete', { text: finalText, status, error, reasoning: null, usage: addUsage(session, text, finalText) })
     console.log(`turn ended: ${status}`)
     entry.running = false
     entry.status = 'idle'
@@ -773,7 +789,7 @@ function handleRpc(client, frame) {
         message_count: transcripts.get(storedId).length,
         messages: params.omit_messages ? [] : transcripts.get(storedId).map(row => ({ role: row.role, text: row.content, timestamp: row.timestamp, row_id: row.id })),
         messages_omitted: Boolean(params.omit_messages),
-        info: { model: entry.model.model, provider: entry.model.provider, title: sessions.get(storedId).title },
+        info: { model: entry.model.model, provider: entry.model.provider, title: sessions.get(storedId).title, usage: sessions.get(storedId).usage ?? null },
         running: entry.running,
         inflight: entry.inflight,
         open_requests: openRequests(entry),

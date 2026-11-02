@@ -39,7 +39,8 @@ export interface ResumeAnswer {
   stored_session_id?: string | null
   running?: boolean | null
   inflight?: { user?: string; assistant?: string } | null
-  info?: { title?: string | null; model?: string | null; provider?: string | null } | null
+  /** `usage` is the session's running totals, as on `message.complete`. */
+  info?: { title?: string | null; model?: string | null; provider?: string | null; usage?: unknown } | null
   open_requests?: { id: string; method: string; params: Record<string, unknown> }[] | null
   /**
    * This connection's subscription to the session. Only gateways with a

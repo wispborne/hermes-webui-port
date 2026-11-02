@@ -22,6 +22,7 @@ import { atom, type WritableAtom } from 'nanostores'
 import { type Attachment, attachmentExists, readAttachment } from '@/chat/attachments'
 import { type ChatItem, gatewayText, itemsFromRows, lastTurnMessage, newKey, type UserItem } from '@/chat/items'
 import { appendReasoning, appendReply, applyEvent, type SessionModel, sessionModel, type StreamState, withInflight } from '@/chat/stream'
+import { keepStats, mergeTotals, sessionTotals } from '@/chat/turn-stats'
 import {
   type CreateAnswer,
   loadTranscriptPage,
@@ -339,7 +340,7 @@ async function loadLatest(key: string, gateway: GatewayContext) {
 
   update(key, state => ({
     ...state,
-    items: withOutboxItems(itemsFromRows(page.rows), outbox),
+    items: withOutboxItems(keepStats(state.items, itemsFromRows(page.rows)), outbox),
     hasEarlier: page.hasEarlier,
     gatewayRows: page.rows.length,
     transcript: 'loaded'
@@ -480,16 +481,27 @@ export async function attach(key: string): Promise<void> {
   }
 
   update(key, state => {
-    let next: ChatSession = { ...state, runtimeId, title: answer.info?.title || state.title, model: sessionModel(answer.info) ?? state.model }
+    let next: ChatSession = {
+      ...state,
+      runtimeId,
+      title: answer.info?.title || state.title,
+      model: sessionModel(answer.info) ?? state.model,
+      totals: mergeTotals(state.totals, sessionTotals(answer.info?.usage))
+    }
 
     if (answer.running) {
       // Rebuild the reply in progress, unless the replayed events already show it.
       const streaming = next.items.at(-1)?.kind === 'assistant' && next.running
 
       next = reload || !streaming ? (withInflight(next, answer.inflight) as ChatSession) : { ...next, running: true }
+
+      // Events were missed, so the phone may not have seen this turn start.
+      if (reload) {
+        next = { ...next, turn: null }
+      }
     } else if (next.running) {
-      // The turn ended while the phone wasn't attached.
-      next = applyEvent(next, 'message.complete', {}) as ChatSession
+      // The turn ended while the phone wasn't attached, so the phone can't say how long it took.
+      next = applyEvent({ ...next, turn: null }, 'message.complete', {}) as ChatSession
     }
 
     return next
