@@ -5,6 +5,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Button, Icon, IconButton, Text } from 'react-native-paper'
 
 import type { DisplayItem } from '@/chat/activity'
+import type { Attachment } from '@/chat/attachments'
 import type { AssistantItem, NoteItem, UserItem } from '@/chat/items'
 import { type MediaKind, mediaKind, mediaName, parseMediaSegments } from '@/chat/media'
 import { loadMediaDataUrl, loadProxiedImage } from '@/gateway/media-api'
@@ -23,9 +24,40 @@ export interface OutboxActions {
   onSendNow: (outboxId: string) => void
 }
 
+/**
+ * A photo or file the person sent from this phone. A photo shows from the
+ * phone's copy, or as a chip once that copy is gone.
+ */
+function SentAttachment({ attachment }: { attachment: Attachment }) {
+  const { colors } = useHermesTheme()
+  const [missing, setMissing] = useState(false)
+
+  if (attachment.kind === 'image' && !missing) {
+    return (
+      <Image
+        accessibilityLabel={attachment.name}
+        onError={() => setMissing(true)}
+        source={{ uri: attachment.uri }}
+        style={styles.sentImage}
+        testID={`sent-${attachment.name}`}
+      />
+    )
+  }
+
+  return (
+    <View style={[styles.mediaChip, { borderColor: colors.outline }]} testID={`sent-${attachment.name}`}>
+      <Icon color={colors.onSurfaceVariant} size={16} source={attachment.kind === 'image' ? 'image' : 'file-document'} />
+      <Text numberOfLines={1} style={[styles.flex, { color: colors.onSurfaceVariant }]} variant="bodySmall">
+        {attachment.name}
+      </Text>
+    </View>
+  )
+}
+
 function UserBubble({ actions, item }: { actions: OutboxActions; item: UserItem }) {
   const { colors } = useHermesTheme()
-  const segments = useMemo(() => parseMediaSegments(item.text), [item.text])
+  // A message of only photos has no text to draw.
+  const segments = useMemo(() => (item.text ? parseMediaSegments(item.text) : []), [item.text])
   const waiting = item.state === 'waiting' && (actions.offline || item.sendFailed)
 
   return (
@@ -37,6 +69,7 @@ function UserBubble({ actions, item }: { actions: OutboxActions; item: UserItem 
           item.state === 'waiting' || item.state === 'old' ? styles.faded : null
         ]}
       >
+        {item.attachments?.map(attachment => <SentAttachment attachment={attachment} key={attachment.uri} />)}
         {segments.map((segment, index) =>
           segment.kind === 'text' ? (
             <Text key={index} selectable variant="bodyMedium">
@@ -367,6 +400,7 @@ const styles = StyleSheet.create({
   mediaPlaceholder: { alignItems: 'center', alignSelf: 'flex-start', borderRadius: 8, height: 120, justifyContent: 'center', marginVertical: space.step, width: 220 },
   note: { alignItems: 'center', flexDirection: 'row', gap: space.step * 2, paddingHorizontal: space.screen, paddingVertical: space.step },
   outboxRow: { alignItems: 'center', flexDirection: 'row', gap: space.step },
+  sentImage: { borderRadius: 8, height: 160, marginVertical: space.step, width: 160 },
   // Paper's IconButton has a 6 dp margin; the first button lines up with the reply's text.
   turnAction: { margin: 0 },
   turnActions: { flexDirection: 'row', gap: space.step, marginLeft: -8, marginTop: space.step },

@@ -47,6 +47,9 @@
 // prompt.submit with `confirm_truncate` and `truncate_before_row_id` drops that
 // user row and everything after it before the turn runs, as Retry does.
 // session.history lists the saved rows with their row ids.
+//
+// image.attach_bytes and file.attach take uploads; the next reply starts by
+// naming what arrived.
 
 import { randomBytes } from 'node:crypto'
 import http from 'node:http'
@@ -541,6 +544,16 @@ async function runTurn(entry, text) {
     await sleep(300)
     emit(entry, 'reasoning.delta', { text: 'I should check the files first.' })
 
+    // Say what was attached, so a client can see its uploads arrived.
+    const images = entry.attachedImages ?? []
+    const files = [...text.matchAll(/@file:(\S+)/g)].map(match => match[1])
+    entry.attachedImages = []
+
+    if (images.length || files.length) {
+      const got = [...images.map(name => `the picture ${name}`), ...files.map(name => `the file ${name}`)].join(' and ')
+      await streamText(entry, `I got ${got}. `, 30)
+    }
+
     if (lower.includes('fail')) {
       await streamText(entry, 'Let me try that…', 60)
       status = 'error'
@@ -629,8 +642,8 @@ async function runTurn(entry, text) {
 
     const slow = lower.includes('slow')
     await streamText(entry, REPLY_INTRO, slow ? 120 : 40)
-    emit(entry, 'message.interim', { text: REPLY_INTRO, already_streamed: true })
-    saveRow(entry.storedId, 'assistant', REPLY_INTRO)
+    emit(entry, 'message.interim', { text: entry.inflight.assistant, already_streamed: true })
+    saveRow(entry.storedId, 'assistant', entry.inflight.assistant)
     entry.inflight.assistant = ''
     await runTool(entry, 'read_file', { path: 'build/settings.toml' }, 'Read 12 lines', 'cache_dir = "/var/cache/build"\nmax_size = 20\nkeep_days = 14', '--- a/settings.toml\n+++ b/settings.toml\n@@ -1,2 +1,2 @@\n-max_size = 10\n+max_size = 20')
     const body = slow ? `${REPLY_BODY}\n\n${REPLY_BODY}\n\n${REPLY_BODY}` : REPLY_BODY
@@ -799,6 +812,36 @@ function handleRpc(client, frame) {
       void runTurn(entry, String(params.text ?? ''))
 
       return reply({ status: 'streaming' })
+    }
+
+    case 'image.attach_bytes': {
+      const entry = live.get(params.session_id)
+      const base64 = String(params.content_base64 ?? params.data ?? '')
+
+      if (!entry || !base64) {
+        return fail(4004, entry ? 'no image bytes' : 'session not found', entry ? undefined : { reason: 'not_found' })
+      }
+
+      const name = String(params.filename ?? 'image.png')
+      entry.attachedImages = [...(entry.attachedImages ?? []), name]
+      console.log(`image.attach_bytes ${name}: ${Math.round((base64.length * 3) / 4 / 1024)} KB`)
+
+      return reply({ attached: true, name, path: `/tmp/hermes-images/${name}`, count: entry.attachedImages.length })
+    }
+
+    case 'file.attach': {
+      const entry = live.get(params.session_id)
+      const dataUrl = String(params.data_url ?? '')
+
+      if (!entry || !dataUrl.startsWith('data:')) {
+        return fail(4004, entry ? 'no file bytes' : 'session not found', entry ? undefined : { reason: 'not_found' })
+      }
+
+      const name = String(params.name ?? 'file')
+      const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
+      console.log(`file.attach ${name}: ${Math.round((base64.length * 3) / 4 / 1024)} KB`)
+
+      return reply({ attached: true, name, path: `/work/uploads/${name}`, ref_path: `uploads/${name}`, ref_text: `@file:uploads/${name}`, uploaded: true })
     }
 
     case 'session.history': {

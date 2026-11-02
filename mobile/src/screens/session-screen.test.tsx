@@ -18,6 +18,17 @@ jest.mock('../background/permission-dialogs', () => ({ askBackgroundPermissions:
 jest.mock('../background/wiring', () => ({ $onScreen: jest.requireActual<typeof import('nanostores')>('nanostores').atom(null) }))
 jest.mock('expo-router', () => ({ router: { back: jest.fn(), canGoBack: () => true, replace: jest.fn() } }))
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }))
+jest.mock('@/chat/attachments', () => ({
+  readAttachment: jest.fn(() => Promise.resolve('QUJD')),
+  attachmentExists: () => true,
+  discardAttachment: jest.fn(),
+  pruneAttachments: jest.fn()
+}))
+jest.mock('@/chat/pick-attachments', () => ({
+  pickPhotos: jest.fn(() => Promise.resolve([{ kind: 'image', uri: 'file:///app/beds.jpg', name: 'beds.jpg', mime: 'image/jpeg' }])),
+  takePhoto: jest.fn(() => Promise.resolve([])),
+  pickFiles: jest.fn(() => Promise.resolve([{ kind: 'file', uri: 'file:///app/plan.pdf', name: 'plan.pdf', mime: 'application/pdf' }]))
+}))
 
 const metrics = { frame: { x: 0, y: 0, width: 400, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }
 
@@ -108,5 +119,36 @@ describe('Copy and Retry under replies', () => {
 
     expect(screen.queryByTestId('copy-reply')).toBeNull()
     expect(screen.queryByTestId('retry')).toBeNull()
+  })
+})
+
+describe('attaching photos and files', () => {
+  const attach = async (choice: string) => {
+    fireEvent.press(screen.getByTestId('attach'))
+    fireEvent.press(await screen.findByText(choice))
+  }
+
+  it('sends a picked photo, with no text needed', async () => {
+    await attach('Photos')
+
+    expect(await screen.findByTestId('attachment-beds.jpg')).toBeTruthy()
+    expect(screen.getByTestId('send').props.accessibilityState?.disabled).toBeFalsy()
+
+    fireEvent.press(screen.getByTestId('send'))
+
+    await waitFor(() => expect(g.submitted).toHaveLength(1))
+    expect(g.calls[0]).toMatchObject({ method: 'image.attach_bytes', params: { filename: 'beds.jpg' } })
+    expect(screen.queryByTestId('attachment-beds.jpg')).toBeNull()
+  })
+
+  it('removes a picked file, and deletes its copy', async () => {
+    const { discardAttachment } = jest.requireMock<{ discardAttachment: jest.Mock }>('@/chat/attachments')
+    await attach('File')
+    await screen.findByTestId('attachment-plan.pdf')
+
+    fireEvent.press(screen.getByLabelText('Remove plan.pdf'))
+
+    await waitFor(() => expect(screen.queryByTestId('attachment-plan.pdf')).toBeNull())
+    expect(discardAttachment).toHaveBeenCalledWith(expect.objectContaining({ name: 'plan.pdf' }))
   })
 })

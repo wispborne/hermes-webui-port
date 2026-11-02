@@ -2,6 +2,8 @@
 // Built from the gateway's transcript rows, then kept up to date by the
 // streamed events (see stream.ts).
 
+import type { Attachment } from './attachments'
+
 export interface UserItem {
   kind: 'user'
   key: string
@@ -19,6 +21,8 @@ export interface UserItem {
    */
   duringTurn?: boolean
   outboxId?: string
+  /** Photos and files sent with the message from this phone. */
+  attachments?: Attachment[]
   /** Sending failed with the gateway reachable, for example because the session was deleted. */
   sendFailed?: boolean
 }

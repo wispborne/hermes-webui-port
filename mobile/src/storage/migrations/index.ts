@@ -15,5 +15,6 @@ import { sessions } from './0002-sessions'
 import { transcriptsAndOutbox } from './0003-transcripts-and-outbox'
 import { outboxRetry } from './0004-outbox-retry'
 import { sessionsPinned } from './0005-sessions-pinned'
+import { outboxAttachments } from './0006-outbox-attachments'
 
-export const migrations: readonly Migration[] = [meta, sessions, transcriptsAndOutbox, outboxRetry, sessionsPinned]
+export const migrations: readonly Migration[] = [meta, sessions, transcriptsAndOutbox, outboxRetry, sessionsPinned, outboxAttachments]

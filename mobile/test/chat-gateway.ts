@@ -27,6 +27,8 @@ export class ChatGateway {
   readonly submitted: { storedId: string; text: string }[] = []
   /** The full `prompt.submit` params, in the same order as `submitted`. */
   readonly submitParams: Record<string, unknown>[] = []
+  /** `image.attach_bytes` and `file.attach` calls, and the `prompt.submit`s, in the order they came. */
+  readonly calls: { method: string; params: Record<string, unknown> }[] = []
   /** Matches the handshake recording, so the first reconnect isn't taken for a restart. */
   epoch = 'test-epoch'
   private restarts = 0
@@ -106,9 +108,25 @@ export class ChatGateway {
 
       this.submitted.push({ storedId: live.storedId, text })
       this.submitParams.push(params)
+      this.calls.push({ method: 'prompt.submit', params })
       this.addRow(live.storedId, 'user', text)
 
       return this.onSubmit(live, text, frame)
+    })
+
+    h.methods.set('image.attach_bytes', frame => {
+      const params = frame.params as Record<string, unknown>
+      this.calls.push({ method: 'image.attach_bytes', params })
+
+      return { attached: true, name: params.filename, path: `/tmp/${String(params.filename)}`, count: 1 }
+    })
+
+    h.methods.set('file.attach', frame => {
+      const params = frame.params as Record<string, unknown>
+      const name = String(params.name)
+      this.calls.push({ method: 'file.attach', params })
+
+      return { attached: true, name, path: `/work/uploads/${name}`, ref_path: `uploads/${name}`, ref_text: `@file:uploads/${name}`, uploaded: true }
     })
 
     h.methods.set('session.history', frame => {

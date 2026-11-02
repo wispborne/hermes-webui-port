@@ -1,3 +1,5 @@
+import type { Attachment } from '@/chat/attachments'
+
 import type { GatewayDatabase } from './database'
 
 /**
@@ -16,8 +18,10 @@ export interface OutboxEntry {
   /** Unix seconds. */
   createdAt: number
   state: 'waiting' | 'sending' | 'uncertain'
-  /** Sent with Retry: the gateway drops the failed turn it repeats first, if it can. */
+  /** Sent with Retry: the gateway drops the turn it repeats first, if it can. */
   retry?: boolean
+  /** Photos and files uploaded just before the message. */
+  attachments?: Attachment[]
 }
 
 interface SavedEntry {
@@ -27,6 +31,7 @@ interface SavedEntry {
   created_at: number
   state: OutboxEntry['state']
   retry: number
+  attachments: string | null
 }
 
 const fromSaved = (row: SavedEntry): OutboxEntry => ({
@@ -35,18 +40,20 @@ const fromSaved = (row: SavedEntry): OutboxEntry => ({
   text: row.text,
   createdAt: row.created_at,
   state: row.state,
-  ...(row.retry ? { retry: true } : {})
+  ...(row.retry ? { retry: true } : {}),
+  ...(row.attachments ? { attachments: JSON.parse(row.attachments) as Attachment[] } : {})
 })
 
 export async function addToOutbox(db: GatewayDatabase, entry: OutboxEntry) {
   await db.runAsync(
-    'INSERT INTO outbox (id, session_key, text, created_at, state, retry) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO outbox (id, session_key, text, created_at, state, retry, attachments) VALUES (?, ?, ?, ?, ?, ?, ?)',
     entry.id,
     entry.sessionKey,
     entry.text,
     entry.createdAt,
     entry.state,
-    entry.retry ? 1 : 0
+    entry.retry ? 1 : 0,
+    entry.attachments?.length ? JSON.stringify(entry.attachments) : null
   )
 }
 

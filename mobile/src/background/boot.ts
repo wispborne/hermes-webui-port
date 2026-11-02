@@ -5,6 +5,7 @@ import 'react-native-url-polyfill/auto'
 
 import { AppRegistry } from 'react-native'
 
+import { pruneAttachments } from '@/chat/attachments'
 import { startApp } from '@/store/gateway'
 // These stores wire themselves to the gateway when it opens, so they load first.
 import '@/store/chat'
@@ -24,3 +25,9 @@ AppRegistry.registerHeadlessTask(TIMERS_TASK, () => () => new Promise<void>(() =
 
 startBackground()
 void startApp().catch((error: unknown) => console.warn('The start check failed', error))
+
+try {
+  pruneAttachments()
+} catch (error) {
+  console.warn('Could not delete old attachments', error)
+}

@@ -26,6 +26,14 @@
       "expo-secure-store",
       "expo-sqlite",
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Hermes uses the camera when you take a photo to send.",
+          "microphonePermission": false,
+          "photosPermission": "Hermes reads the photos you choose to send."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

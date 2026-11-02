@@ -1,6 +1,7 @@
 // The chat store against a scripted fake gateway: opening, streaming,
 // sending, Stop, the outbox and catching up after a reconnect.
 
+import type { Attachment } from '@/chat/attachments'
 import type { AssistantItem, ChatItem } from '@/chat/items'
 import { loadOutbox } from '@/storage/outbox'
 import { loadTranscript, markOpened, SAVED_TRANSCRIPT_LIMIT, saveTranscript } from '@/storage/transcripts'
@@ -23,6 +24,12 @@ import { ChatGateway, type Row } from './chat-gateway'
 import { type Harness, signedInHarness, until } from './harness'
 
 jest.mock('../modules/hermes-background', () => ({ flushCookies: jest.fn(), clearCookies: jest.fn() }))
+jest.mock('@/chat/attachments', () => ({
+  readAttachment: jest.fn(() => Promise.resolve('QUJD')),
+  attachmentExists: () => true,
+  discardAttachment: jest.fn(),
+  pruneAttachments: jest.fn()
+}))
 
 let h: Harness
 let g: ChatGateway
@@ -235,6 +242,58 @@ describe('sending', () => {
     expect(storedId).toBe('new-1')
     expect(g.submitted).toEqual([{ storedId: 'new-1', text: 'Start something' }])
     expect(texts(chatStore(storedId).get().items)).toEqual(['user: Start something'])
+  })
+})
+
+describe('attachments', () => {
+  const photo: Attachment = { kind: 'image', uri: 'file:///app/beds.jpg', name: 'beds.jpg', mime: 'image/jpeg' }
+  const plan: Attachment = { kind: 'file', uri: 'file:///app/plan.pdf', name: 'plan.pdf', mime: 'application/pdf' }
+
+  beforeEach(async () => {
+    g.addSession('s1', [['user', 'Hi']])
+    await openChat('s1')
+  })
+
+  it('uploads a photo and a file before the message, and puts the file in the message', async () => {
+    await sendMessage('s1', 'What should I plant here?', [photo, plan])
+    await until(() => g.submitted.length === 1)
+
+    expect(g.calls.map(call => call.method)).toEqual(['image.attach_bytes', 'file.attach', 'prompt.submit'])
+    expect(g.calls[0].params).toMatchObject({ session_id: 'rt-1', content_base64: 'QUJD', filename: 'beds.jpg' })
+    expect(g.calls[1].params).toMatchObject({ session_id: 'rt-1', name: 'plan.pdf', data_url: 'data:application/pdf;base64,QUJD' })
+    expect(g.submitted[0].text).toBe('@file:uploads/plan.pdf\n\nWhat should I plant here?')
+    expect(items('s1').at(-1)).toMatchObject({ kind: 'user', text: 'What should I plant here?', attachments: [photo, plan] })
+  })
+
+  it("sends a photo on its own with the desktop's question", async () => {
+    await sendMessage('s1', '', [photo])
+    await until(() => g.submitted.length === 1)
+
+    expect(g.submitted[0].text).toBe('What do you see in this image?')
+  })
+
+  it('keeps attachments in the outbox while offline, and sends them when the gateway is back', async () => {
+    await goOffline()
+    await sendMessage('s1', 'Later', [photo])
+
+    expect((await loadOutbox(h.db))[0].attachments).toEqual([photo])
+
+    await comeBack()
+    await until(() => g.submitted.length === 1)
+
+    expect(g.calls.map(call => call.method)).toEqual(['image.attach_bytes', 'prompt.submit'])
+  })
+
+  it('sends the photo again with Retry', async () => {
+    await sendMessage('s1', 'What is this?', [photo])
+    await until(() => g.submitted.length === 1)
+    g.reply('s1', 'A raised bed.')
+    await until(() => !chatStore('s1').get().running && texts(items('s1')).at(-1) === 'assistant: A raised bed.')
+
+    await retryTurn('s1')
+    await until(() => g.submitted.length === 2)
+
+    expect(g.calls.map(call => call.method)).toEqual(['image.attach_bytes', 'prompt.submit', 'image.attach_bytes', 'prompt.submit'])
   })
 })
 

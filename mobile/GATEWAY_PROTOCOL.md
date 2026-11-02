@@ -396,7 +396,11 @@ The result is `{"status": "interrupted" | "not_interrupted"}`. The turn then end
 - `session.history` (`{"session_id": "<runtime id>"}`) lists the saved rows as `{role, text, row_id, display_kind, ...}`. The app cuts only when the last user row without a `display_kind` has the failed message's text, and uses that row's id. Otherwise it sends the text with no cut. The desktop's `resolveDurableRowId` in `apps/desktop/src/app/session/hooks/use-prompt-actions/rewind.ts` follows the same rule: never guess a cut.
 - The response adds `survivor_user_row_ids`, the user rows left after the cut.
 
-**Images:** `image.attach_bytes` sends an image as base64 to attach to the next message. See `ImageAttachBytesParams`.
+**Photos and files:** upload them to the Live session just before `prompt.submit`, as the desktop does for a remote gateway (`apps/desktop/src/app/session/hooks/use-prompt-actions/index.ts`):
+
+- A photo: `image.attach_bytes` with `{session_id, content_base64, filename}`. The gateway holds it for the next turn. The answer has `attached: true`.
+- Any other file: `file.attach` with `{session_id, name, data_url}`. The answer's `ref_text` (such as `@file:uploads/plan.pdf`) goes on its own line before the message text.
+- A message of only photos is sent with the text `What do you see in this image?`, as the desktop does.
 
 **Slash commands:** `commands.catalog` lists them and `slash.exec` runs one. See the notes in `apps/desktop/src/AGENTS.md` under "Slash commands".
 

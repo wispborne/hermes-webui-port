@@ -3,13 +3,16 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list'
 import { router } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { KeyboardAvoidingView, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Appbar, Button, IconButton, Text, TextInput } from 'react-native-paper'
+import { ActivityIndicator, Appbar, Button, IconButton, Snackbar, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { type DisplayItem, displayItems } from '@/chat/activity'
+import { type Attachment, discardAttachment } from '@/chat/attachments'
+import { pickFiles, pickPhotos, takePhoto } from '@/chat/pick-attachments'
 import { turnEnds } from '@/chat/turns'
 import { askBackgroundPermissions } from '@/background/permission-dialogs'
 import { $onScreen } from '@/background/wiring'
+import { AttachDialog, type AttachSource, PendingAttachments } from '@/components/chat/composer-attachments'
 import { PromptCards } from '@/components/chat/prompt-cards'
 import { type OutboxActions, TranscriptItem } from '@/components/chat/transcript-items'
 import { OfflineBanner } from '@/components/offline-banner'
@@ -47,6 +50,9 @@ export function SessionScreen({ id }: SessionScreenProps) {
   const rows = useStore($sessionRows)
   const status = useConnectionStatus()
   const [draft, setDraft] = useState('')
+  const [pending, setPending] = useState<Attachment[]>([])
+  const [attachOpen, setAttachOpen] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   // While a Question is open, it's answered in its card, and the message box waits.
   const answering = Boolean(useStore($prompts)[key]?.question)
   const list = useRef<FlashListRef<DisplayItem>>(null)
@@ -99,14 +105,37 @@ export function SessionScreen({ id }: SessionScreenProps) {
   const retry = useCallback(() => void retryTurn(key).then(() => list.current?.scrollToEnd({ animated: true })), [key])
   const row = rows.find(found => found.id === chat.storedId)
   const title = chat.title ?? (row ? sessionHeading(row) : id === 'new' ? t('sidebar.nav.new-session') : '')
-  const canSend = !answering && draft.trim() !== ''
+  const canSend = !answering && (draft.trim() !== '' || pending.length > 0)
+
+  const attachFrom = async (source: AttachSource) => {
+    setAttachOpen(false)
+
+    try {
+      const picked = await (source === 'photos' ? pickPhotos() : source === 'camera' ? takePhoto() : pickFiles())
+
+      if (picked === null) {
+        setNotice(t('app.chat.cameraRefused'))
+      } else {
+        setPending(current => [...current, ...picked])
+      }
+    } catch (error) {
+      console.warn('Could not add the attachment', error)
+      setNotice(t('app.chat.attachFailed'))
+    }
+  }
+
+  const remove = (attachment: Attachment) => {
+    setPending(current => current.filter(found => found.uri !== attachment.uri))
+    discardAttachment(attachment)
+  }
 
   const send = () => {
     const text = draft.trim()
 
-    if (text) {
+    if (text || pending.length) {
       setDraft('')
-      void sendMessage(key, text).then(() => list.current?.scrollToEnd({ animated: true }))
+      setPending([])
+      void sendMessage(key, text, pending).then(() => list.current?.scrollToEnd({ animated: true }))
 
       // The first message is when background use starts to matter: explain and ask once.
       if (!loadAppSettings().backgroundAsked) {
@@ -167,7 +196,16 @@ export function SessionScreen({ id }: SessionScreenProps) {
           )}
         </View>
         <PromptCards sessionKey={key} />
+        <PendingAttachments attachments={pending} onRemove={remove} />
         <View style={[styles.composer, { borderColor: colors.outline }]}>
+          <IconButton
+            accessibilityLabel={t('app.chat.attach')}
+            disabled={answering}
+            icon="paperclip"
+            onPress={() => setAttachOpen(true)}
+            style={styles.composerButton}
+            testID="attach"
+          />
           <TextInput
             autoFocus={id === 'new'}
             contentStyle={styles.inputText}
@@ -208,6 +246,10 @@ export function SessionScreen({ id }: SessionScreenProps) {
           ) : null}
         </View>
       </KeyboardAvoidingView>
+      <AttachDialog onChoose={source => void attachFrom(source)} onDismiss={() => setAttachOpen(false)} visible={attachOpen} />
+      <Snackbar duration={4000} onDismiss={() => setNotice(null)} visible={notice !== null}>
+        {notice ?? ''}
+      </Snackbar>
     </SafeAreaView>
   )
 }
