@@ -25,6 +25,13 @@ describe('displayItems', () => {
     expect((shown[2] as AssistantItem).text).toBe('Here it is.')
   })
 
+  it('keeps the stopped mark of a reply that only had thinking', () => {
+    const shown = displayItems([user('u'), thought('a', { stopped: true })], false)
+
+    expect(kinds(shown)).toEqual(['user', 'activity(1)', 'assistant'])
+    expect((shown[2] as AssistantItem).stopped).toBe(true)
+  })
+
   it('starts a new block after a message between tool calls', () => {
     const shown = displayItems([tool('t1'), reply('r1'), tool('t2')], false)
 

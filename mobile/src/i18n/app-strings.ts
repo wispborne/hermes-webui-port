@@ -44,6 +44,8 @@ export const appStrings = {
     oldMessage: 'Waited more than a day.',
     sendNow: 'Send now',
     discard: 'Discard',
+    stopped: 'Stopped',
+    sendAgain: 'Send again',
     notSaved: "This session isn't saved on this phone. It loads when the gateway can be reached.",
     arguments: 'Arguments',
     result: 'Result',

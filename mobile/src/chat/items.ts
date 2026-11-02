@@ -31,6 +31,8 @@ export interface AssistantItem {
   streaming?: boolean
   /** The turn failed. The desktop's "Turn failed" wording, with this message. */
   error?: string
+  /** The person stopped the turn. Set on its last reply, which may have no text. */
+  stopped?: boolean
   rowId?: number
 }
 
@@ -63,6 +65,22 @@ let nextKey = 0
 
 /** A key for an item made on the phone. Items from the gateway use their row id. */
 export const newKey = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(nextKey++).toString(36)}`
+
+/**
+ * The text of the message whose turn failed, while that failed turn is the
+ * last thing in the session. "Send again" sends it as a new message.
+ */
+export function failedMessage(items: ChatItem[]): string | null {
+  const last = items.at(-1)
+
+  if (last?.kind !== 'assistant' || !last.error) {
+    return null
+  }
+
+  const asked = items.findLast(item => item.kind === 'user')
+
+  return asked ? asked.text : null
+}
 
 /** Text from a gateway field that may be a string, a list of parts, or something else. */
 export function gatewayText(value: unknown): string {

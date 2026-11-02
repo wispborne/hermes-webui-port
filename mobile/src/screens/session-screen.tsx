@@ -7,6 +7,7 @@ import { ActivityIndicator, Appbar, Button, IconButton, Text, TextInput } from '
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { type DisplayItem, displayItems } from '@/chat/activity'
+import { failedMessage } from '@/chat/items'
 import { askBackgroundPermissions } from '@/background/permission-dialogs'
 import { $onScreen } from '@/background/wiring'
 import { PromptCards } from '@/components/chat/prompt-cards'
@@ -90,6 +91,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
     [key, status]
   )
 
+  const failed = chat.running ? null : failedMessage(chat.items)
   const row = rows.find(found => found.id === chat.storedId)
   const title = chat.title ?? (row ? sessionHeading(row) : id === 'new' ? t('sidebar.nav.new-session') : '')
   const canSend = answering ? answerText.trim() !== '' : draft.trim() !== ''
@@ -145,6 +147,16 @@ export function SessionScreen({ id }: SessionScreenProps) {
                       {chat.status ?? t('assistant.thread.thinking')}
                     </Text>
                   </View>
+                ) : failed ? (
+                  <Button
+                    compact
+                    icon="refresh"
+                    onPress={() => void sendMessage(key, failed).then(() => list.current?.scrollToEnd({ animated: true }))}
+                    style={styles.sendAgain}
+                    testID="send-again"
+                  >
+                    {t('app.chat.sendAgain')}
+                  </Button>
                 ) : (
                   <View style={styles.footerSpace} />
                 )
@@ -231,6 +243,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, maxHeight: 160 },
   // On Android, Paper gives a multiline box without a label no top or bottom padding, so the text sat at the top.
   inputText: { paddingBottom: INPUT_TEXT_PADDING, paddingTop: INPUT_TEXT_PADDING },
+  sendAgain: { alignSelf: 'flex-start', marginBottom: space.listGap, marginHorizontal: space.screen - space.step },
   status: { alignItems: 'center', flexDirection: 'row', gap: space.listGap, paddingHorizontal: space.screen, paddingVertical: space.listGap },
   title: { fontSize: 16 }
 })

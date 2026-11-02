@@ -258,3 +258,17 @@ describe('a reply with no deliverable', () => {
     expect(screen.queryByTestId(/^media-/)).toBeNull()
   })
 })
+
+describe('a stopped reply', () => {
+  it('says it was stopped, even with no text', async () => {
+    await show(reply('', { stopped: true }))
+
+    expect(screen.getByText('Stopped')).toBeTruthy()
+  })
+
+  it('has no stopped label when the turn finished', async () => {
+    await show(reply('Done.'))
+
+    expect(screen.queryByText('Stopped')).toBeNull()
+  })
+})

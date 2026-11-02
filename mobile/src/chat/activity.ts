@@ -93,7 +93,7 @@ export function displayItems(items: ChatItem[], running: boolean, previous?: Rea
 
         steps.push(thinkingOf(item))
 
-        if (item.text || item.error) {
+        if (item.text || item.error || item.stopped) {
           closeBlock()
           shown.push(replyOf(item))
         }

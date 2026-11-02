@@ -1,7 +1,7 @@
 import longReply from '../../test/fixtures/long-reply.json'
 
 import type { AssistantItem, ToolItem } from './items'
-import { itemsFromRows } from './items'
+import { failedMessage, itemsFromRows } from './items'
 import { appendReasoning, appendReply, applyEvent, type StreamState, withInflight } from './stream'
 
 const empty: StreamState = { items: [], running: false, status: null, title: null }
@@ -27,7 +27,13 @@ const summary = (state: StreamState) =>
   state.items.map(item => {
     switch (item.kind) {
       case 'assistant':
-        return { reply: item.text, ...(item.reasoning ? { reasoning: item.reasoning } : {}), ...(item.error ? { error: item.error } : {}), ...(item.streaming ? { streaming: true } : {}) }
+        return {
+          reply: item.text,
+          ...(item.reasoning ? { reasoning: item.reasoning } : {}),
+          ...(item.error ? { error: item.error } : {}),
+          ...(item.streaming ? { streaming: true } : {}),
+          ...(item.stopped ? { stopped: true } : {})
+        }
       case 'tool':
         return { tool: item.name, running: item.running, summary: item.summary }
       case 'user':
@@ -131,7 +137,21 @@ describe('a streamed turn', () => {
       ['message.complete', { text: '', status: 'interrupted' }]
     ])
 
-    expect(summary(state)).toEqual([{ reply: 'Half a rep' }, { tool: 'terminal', running: false, summary: undefined }])
+    expect(summary(state)).toEqual([
+      { reply: 'Half a rep' },
+      { tool: 'terminal', running: false, summary: undefined },
+      { reply: '', stopped: true }
+    ])
+  })
+
+  it('marks the reply being written as stopped', () => {
+    const state = play([
+      ['message.start'],
+      ['message.delta', { text: 'Half a rep' }],
+      ['message.complete', { text: 'Half a rep', status: 'interrupted' }]
+    ])
+
+    expect(summary(state)).toEqual([{ reply: 'Half a rep', stopped: true }])
   })
 
   it('splits reply blocks at a null delta', () => {
@@ -199,6 +219,24 @@ describe('a streamed turn', () => {
 
     expect(state.running).toBe(true)
     expect(summary(state)).toEqual([{ user: 'Earlier' }, { user: 'Plan the beds' }, { reply: 'You need six', streaming: true }])
+  })
+})
+
+describe('failedMessage', () => {
+  it('gives the message whose turn failed, while that turn is the last thing in the session', () => {
+    const items = itemsFromRows([
+      { role: 'user', content: 'Plan the beds', row_id: 1 },
+      { role: 'assistant', content: 'Six beds.', row_id: 2 },
+      { role: 'user', content: 'And the roses?', row_id: 3 }
+    ])
+    const failed = play([['message.start'], ['message.complete', { text: '', status: 'error', error: 'The provider answered 500.' }]], {
+      ...empty,
+      items
+    })
+
+    expect(failedMessage(failed.items)).toBe('And the roses?')
+    expect(failedMessage(items)).toBeNull()
+    expect(failedMessage([...failed.items, { kind: 'user', key: 'u4', text: 'Anyone?' }])).toBeNull()
   })
 })
 

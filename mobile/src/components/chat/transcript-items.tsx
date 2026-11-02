@@ -252,6 +252,7 @@ function AssistantBubble({ item }: { item: AssistantItem }) {
           </Text>
         </View>
       ) : null}
+      {item.stopped ? <Label icon="stop-circle-outline" text={t('app.chat.stopped')} /> : null}
     </View>
   )
 }

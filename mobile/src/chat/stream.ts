@@ -227,6 +227,15 @@ function applyTurnEvent(state: StreamState, type: string, payload: Payload): Str
       // A stopped turn can leave tools marked as running.
       items = sealStreaming(items).map(item => (item.kind === 'tool' && item.running ? { ...item, running: false } : item))
 
+      if (payload?.status === 'interrupted') {
+        const last = items.at(-1)
+
+        items =
+          last?.kind === 'assistant'
+            ? replaceAt(items, items.length - 1, { ...last, stopped: true })
+            : [...items, { kind: 'assistant', key: newKey('reply'), text: '', stopped: true }]
+      }
+
       return { ...state, items, running: false, status: null }
     }
 
