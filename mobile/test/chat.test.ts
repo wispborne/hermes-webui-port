@@ -13,12 +13,13 @@ import {
   newLocalKey,
   openChat,
   processOutbox,
+  retryTurn,
   sendMessage,
   stopTurn
 } from '@/store/chat'
 import { $markers } from '@/store/sessions'
 
-import { ChatGateway } from './chat-gateway'
+import { ChatGateway, type Row } from './chat-gateway'
 import { type Harness, signedInHarness, until } from './harness'
 
 jest.mock('../modules/hermes-background', () => ({ flushCookies: jest.fn(), clearCookies: jest.fn() }))
@@ -234,6 +235,70 @@ describe('sending', () => {
     expect(storedId).toBe('new-1')
     expect(g.submitted).toEqual([{ storedId: 'new-1', text: 'Start something' }])
     expect(texts(chatStore(storedId).get().items)).toEqual(['user: Start something'])
+  })
+})
+
+describe('Retry', () => {
+  /** Opens a session with these rows, sends `text`, and fails its turn. */
+  const failedTurn = async (rows: [Row['role'], string][], text: string) => {
+    g.addSession('s1', rows)
+    await openChat('s1')
+    await sendMessage('s1', text)
+    await until(() => g.submitted.length === 1)
+    g.emit('s1', 'message.start')
+    g.emit('s1', 'message.complete', { text: '', status: 'error', error: 'The provider answered 500.' })
+    await until(() => Boolean((items('s1').at(-1) as AssistantItem | undefined)?.error) && !chatStore('s1').get().running)
+  }
+
+  const rowOf = (text: string) => g.rows.get('s1')!.find(row => row.role === 'user' && row.content === text)!.row_id
+
+  it('replaces the failed turn with a new one', async () => {
+    await failedTurn([['user', 'Plan the beds'], ['assistant', 'Six beds.']], 'And the roses?')
+    const failedRow = rowOf('And the roses?')
+
+    await retryTurn('s1')
+    await until(() => g.submitted.length === 2)
+
+    expect(g.submitParams[1]).toMatchObject({ text: 'And the roses?', confirm_truncate: true, truncate_before_row_id: failedRow })
+    expect(g.submitParams[1].confirm_empty_truncate).toBeUndefined()
+    expect(g.rows.get('s1')!.map(row => row.content)).toEqual(['Plan the beds', 'Six beds.', 'And the roses?'])
+    await until(() => texts(items('s1')).join('|') === 'user: Plan the beds|assistant: Six beds.|user: And the roses?')
+  })
+
+  it("confirms the empty transcript when the failed message was the session's first", async () => {
+    await failedTurn([], 'Plan the beds')
+
+    await retryTurn('s1')
+    await until(() => g.submitted.length === 2)
+
+    expect(g.submitParams[1]).toMatchObject({ confirm_truncate: true, confirm_empty_truncate: true, truncate_before_row_id: expect.any(Number) })
+    expect(g.rows.get('s1')!.map(row => row.content)).toEqual(['Plan the beds'])
+  })
+
+  it('sends the message again without a cut when the gateway has no such last message, and keeps the failed turn', async () => {
+    await failedTurn([['user', 'Plan the beds'], ['assistant', 'Six beds.']], 'And the roses?')
+    g.rows.get('s1')!.splice(2)
+
+    await retryTurn('s1')
+    await until(() => g.submitted.length === 2)
+
+    expect(g.submitParams[1].truncate_before_row_id).toBeUndefined()
+    await until(() => texts(items('s1')).slice(-3).join('|') === 'user: And the roses?|assistant: |user: And the roses?')
+  })
+
+  it('makes the cut when a Retry made offline is sent', async () => {
+    await failedTurn([['user', 'Plan the beds'], ['assistant', 'Six beds.']], 'And the roses?')
+    const failedRow = rowOf('And the roses?')
+    await goOffline()
+
+    await retryTurn('s1')
+    expect(texts(items('s1')).at(-1)).toBe('user: And the roses? (waiting)')
+
+    await comeBack()
+    await until(() => g.submitted.length === 2)
+
+    expect(g.submitParams[1]).toMatchObject({ confirm_truncate: true, truncate_before_row_id: failedRow })
+    await untilOutboxEmpty()
   })
 })
 

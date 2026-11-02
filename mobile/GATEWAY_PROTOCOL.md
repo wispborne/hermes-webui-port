@@ -378,6 +378,16 @@ Don't send `submission_id` or other fields the desktop's canonical path uses. Th
 
 The result is `{"status": "interrupted" | "not_interrupted"}`. The turn then ends with `message.complete` and status `interrupted`.
 
+**Retry a failed turn:** send the same text with a cut, which drops a user message and everything after it before the new turn starts:
+
+```json
+{ "method": "prompt.submit", "params": { "session_id": "<runtime id>", "text": "Hello", "confirm_truncate": true, "truncate_before_row_id": 42 } }
+```
+
+- `truncate_before_row_id` is the row id of the user message to drop. A cut that leaves the transcript empty also needs `confirm_empty_truncate: true`.
+- `session.history` (`{"session_id": "<runtime id>"}`) lists the saved rows as `{role, text, row_id, display_kind, ...}`. The app cuts only when the last user row without a `display_kind` has the failed message's text, and uses that row's id. Otherwise it sends the text with no cut. The desktop's `resolveDurableRowId` in `apps/desktop/src/app/session/hooks/use-prompt-actions/rewind.ts` follows the same rule: never guess a cut.
+- The response adds `survivor_user_row_ids`, the user rows left after the cut.
+
 **Images:** `image.attach_bytes` sends an image as base64 to attach to the next message. See `ImageAttachBytesParams`.
 
 **Slash commands:** `commands.catalog` lists them and `slash.exec` runs one. See the notes in `apps/desktop/src/AGENTS.md` under "Slash commands".
@@ -661,6 +671,6 @@ The app keeps the directive in its own text and in the saved transcript exactly 
 
 - The canonical protocol (`hermes-gateway-v1`, `session.mutate`, `execution_generation`). The desktop uses it only on its private local connection.
 - Profiles beyond the default one. Most methods take an optional `profile`, and REST routes take `?profile=`.
-- Message editing, regenerating and branching (`prompt.submit` truncation fields, `session.branch`).
+- Message editing and branching (`session.branch`). Retry, the one cut the app makes, is in section 7.
 - Cron jobs, skills, settings, plugins, files and the other REST areas the desktop uses. `apps/desktop/src/api/` has a file per area.
 - Voice.

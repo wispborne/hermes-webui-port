@@ -19,7 +19,7 @@ import { JsonRpcGatewayError } from '@hermes/shared/json-rpc-channel'
 import type { GatewayEvent } from '@hermes/shared/json-rpc-gateway'
 import { atom, type WritableAtom } from 'nanostores'
 
-import { type ChatItem, itemsFromRows, newKey, type UserItem } from '@/chat/items'
+import { type ChatItem, failedMessage, gatewayText, itemsFromRows, newKey, type UserItem } from '@/chat/items'
 import { appendReasoning, appendReply, applyEvent, type StreamState, withInflight } from '@/chat/stream'
 import {
   type CreateAnswer,
@@ -587,9 +587,34 @@ export async function loadEarlier(key: string) {
  * Sends a message. It's saved in the outbox first and shown at once; the
  * outbox sends it now if the gateway can be reached, or when it can.
  */
-export async function sendMessage(key: string, text: string) {
+export function sendMessage(key: string, text: string) {
+  return queueMessage(key, text, false)
+}
+
+/**
+ * Retry: sends the message whose turn failed again. When it's sent, the
+ * gateway drops the failed turn first, if that message is still the session's
+ * last (see `retryCut`). Otherwise it goes as a new message and the failed
+ * turn stays.
+ */
+export async function retryTurn(key: string) {
+  const text = failedMessage(chatStore(key).get().items)
+
+  if (text !== null) {
+    await queueMessage(key, text, true)
+  }
+}
+
+async function queueMessage(key: string, text: string, retry: boolean) {
   const gateway = gatewayOrThrow()
-  const entry: OutboxEntry = { id: newKey('out'), sessionKey: key, text, createdAt: Date.now() / 1000, state: 'waiting' }
+  const entry: OutboxEntry = {
+    id: newKey('out'),
+    sessionKey: key,
+    text,
+    createdAt: Date.now() / 1000,
+    state: 'waiting',
+    ...(retry ? { retry: true } : {})
+  }
 
   await addToOutbox(gateway.db, entry)
   update(key, state => ({
@@ -626,6 +651,49 @@ export function confirmOldOutboxMessage(key: string, outboxId: string) {
   confirmedOld.add(outboxId)
   setOutboxItem(key, outboxId, item => ({ ...item, state: 'waiting' }))
   void processOutbox()
+}
+
+/**
+ * The `prompt.submit` fields that drop the failed turn a Retry repeats. The
+ * failed message must be the session's last saved user message, with the
+ * same text. Anything else gives null, and the Retry goes without a cut: a
+ * cut placed by guess could delete turns.
+ */
+async function retryCut(gateway: GatewayContext, runtimeId: string, text: string): Promise<Record<string, unknown> | null> {
+  let messages: unknown[]
+
+  try {
+    const answer = await gateway.connection.client.request<{ messages?: unknown }>('session.history', { session_id: runtimeId })
+    messages = Array.isArray(answer?.messages) ? answer.messages : []
+  } catch {
+    return null
+  }
+
+  const users = (messages as { role?: unknown; display_kind?: unknown; row_id?: unknown; text?: unknown; content?: unknown }[]).filter(
+    message => message.role === 'user' && !message.display_kind && Number.isInteger(message.row_id)
+  )
+  const last = users.at(-1)
+
+  if (!last || gatewayText(last.text ?? last.content).trim() !== text.trim()) {
+    return null
+  }
+
+  return {
+    confirm_truncate: true,
+    truncate_before_row_id: last.row_id,
+    // The failed message was the session's first: the cut leaves it empty.
+    ...(users.length === 1 ? { confirm_empty_truncate: true } : {})
+  }
+}
+
+/** After a Retry's cut: the failed turn goes from the screen too. It's everything from its message up to the Retry. */
+function dropFailedTurn(key: string, outboxId: string) {
+  update(key, state => {
+    const retry = state.items.findIndex(item => item.kind === 'user' && item.outboxId === outboxId)
+    const failed = state.items.findLastIndex((item, index) => index < retry && item.kind === 'user')
+
+    return failed < 0 ? state : { ...state, items: [...state.items.slice(0, failed), ...state.items.slice(retry)] }
+  })
 }
 
 function setOutboxItem(key: string, outboxId: string, change: (item: UserItem) => UserItem) {
@@ -721,7 +789,10 @@ async function sendOutbox() {
         key = await createSession(key, gateway)
       }
 
-      if (entry.state === 'uncertain') {
+      // A Retry has the same text as the failed message, so this check can't
+      // tell them apart. It's sent again instead: its cut drops a copy that
+      // did arrive, along with the failed turn.
+      if (entry.state === 'uncertain' && !entry.retry) {
         if (await wasDelivered(entry, key, gateway)) {
           await removeFromOutbox(gateway.db, entry.id)
           setOutboxItem(key, entry.id, item => ({ ...item, state: undefined, outboxId: undefined }))
@@ -758,9 +829,14 @@ async function submit(key: string, entry: OutboxEntry, gateway: GatewayContext, 
   setOutboxItem(key, entry.id, item => ({ ...item, state: undefined, sendFailed: undefined }))
 
   let answer: SubmitAnswer
+  const cut = entry.retry && runtimeId ? await retryCut(gateway, runtimeId, entry.text) : null
 
   try {
-    answer = await client.request<SubmitAnswer>('prompt.submit', { session_id: runtimeId, text: entry.text }, PROMPT_SUBMIT_TIMEOUT_MS)
+    answer = await client.request<SubmitAnswer>(
+      'prompt.submit',
+      { session_id: runtimeId, text: entry.text, ...cut },
+      PROMPT_SUBMIT_TIMEOUT_MS
+    )
   } catch (error) {
     // The Live session was dropped: resume it once and try again.
     if (!retried && isSessionGone(error)) {
@@ -774,6 +850,11 @@ async function submit(key: string, entry: OutboxEntry, gateway: GatewayContext, 
   }
 
   await removeFromOutbox(gateway.db, entry.id)
+
+  if (cut) {
+    dropFailedTurn(key, entry.id)
+  }
+
   setOutboxItem(key, entry.id, item => ({ ...item, outboxId: undefined, state: answer?.status === 'queued' ? 'queued' : undefined }))
 
   if (answer?.status === 'streaming') {

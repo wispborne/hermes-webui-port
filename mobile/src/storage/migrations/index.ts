@@ -13,5 +13,6 @@ import type { Migration } from '../migrate'
 import { meta } from './0001-meta'
 import { sessions } from './0002-sessions'
 import { transcriptsAndOutbox } from './0003-transcripts-and-outbox'
+import { outboxRetry } from './0004-outbox-retry'
 
-export const migrations: readonly Migration[] = [meta, sessions, transcriptsAndOutbox]
+export const migrations: readonly Migration[] = [meta, sessions, transcriptsAndOutbox, outboxRetry]

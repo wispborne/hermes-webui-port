@@ -41,7 +41,7 @@ Sending a note into a running turn. Hermes reads it at its next step. It doesn't
 _Avoid_: Redirect, interject, nudge
 
 **Retry**:
-Running the person's last message again, replacing Hermes's reply to it.
+Running the person's last message again after its turn failed, replacing the failed turn. If the gateway no longer has that message as the session's last, the message is sent again and the failed turn stays.
 _Avoid_: Regenerate, rerun
 
 **Stop**:

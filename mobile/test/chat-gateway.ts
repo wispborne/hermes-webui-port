@@ -25,6 +25,8 @@ export class ChatGateway {
   readonly rows = new Map<string, Row[]>()
   readonly live = new Map<string, Live>()
   readonly submitted: { storedId: string; text: string }[] = []
+  /** The full `prompt.submit` params, in the same order as `submitted`. */
+  readonly submitParams: Record<string, unknown>[] = []
   /** Matches the handshake recording, so the first reconnect isn't taken for a restart. */
   epoch = 'test-epoch'
   private restarts = 0
@@ -85,10 +87,35 @@ export class ChatGateway {
         return undefined
       }
 
+      const params = frame.params as Record<string, unknown>
+      const cutAt = params.truncate_before_row_id
+
+      // Retry: the cut drops that user row and everything after it.
+      if (typeof cutAt === 'number') {
+        const rows = this.rows.get(live.storedId) ?? []
+        const index = rows.findIndex(row => row.row_id === cutAt && row.role === 'user')
+
+        if (!params.confirm_truncate || index < 0 || (index === 0 && !params.confirm_empty_truncate)) {
+          h.gateway.send(rpcError(frame, 4004, 'truncation refused'))
+
+          return undefined
+        }
+
+        rows.splice(index)
+      }
+
       this.submitted.push({ storedId: live.storedId, text })
+      this.submitParams.push(params)
       this.addRow(live.storedId, 'user', text)
 
       return this.onSubmit(live, text, frame)
+    })
+
+    h.methods.set('session.history', frame => {
+      const live = this.live.get((frame.params as { session_id: string }).session_id)
+      const messages = (live ? (this.rows.get(live.storedId) ?? []) : []).map(row => ({ role: row.role, text: row.content, row_id: row.row_id }))
+
+      return { count: messages.length, messages }
     })
 
     h.methods.set('session.interrupt', frame => {

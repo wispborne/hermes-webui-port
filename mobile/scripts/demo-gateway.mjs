@@ -40,6 +40,10 @@
 //
 // `/memory` through command.dispatch answers with the same text as hermes-agent
 // v0.22.5, from a few made-up pending memories. Approve and reject remove them.
+//
+// prompt.submit with `confirm_truncate` and `truncate_before_row_id` drops that
+// user row and everything after it before the turn runs, as Retry does.
+// session.history lists the saved rows with their row ids.
 
 import { randomBytes } from 'node:crypto'
 import http from 'node:http'
@@ -741,6 +745,36 @@ function handleRpc(client, frame) {
         return fail(4004, 'session not found', { reason: 'not_found' })
       }
 
+      const cutAt = params.truncate_before_row_id
+
+      if (cutAt != null) {
+        if (!params.confirm_truncate) {
+          return fail(4004, 'truncation needs confirm_truncate')
+        }
+
+        if (entry.running) {
+          return fail(4009, 'session busy')
+        }
+
+        const rows = transcripts.get(entry.storedId)
+        const index = rows.findIndex(row => row.id === cutAt && row.role === 'user')
+
+        if (index < 0) {
+          return fail(4004, 'truncation target not found')
+        }
+
+        if (index === 0 && !params.confirm_empty_truncate) {
+          return fail(4004, 'truncating to an empty transcript needs confirm_empty_truncate')
+        }
+
+        console.log(`truncated ${rows.length - index} rows before row ${cutAt}`)
+        rows.splice(index)
+        sessions.get(entry.storedId).message_count = rows.length
+        void runTurn(entry, String(params.text ?? ''))
+
+        return reply({ status: 'streaming', survivor_user_row_ids: rows.filter(row => row.role === 'user').map(row => row.id) })
+      }
+
       if (entry.running) {
         entry.queue ??= []
         entry.queue.push(String(params.text ?? ''))
@@ -751,6 +785,18 @@ function handleRpc(client, frame) {
       void runTurn(entry, String(params.text ?? ''))
 
       return reply({ status: 'streaming' })
+    }
+
+    case 'session.history': {
+      const entry = live.get(params.session_id)
+
+      if (!entry) {
+        return fail(4004, 'session not found', { reason: 'not_found' })
+      }
+
+      const messages = transcripts.get(entry.storedId).map(row => ({ role: row.role, text: row.content, timestamp: row.timestamp, row_id: row.id }))
+
+      return reply({ count: messages.length, messages })
     }
 
     case 'session.interrupt': {

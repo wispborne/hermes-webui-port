@@ -16,6 +16,8 @@ export interface OutboxEntry {
   /** Unix seconds. */
   createdAt: number
   state: 'waiting' | 'sending' | 'uncertain'
+  /** Sent with Retry: the gateway drops the failed turn it repeats first, if it can. */
+  retry?: boolean
 }
 
 interface SavedEntry {
@@ -24,6 +26,7 @@ interface SavedEntry {
   text: string
   created_at: number
   state: OutboxEntry['state']
+  retry: number
 }
 
 const fromSaved = (row: SavedEntry): OutboxEntry => ({
@@ -31,17 +34,19 @@ const fromSaved = (row: SavedEntry): OutboxEntry => ({
   sessionKey: row.session_key,
   text: row.text,
   createdAt: row.created_at,
-  state: row.state
+  state: row.state,
+  ...(row.retry ? { retry: true } : {})
 })
 
 export async function addToOutbox(db: GatewayDatabase, entry: OutboxEntry) {
   await db.runAsync(
-    'INSERT INTO outbox (id, session_key, text, created_at, state) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO outbox (id, session_key, text, created_at, state, retry) VALUES (?, ?, ?, ?, ?, ?)',
     entry.id,
     entry.sessionKey,
     entry.text,
     entry.createdAt,
-    entry.state
+    entry.state,
+    entry.retry ? 1 : 0
   )
 }
 

@@ -24,6 +24,7 @@ import {
   loadEarlier,
   newLocalKey,
   openChat,
+  retryTurn,
   sendMessage,
   stopTurn
 } from '@/store/chat'
@@ -91,7 +92,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
     [key, status]
   )
 
-  const failed = chat.running ? null : failedMessage(chat.items)
+  const canRetry = !chat.running && failedMessage(chat.items) !== null
   const row = rows.find(found => found.id === chat.storedId)
   const title = chat.title ?? (row ? sessionHeading(row) : id === 'new' ? t('sidebar.nav.new-session') : '')
   const canSend = answering ? answerText.trim() !== '' : draft.trim() !== ''
@@ -147,15 +148,15 @@ export function SessionScreen({ id }: SessionScreenProps) {
                       {chat.status ?? t('assistant.thread.thinking')}
                     </Text>
                   </View>
-                ) : failed ? (
+                ) : canRetry ? (
                   <Button
                     compact
                     icon="refresh"
-                    onPress={() => void sendMessage(key, failed).then(() => list.current?.scrollToEnd({ animated: true }))}
-                    style={styles.sendAgain}
-                    testID="send-again"
+                    onPress={() => void retryTurn(key).then(() => list.current?.scrollToEnd({ animated: true }))}
+                    style={styles.retry}
+                    testID="retry"
                   >
-                    {t('app.chat.sendAgain')}
+                    {t('common.retry')}
                   </Button>
                 ) : (
                   <View style={styles.footerSpace} />
@@ -243,7 +244,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, maxHeight: 160 },
   // On Android, Paper gives a multiline box without a label no top or bottom padding, so the text sat at the top.
   inputText: { paddingBottom: INPUT_TEXT_PADDING, paddingTop: INPUT_TEXT_PADDING },
-  sendAgain: { alignSelf: 'flex-start', marginBottom: space.listGap, marginHorizontal: space.screen - space.step },
+  retry: { alignSelf: 'flex-start', marginBottom: space.listGap, marginHorizontal: space.screen - space.step },
   status: { alignItems: 'center', flexDirection: 'row', gap: space.listGap, paddingHorizontal: space.screen, paddingVertical: space.listGap },
   title: { fontSize: 16 }
 })
