@@ -81,6 +81,17 @@ describe('an activity block', () => {
     expect(screen.queryByText(/Then check the tests/)).toBeNull()
   })
 
+  it('shows the thought being written in a scrolling window, from a whole line', async () => {
+    const lines = Array.from({ length: 400 }, (_, index) => `Line ${index} of the plan.`).join('\n')
+    await show(block([thinking({ streaming: true, text: lines })], true))
+
+    const shown = screen.getByText(/Line 399 of the plan\.$/).props.children as string
+
+    expect(screen.getByTestId('live-thinking')).toBeTruthy()
+    expect(shown).toMatch(/^Line \d+ of the plan\./)
+    expect(shown).not.toContain('…')
+  })
+
   it('opens a running tool call to show its arguments, and closes it when it finishes', async () => {
     const update = await show(block([readFile({ running: true, result: undefined })], true))
 

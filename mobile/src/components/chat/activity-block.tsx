@@ -1,6 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { useRef, useState } from 'react'
+import { type NativeScrollEvent, type NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { ActivityIndicator, Icon, Text } from 'react-native-paper'
 import { useRecyclingState } from '@shopify/flash-list'
+import { parseColor } from '@hermes/shared/color'
 
 import { type ActivityItem, type ActivityStep, inProgress, type ThinkingStep } from '@/chat/activity'
 import type { ToolItem } from '@/chat/items'
@@ -32,8 +34,36 @@ const TOOL_ICONS: Record<string, string> = {
   write_file: 'file-edit-outline'
 }
 
-/** Live thinking shows only its last part, so a long thought doesn't push the screen around. */
-const LIVE_THINKING_CHARS = 800
+/**
+ * Thinking being written shows in a window this many lines tall, which
+ * scrolls itself to the newest line, as in the Claude and ChatGPT apps. The
+ * screen doesn't move while the thought grows.
+ */
+const LIVE_THINKING_LINES = 6
+const THINKING_LINE_HEIGHT = 16
+const LIVE_THINKING_HEIGHT = LIVE_THINKING_LINES * THINKING_LINE_HEIGHT
+
+/** The window holds only this much of a long thought, from its end, so each new word stays quick to draw. */
+const LIVE_THINKING_CHARS = 4000
+
+/** The end of a long thought, cut at a line break so it starts with a whole line. */
+function thoughtEnd(text: string) {
+  if (text.length <= LIVE_THINKING_CHARS) {
+    return text
+  }
+
+  const end = text.slice(-LIVE_THINKING_CHARS)
+  const lineStart = end.indexOf('\n')
+
+  return lineStart >= 0 ? end.slice(lineStart + 1) : end
+}
+
+/** The colour with nothing of it showing, for a fade into it. */
+function clear(color: string) {
+  const rgb = parseColor(color)
+
+  return rgb ? `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)` : 'transparent'
+}
 
 const toolIcon = (name: string) => TOOL_ICONS[name] ?? (name.startsWith('browser_') ? 'web' : 'wrench-outline')
 
@@ -125,10 +155,51 @@ function StepLine({
   )
 }
 
-function Thinking({ auto, onToggle, open, step }: { auto: boolean; onToggle: () => void; open: boolean; step: ThinkingStep }) {
+/**
+ * The thought being written, in a short window that keeps its newest line in
+ * view. Older lines fade out at the top. Scrolling up in the window stops it
+ * following, and scrolling back to the bottom starts it again.
+ */
+function LiveThinking({ text }: { text: string }) {
+  const { colors } = useHermesTheme()
+  const scroll = useRef<ScrollView>(null)
+  const following = useRef(true)
+  const [scrolled, setScrolled] = useState(false)
+
+  const onScroll = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = nativeEvent
+    following.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - THINKING_LINE_HEIGHT
+    setScrolled(contentOffset.y > 0)
+  }
+
+  return (
+    <View style={[styles.thinkingFrame, { borderColor: colors.outline }]} testID="live-thinking">
+      <ScrollView
+        nestedScrollEnabled
+        onContentSizeChange={() => following.current && scroll.current?.scrollToEnd({ animated: false })}
+        onScroll={onScroll}
+        ref={scroll}
+        scrollEventThrottle={32}
+        showsVerticalScrollIndicator={false}
+        style={styles.liveThinking}
+      >
+        <Text selectable style={[styles.thinkingLines, { color: colors.onSurfaceVariant }]} variant="bodySmall">
+          {thoughtEnd(text)}
+        </Text>
+      </ScrollView>
+      {scrolled ? (
+        <View
+          pointerEvents="none"
+          style={[styles.fade, { experimental_backgroundImage: `linear-gradient(to bottom, ${colors.background}, ${clear(colors.background)})` }]}
+        />
+      ) : null}
+    </View>
+  )
+}
+
+function Thinking({ onToggle, open, step }: { onToggle: () => void; open: boolean; step: ThinkingStep }) {
   const { colors } = useHermesTheme()
   const text = step.text.trim()
-  const shown = auto && text.length > LIVE_THINKING_CHARS ? `…${text.slice(-LIVE_THINKING_CHARS)}` : text
 
   return (
     <View>
@@ -141,10 +212,13 @@ function Thinking({ auto, onToggle, open, step }: { auto: boolean; onToggle: () 
         testID={step.key}
         title={step.streaming ? t('assistant.thread.thinking') : t('assistant.thread.thought')}
       />
-      {open ? (
-        <Text selectable style={[styles.thinkingText, { borderColor: colors.outline, color: colors.onSurfaceVariant }]} variant="bodySmall">
-          {shown}
-        </Text>
+      {open && step.streaming ? <LiveThinking text={text} /> : null}
+      {open && !step.streaming ? (
+        <View style={[styles.thinkingFrame, { borderColor: colors.outline }]}>
+          <Text selectable style={[styles.thinkingLines, { color: colors.onSurfaceVariant }]} variant="bodySmall">
+            {text}
+          </Text>
+        </View>
       ) : null}
     </View>
   )
@@ -197,12 +271,11 @@ export function ActivityBlock({ item }: { item: ActivityItem }) {
   const [chosen, setChosen] = useRecyclingState<Record<string, boolean>>({}, [item.key])
 
   const render = (step: ActivityStep) => {
-    const auto = chosen[step.key] === undefined
     const open = chosen[step.key] ?? (item.live && inProgress(step))
     const onToggle = () => setChosen(current => ({ ...current, [step.key]: !open }))
 
     return step.kind === 'thinking' ? (
-      <Thinking auto={auto} key={step.key} onToggle={onToggle} open={open} step={step} />
+      <Thinking key={step.key} onToggle={onToggle} open={open} step={step} />
     ) : (
       <Tool item={step} key={step.key} onToggle={onToggle} open={open} />
     )
@@ -219,7 +292,10 @@ const styles = StyleSheet.create({
   mono: { fontFamily: 'monospace', fontSize: 12, lineHeight: 16, padding: space.listGap },
   monoBlock: { gap: 2 },
   monoScroll: { borderRadius: 6, maxHeight: 240 },
-  thinkingText: { borderLeftWidth: 2, marginBottom: space.step, marginLeft: space.screen + space.listGap, marginRight: space.screen, paddingLeft: space.listGap },
+  fade: { height: THINKING_LINE_HEIGHT * 2, left: 0, position: 'absolute', right: 0, top: 0 },
+  liveThinking: { maxHeight: LIVE_THINKING_HEIGHT },
+  thinkingFrame: { borderLeftWidth: 2, marginBottom: space.step, marginLeft: space.screen + space.listGap, marginRight: space.screen, paddingLeft: space.listGap },
+  thinkingLines: { lineHeight: THINKING_LINE_HEIGHT },
   title: { fontWeight: '600' },
   toolBody: { gap: space.listGap, paddingBottom: space.listGap, paddingLeft: space.screen + 16 + space.listGap, paddingRight: space.screen }
 })
