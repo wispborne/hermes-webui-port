@@ -39,7 +39,7 @@ export interface ResumeAnswer {
   stored_session_id?: string | null
   running?: boolean | null
   inflight?: { user?: string; assistant?: string } | null
-  info?: { title?: string | null } | null
+  info?: { title?: string | null; model?: string | null; provider?: string | null } | null
   open_requests?: { id: string; method: string; params: Record<string, unknown> }[] | null
   /**
    * This connection's subscription to the session. Only gateways with a
@@ -51,6 +51,7 @@ export interface ResumeAnswer {
 export interface CreateAnswer {
   session_id: string
   stored_session_id: string
+  info?: { model?: string | null; provider?: string | null } | null
 }
 
 export interface SubmitAnswer {

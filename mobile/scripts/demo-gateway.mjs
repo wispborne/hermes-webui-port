@@ -391,6 +391,15 @@ function memoryCommand(arg) {
   return 'Unknown /memory subcommand. Use: pending, approve <id>, reject <id>, approval <on|off>.'
 }
 
+// The models model.options offers. A session's pick is kept on its live entry.
+const MODEL_PROVIDERS = [
+  { slug: 'anthropic', name: 'Anthropic', authenticated: true, models: ['claude-sonnet-4-5', 'claude-opus-4-1', 'claude-haiku-4-5'] },
+  { slug: 'openrouter', name: 'OpenRouter', authenticated: true, models: ['openai/gpt-5', 'openai/gpt-5-mini', 'google/gemini-2.5-pro', 'meta/llama-old'], unavailable_models: ['meta/llama-old'] },
+  { slug: 'openai', name: 'OpenAI', authenticated: false, models: ['gpt-5'] }
+]
+const DEFAULT_MODEL = { model: 'claude-sonnet-4-5', provider: 'anthropic' }
+const EXPENSIVE_MODELS = new Set(['claude-opus-4-1'])
+
 function liveFor(storedId) {
   for (const entry of live.values()) {
     if (entry.storedId === storedId) {
@@ -398,7 +407,7 @@ function liveFor(storedId) {
     }
   }
 
-  const entry = { runtimeId: id('rt-'), storedId, seq: 0, events: [], running: false, status: 'idle', clients: new Set(), pending: new Map(), inflight: null }
+  const entry = { runtimeId: id('rt-'), storedId, seq: 0, events: [], running: false, status: 'idle', clients: new Set(), pending: new Map(), inflight: null, model: { ...DEFAULT_MODEL } }
   live.set(entry.runtimeId, entry)
 
   return entry
@@ -728,7 +737,13 @@ function handleRpc(client, frame) {
       const entry = liveFor(storedId)
       entry.clients.add(client)
 
-      return reply({ session_id: entry.runtimeId, stored_session_id: storedId, message_count: 0, messages: [], info: { model: 'demo-model' } })
+      if (params.model && params.provider) {
+        entry.model = { model: params.model, provider: params.provider }
+      }
+
+      console.log(`session.create ${storedId}: ${entry.model.model} (${entry.model.provider})`)
+
+      return reply({ session_id: entry.runtimeId, stored_session_id: storedId, message_count: 0, messages: [], info: { model: entry.model.model, provider: entry.model.provider } })
     }
 
     case 'session.resume': {
@@ -747,7 +762,7 @@ function handleRpc(client, frame) {
         message_count: transcripts.get(storedId).length,
         messages: params.omit_messages ? [] : transcripts.get(storedId).map(row => ({ role: row.role, text: row.content, timestamp: row.timestamp, row_id: row.id })),
         messages_omitted: Boolean(params.omit_messages),
-        info: { model: 'demo-model', title: sessions.get(storedId).title },
+        info: { model: entry.model.model, provider: entry.model.provider, title: sessions.get(storedId).title },
         running: entry.running,
         inflight: entry.inflight,
         open_requests: openRequests(entry),
@@ -850,6 +865,39 @@ function handleRpc(client, frame) {
       console.log(`file.attach ${name}: ${Math.round((base64.length * 3) / 4 / 1024)} KB`)
 
       return reply({ attached: true, name, path: `/work/uploads/${name}`, ref_path: `uploads/${name}`, ref_text: `@file:uploads/${name}`, uploaded: true })
+    }
+
+    case 'model.options': {
+      const entry = params.session_id ? live.get(params.session_id) : null
+      const current = entry?.model ?? DEFAULT_MODEL
+
+      return reply({ providers: MODEL_PROVIDERS, ...current })
+    }
+
+    case 'config.set': {
+      if (params.key !== 'model') {
+        return reply({ ok: true })
+      }
+
+      const entry = live.get(params.session_id)
+
+      if (!entry) {
+        return fail(4004, 'session not found', { reason: 'not_found' })
+      }
+
+      // "<model> --provider <provider> [--session]", as the desktop sends it.
+      const [model, ...flags] = String(params.value ?? '').trim().split(/\s+/)
+      const provider = flags[flags.indexOf('--provider') + 1] ?? entry.model.provider
+
+      if (EXPENSIVE_MODELS.has(model) && !params.confirm_expensive_model) {
+        return reply({ confirm_required: true, confirm_message: `${model} costs about five times as much per message. Switch anyway?` })
+      }
+
+      entry.model = { model, provider }
+      console.log(`config.set model ${entry.storedId}: ${model} (${provider})${entry.running ? ', from the next turn' : ''}`)
+      emit(entry, 'session.info', { model, provider })
+
+      return reply({ ok: true, value: model, ...(entry.running ? { deferred: true } : {}) })
     }
 
     case 'session.history': {

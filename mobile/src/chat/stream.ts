@@ -13,6 +13,20 @@ export interface StreamState {
   /** A short status line from `status.update`, shown while the turn runs. */
   status: string | null
   title: string | null
+  /** The model the session uses, from the gateway's `session.info`. */
+  model?: SessionModel | null
+}
+
+export interface SessionModel {
+  model: string
+  provider: string | null
+}
+
+/** The model in a `session.info` payload or a resume answer's `info`, if it names one. */
+export function sessionModel(info: Payload | null): SessionModel | null {
+  const model = optionalText(info?.model)
+
+  return model ? { model, provider: optionalText(info?.provider) ?? null } : null
 }
 
 type Payload = Record<string, unknown> | undefined
@@ -269,6 +283,9 @@ function applyTurnEvent(state: StreamState, type: string, payload: Payload): Str
         ? { ...state, items: [...state.items, { kind: 'note', key: newKey('note'), text: message, tone: 'error' }] }
         : state
     }
+
+    case 'session.info':
+      return { ...state, model: sessionModel(payload) ?? state.model }
 
     case 'session.title':
       return { ...state, title: optionalText(payload?.title) ?? state.title }

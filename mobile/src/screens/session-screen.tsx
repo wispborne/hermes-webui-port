@@ -3,7 +3,7 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list'
 import { router } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { KeyboardAvoidingView, StyleSheet, View } from 'react-native'
-import { ActivityIndicator, Appbar, Button, IconButton, Snackbar, Text, TextInput } from 'react-native-paper'
+import { ActivityIndicator, Appbar, Button, Icon, IconButton, Snackbar, Text, TextInput } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { type DisplayItem, displayItems } from '@/chat/activity'
@@ -13,6 +13,7 @@ import { turnEnds } from '@/chat/turns'
 import { askBackgroundPermissions } from '@/background/permission-dialogs'
 import { $onScreen } from '@/background/wiring'
 import { AttachDialog, type AttachSource, PendingAttachments } from '@/components/chat/composer-attachments'
+import { ModelPicker } from '@/components/chat/model-picker'
 import { PromptCards } from '@/components/chat/prompt-cards'
 import { type OutboxActions, TranscriptItem } from '@/components/chat/transcript-items'
 import { OfflineBanner } from '@/components/offline-banner'
@@ -20,6 +21,7 @@ import { sessionHeading } from '@/components/session-list-row'
 import { useConnectionStatus } from '@/hooks/use-connection-status'
 import { useFollowBottom } from '@/hooks/use-follow-bottom'
 import { t } from '@/i18n/t'
+import { displayModelName } from '@/lib/model-names'
 import {
   cancelOutboxMessage,
   chatStore,
@@ -34,6 +36,7 @@ import {
 } from '@/store/chat'
 import { loadAppSettings } from '@/storage/app-settings'
 import { $prompts } from '@/store/prompts'
+import { learnSessionModel } from '@/store/models'
 import { $sessionRows } from '@/store/sessions'
 import { space } from '@/theme/compact'
 import { useHermesTheme } from '@/theme/use-hermes-theme'
@@ -54,6 +57,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
   const [pending, setPending] = useState<Attachment[]>([])
   const [attachOpen, setAttachOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [modelOpen, setModelOpen] = useState(false)
   // While a Question is open, it's answered in its card, and the message box waits.
   const answering = Boolean(useStore($prompts)[key]?.question)
   const list = useRef<FlashListRef<DisplayItem>>(null)
@@ -78,6 +82,13 @@ export function SessionScreen({ id }: SessionScreenProps) {
       }
     }
   }, [key])
+
+  // A new session shows the model it will start with.
+  useEffect(() => {
+    if (status === 'open' && !chat.model) {
+      void learnSessionModel(key).catch((error: unknown) => console.warn('Could not load the model', error))
+    }
+  }, [chat.model, key, status])
 
   // A new session was created on the gateway: move to its own route.
   useEffect(() => {
@@ -150,7 +161,25 @@ export function SessionScreen({ id }: SessionScreenProps) {
     <SafeAreaView edges={['bottom']} style={styles.fill}>
       <Appbar.Header mode="small">
         <Appbar.BackAction onPress={() => (router.canGoBack() ? router.back() : router.replace('/sessions'))} />
-        <Appbar.Content title={title} titleStyle={styles.title} />
+        <Appbar.Content
+          onPress={() => setModelOpen(true)}
+          testID="session-header"
+          title={
+            <View>
+              <Text numberOfLines={1} style={styles.title} variant="titleMedium">
+                {title}
+              </Text>
+              {chat.model ? (
+                <View style={styles.modelLine}>
+                  <Text numberOfLines={1} style={{ color: colors.onSurfaceVariant }} testID="session-model" variant="labelMedium">
+                    {displayModelName(chat.model.model)}
+                  </Text>
+                  <Icon color={colors.onSurfaceVariant} size={16} source="menu-down" />
+                </View>
+              ) : null}
+            </View>
+          }
+        />
       </Appbar.Header>
       <OfflineBanner />
       <KeyboardAvoidingView behavior="padding" style={styles.fill}>
@@ -249,6 +278,13 @@ export function SessionScreen({ id }: SessionScreenProps) {
           ) : null}
         </View>
       </KeyboardAvoidingView>
+      <ModelPicker
+        current={chat.model ? { model: chat.model.model, provider: chat.model.provider ?? '' } : null}
+        onDismiss={() => setModelOpen(false)}
+        onNotice={setNotice}
+        sessionKey={key}
+        visible={modelOpen}
+      />
       <AttachDialog onChoose={source => void attachFrom(source)} onDismiss={() => setAttachOpen(false)} visible={attachOpen} />
       <Snackbar duration={4000} onDismiss={() => setNotice(null)} visible={notice !== null}>
         {notice ?? ''}
@@ -284,5 +320,6 @@ const styles = StyleSheet.create({
   // On Android, Paper gives a multiline box without a label no top or bottom padding, so the text sat at the top.
   inputText: { paddingBottom: INPUT_TEXT_PADDING, paddingTop: INPUT_TEXT_PADDING },
   status: { alignItems: 'center', flexDirection: 'row', gap: space.listGap, paddingHorizontal: space.screen, paddingVertical: space.listGap },
+  modelLine: { alignItems: 'center', flexDirection: 'row' },
   title: { fontSize: 16 }
 })

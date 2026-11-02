@@ -21,7 +21,7 @@ import { atom, type WritableAtom } from 'nanostores'
 
 import { type Attachment, attachmentExists, readAttachment } from '@/chat/attachments'
 import { type ChatItem, gatewayText, itemsFromRows, lastTurnMessage, newKey, type UserItem } from '@/chat/items'
-import { appendReasoning, appendReply, applyEvent, type StreamState, withInflight } from '@/chat/stream'
+import { appendReasoning, appendReply, applyEvent, type SessionModel, sessionModel, type StreamState, withInflight } from '@/chat/stream'
 import {
   type CreateAnswer,
   loadTranscriptPage,
@@ -62,6 +62,8 @@ export interface ChatSession extends StreamState {
   loadingEarlier: boolean
   /** How many gateway rows are loaded, for paging older rows. */
   gatewayRows: number
+  /** The model chosen for a session not created on the gateway yet. It's created with this model. */
+  pickedModel?: SessionModel | null
 }
 
 /** A message waits in the outbox for this long before it asks to be sent. */
@@ -478,7 +480,7 @@ export async function attach(key: string): Promise<void> {
   }
 
   update(key, state => {
-    let next: ChatSession = { ...state, runtimeId, title: answer.info?.title || state.title }
+    let next: ChatSession = { ...state, runtimeId, title: answer.info?.title || state.title, model: sessionModel(answer.info) ?? state.model }
 
     if (answer.running) {
       // Rebuild the reply in progress, unless the replayed events already show it.
@@ -779,14 +781,18 @@ const isSessionGone = (error: unknown) =>
 
 /** Creates a session made on the phone on the gateway, and moves its data to the stored id. */
 async function createSession(localKey: string, gateway: GatewayContext): Promise<string> {
-  const answer = await gateway.connection.client.request<CreateAnswer>('session.create', {})
+  const picked = chatStore(localKey).get().pickedModel
+  const answer = await gateway.connection.client.request<CreateAnswer>(
+    'session.create',
+    picked ? { model: picked.model, ...(picked.provider ? { provider: picked.provider } : {}) } : {}
+  )
   const storedId = answer.stored_session_id
 
   await moveOutboxSession(gateway.db, localKey, storedId)
 
   const local = chatStore(localKey).get()
   const store = chatStore(storedId)
-  store.set({ ...local, key: storedId, storedId, runtimeId: answer.session_id, transcript: 'loaded' })
+  store.set({ ...local, key: storedId, storedId, runtimeId: answer.session_id, transcript: 'loaded', model: sessionModel(answer.info) ?? picked ?? null, pickedModel: null })
   // The screen showing the local key follows `storedId` to the new route.
   chatStore(localKey).set({ ...local, storedId })
   byRuntimeId.set(answer.session_id, storedId)

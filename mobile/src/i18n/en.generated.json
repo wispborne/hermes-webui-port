@@ -223,6 +223,63 @@
     "send": "Send",
     "stop": "Stop"
   },
+  "desktop": {
+    "modelSwitchConfirmLabel": "Switch anyway",
+    "modelSwitchConfirmTitle": "Switch to {model}?",
+    "modelSwitchConfirmTitleFallback": "Switch models?",
+    "modelSwitchFailed": "Model switch failed",
+    "modelSwitchKeepLabel": "Keep current model"
+  },
+  "modelPicker": {
+    "title": "Switch model",
+    "current": "current:",
+    "unknown": "(unknown)",
+    "search": "Filter providers and models...",
+    "noModels": "No models found.",
+    "addProvider": "Add provider",
+    "loadFailed": "Could not load models",
+    "loadingIntoMemory": "Loading into memory",
+    "downloading": "Downloading",
+    "localDownloadsHeading": "Local",
+    "noAuthenticatedProviders": "No authenticated providers.",
+    "pro": "Pro",
+    "proNeedsSubscription": "Pro models need a paid Nous subscription.",
+    "free": "Free",
+    "freeTier": "Free tier",
+    "priceTitle": "Input / Output price per million tokens",
+    "wasPrice": "was",
+    "customModel": "Custom model",
+    "addCustomModelAction": "Add custom model…",
+    "customModelPlaceholder": "Type a model id, e.g. openai/gpt-5",
+    "today": "Today",
+    "week": "Week",
+    "month": "Month",
+    "topTier": "Large models (monthly)",
+    "included": "Every model below is included",
+    "pausedRenewal": "paused: renewal unpaid",
+    "pausedOther": "paused",
+    "includedUsedUp": "Included usage used up",
+    "limitReached": "{name} limit reached",
+    "limitNames": {
+      "day": "daily",
+      "month": "monthly",
+      "top_tier": "monthly large-model",
+      "week": "weekly"
+    },
+    "limitThenCredits": "paid models now use your credits (pay as you go)",
+    "limitThenCreditsLarge": "Large models now use your credits (pay as you go)",
+    "limitThenWait": "only Free models until then",
+    "limitThenWaitLarge": "Large models paused until then",
+    "percentUsed": "{percent} used",
+    "resetsIn": "resets in {duration}",
+    "usageLevels": {
+      "free": "Free",
+      "top_tier": "Large"
+    },
+    "sectionRecommended": "Recommended",
+    "sectionOther": "Other models",
+    "largeFootnote": "Large models also use your monthly large-model limit."
+  },
   "notifications": {
     "native": {
       "approvalTitle": "Approval needed",
@@ -636,6 +693,42 @@
         "username": "Username"
       },
       "passwordField": "Password"
+    }
+  },
+  "shell": {
+    "modelMenu": {
+      "pickDeferred": "{model} applies from your next message",
+      "search": "Search models",
+      "noModels": "No models found",
+      "editModels": "Edit models…",
+      "followDefault": "Use Settings default",
+      "refreshModels": "Refresh models",
+      "favorites": "Favorites",
+      "addFavorite": "Add to favorites",
+      "removeFavorite": "Remove from favorites",
+      "favoriteShortcut": "⇧ Click",
+      "fast": "Fast",
+      "free": "free",
+      "cacheRead": "cached read",
+      "priceTitle": "Input {input}/Mtok · Output {output}/Mtok · Cached read {cache}/Mtok",
+      "localSetup": {
+        "title": "Run locally · free, private",
+        "text": "{model} fits this machine · {size} download",
+        "action": "Set up"
+      },
+      "limited": "Limited",
+      "limitedUntil": "Limited until {time}",
+      "limitedTip": "{provider} hit its usage limit. It resets at {time}; you can still pick a model for after.",
+      "modelResets": "resets {time}",
+      "modelLimitedTip": "This model hit its own limit and resets at {time}. Other models here still work.",
+      "usageLeft": "{percent}% left · resets {time}",
+      "poolAccounts": "{count} accounts",
+      "poolLimited": "{limited}/{total} accounts limited",
+      "poolAccount": "Account {number}",
+      "poolUnknown": "Usage unavailable",
+      "poolUnavailable": "Sign in again",
+      "usageTip": "{provider} is close to its usage limit.",
+      "usageWindow": "{label}: {percent}% left, resets {time}"
     }
   },
   "sidebar": {

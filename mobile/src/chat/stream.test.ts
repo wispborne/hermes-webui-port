@@ -88,6 +88,12 @@ describe('a streamed turn', () => {
     expect(summary(done)).toEqual([{ reply: 'Let me check.' }, { reply: 'Done.', reasoning: 'Which file first?' }])
   })
 
+  it('keeps the model from session.info', () => {
+    const state = play([['session.info', { model: 'openai/gpt-5', provider: 'openrouter' }], ['session.info', { cwd: '/work' }]])
+
+    expect(state.model).toEqual({ model: 'openai/gpt-5', provider: 'openrouter' })
+  })
+
   it('shows tools as rows between the text written before and after them', () => {
     const state = play([
       ['message.start'],

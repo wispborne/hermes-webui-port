@@ -679,7 +679,18 @@ An `http(s)` image the client can't load itself can be fetched by the gateway: `
 
 The app keeps the directive in its own text and in the saved transcript exactly as the gateway wrote it, and reads the file only when it draws the message. A transcript saved on the phone therefore shows the file again when the Session is reopened, as long as the file is still there.
 
-## 15. Not covered here
+## 15. Choosing the model
+
+The desktop's model menu is the model (`apps/desktop/src/app/shell/model-catalog-menu.tsx`, `apps/desktop/src/app/session/hooks/use-model-controls.ts`).
+
+- **The list:** `model.options` with `{explicit_only: true}`, plus `session_id` (the Live session's id) for a session that exists. The answer has `providers`, each with `slug`, `name` and `models`, and `model` and `provider` for what the session, or a new session, uses now. `explicit_only` keeps to the providers the gateway is set up for.
+- **A session that exists:** `config.set` with `{session_id, key: "model", value: "<model> --provider <slug> --session"}`. `--session` changes only this session, never the profile's default. The answer can have:
+  - `deferred: true`: the session is running, and the new model starts with its next turn.
+  - `confirm_required: true` and `confirm_message`: the gateway asks first, such as for an expensive model. Ask the person, then send the same request with `confirm_expensive_model: true`.
+- **A new session:** pass `model` and `provider` to `session.create`. The desktop sends them only when the person picked a model; otherwise the gateway uses the profile's default.
+- **What the session uses:** the `info` in the `session.create` and `session.resume` answers has `model` and `provider`, and every `session.info` event carries them again, including after a switch that waited for the next turn.
+
+## 16. Not covered here
 
 - The canonical protocol (`hermes-gateway-v1`, `session.mutate`, `execution_generation`). The desktop uses it only on its private local connection.
 - Profiles beyond the default one. Most methods take an optional `profile`, and REST routes take `?profile=`.
