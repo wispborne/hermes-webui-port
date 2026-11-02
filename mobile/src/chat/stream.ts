@@ -108,6 +108,13 @@ export function appendReasoning(state: StreamState, delta: string, replace = fal
   }
 
   return aboveSentDuringTurn(state, current => {
+    const writing = current.items[streamingIndex(current.items)] as AssistantItem | undefined
+
+    // Thinking after text starts a new reply, so the thought is drawn after that text and shows as live.
+    if (!replace && writing?.text) {
+      return { ...current, items: [...sealStreaming(current.items), { kind: 'assistant', key: newKey('reply'), text: '', reasoning: delta, streaming: true, afterText: true }] }
+    }
+
     const [items, index] = withStreaming(current.items)
     const bubble = items[index] as AssistantItem
 
@@ -116,6 +123,19 @@ export function appendReasoning(state: StreamState, delta: string, replace = fal
       items: replaceAt(items, index, { ...bubble, reasoning: replace ? delta : (bubble.reasoning ?? '') + delta })
     }
   })
+}
+
+/**
+ * The text a finished reply keeps. The gateway's final text replaces what was
+ * streamed, except for a reply started by thinking after text: there the
+ * final text also holds the earlier reply's text, which is already shown.
+ */
+function finishedText(bubble: AssistantItem, finalText: string): string {
+  if (!finalText || (bubble.afterText && bubble.text && finalText.trimEnd().endsWith(bubble.text.trim()))) {
+    return bubble.text
+  }
+
+  return finalText
 }
 
 function upsertTool(items: ChatItem[], toolId: string, update: (tool: ToolItem | null) => ToolItem): ChatItem[] {
@@ -213,7 +233,7 @@ function applyTurnEvent(state: StreamState, type: string, payload: Payload): Str
 
       if (index >= 0) {
         const bubble = items[index] as AssistantItem
-        const kept = failed && !payload?.partial ? bubble.text : finalText || bubble.text
+        const kept = failed && !payload?.partial ? bubble.text : finishedText(bubble, finalText)
         items = replaceAt(items, index, { ...bubble, text: kept, error, streaming: false })
       } else {
         const lastReply = [...items].reverse().find(item => item.kind === 'assistant') as AssistantItem | undefined

@@ -18,6 +18,7 @@ import { type OutboxActions, TranscriptItem } from '@/components/chat/transcript
 import { OfflineBanner } from '@/components/offline-banner'
 import { sessionHeading } from '@/components/session-list-row'
 import { useConnectionStatus } from '@/hooks/use-connection-status'
+import { useFollowBottom } from '@/hooks/use-follow-bottom'
 import { t } from '@/i18n/t'
 import {
   cancelOutboxMessage,
@@ -56,6 +57,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
   // While a Question is open, it's answered in its card, and the message box waits.
   const answering = Boolean(useStore($prompts)[key]?.question)
   const list = useRef<FlashListRef<DisplayItem>>(null)
+  const { follow, listProps } = useFollowBottom(list)
   const shownBefore = useRef<ReadonlyMap<string, DisplayItem>>(new Map())
   const shown = useMemo(() => {
     const next = displayItems(chat.items, chat.running, shownBefore.current)
@@ -102,7 +104,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
     // Only when that reply answers the last message sent.
     return key && shown.findLastIndex(item => item.kind === 'user') < at ? key : null
   }, [chat.running, ends, shown])
-  const retry = useCallback(() => void retryTurn(key).then(() => list.current?.scrollToEnd({ animated: true })), [key])
+  const retry = useCallback(() => void retryTurn(key).then(follow), [follow, key])
   const row = rows.find(found => found.id === chat.storedId)
   const title = chat.title ?? (row ? sessionHeading(row) : id === 'new' ? t('sidebar.nav.new-session') : '')
   const canSend = !answering && (draft.trim() !== '' || pending.length > 0)
@@ -135,7 +137,7 @@ export function SessionScreen({ id }: SessionScreenProps) {
     if (text || pending.length) {
       setDraft('')
       setPending([])
-      void sendMessage(key, text, pending).then(() => list.current?.scrollToEnd({ animated: true }))
+      void sendMessage(key, text, pending).then(follow)
 
       // The first message is when background use starts to matter: explain and ask once.
       if (!loadAppSettings().backgroundAsked) {
@@ -188,7 +190,8 @@ export function SessionScreen({ id }: SessionScreenProps) {
                   </Button>
                 ) : null
               }
-              maintainVisibleContentPosition={{ startRenderingFromBottom: true, autoscrollToBottomThreshold: 0.2 }}
+              maintainVisibleContentPosition={{ startRenderingFromBottom: true }}
+              {...listProps}
               renderItem={({ item }) => (
                 <TranscriptItem actions={actions} item={item} onRetry={item.key === lastEnd ? retry : undefined} turnText={ends.get(item.key)} />
               )}

@@ -74,6 +74,20 @@ describe('a streamed turn', () => {
     expect(summary(state)).toEqual([{ reply: 'Answer.', reasoning: 'Think first.' }])
   })
 
+  it('starts a new reply for thinking that comes after text, so the thought is drawn after that text', () => {
+    const thinking = play([
+      ['message.start'],
+      ['message.delta', { text: 'Let me check.' }],
+      ['reasoning.delta', { text: 'Which file first?' }]
+    ])
+
+    expect(summary(thinking)).toEqual([{ reply: 'Let me check.' }, { reply: '', reasoning: 'Which file first?', streaming: true }])
+
+    const done = play([['message.delta', { text: 'Done.' }], ['message.complete', { text: 'Let me check.Done.', status: 'complete' }]], thinking)
+
+    expect(summary(done)).toEqual([{ reply: 'Let me check.' }, { reply: 'Done.', reasoning: 'Which file first?' }])
+  })
+
   it('shows tools as rows between the text written before and after them', () => {
     const state = play([
       ['message.start'],

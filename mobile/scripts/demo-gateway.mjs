@@ -544,6 +544,14 @@ async function runTurn(entry, text) {
     await sleep(300)
     emit(entry, 'reasoning.delta', { text: 'I should check the files first.' })
 
+    // "think" gives a long thought that streams for about 15 seconds.
+    if (lower.includes('think')) {
+      for (let line = 1; line <= 60 && !entry.stopped; line++) {
+        emit(entry, 'reasoning.delta', { text: `\n\nStep ${line}: weighing the next thing to check, and what it would rule out.` })
+        await sleep(250)
+      }
+    }
+
     // Say what was attached, so a client can see its uploads arrived.
     const images = entry.attachedImages ?? []
     const files = [...text.matchAll(/@file:(\S+)/g)].map(match => match[1])

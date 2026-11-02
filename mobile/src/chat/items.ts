@@ -37,6 +37,8 @@ export interface AssistantItem {
   error?: string
   /** The person stopped the turn. Set on its last reply, which may have no text. */
   stopped?: boolean
+  /** Started because thinking came after text in the same turn. That text is in the reply before this one. */
+  afterText?: boolean
   rowId?: number
 }
 
